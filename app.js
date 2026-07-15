@@ -222,7 +222,7 @@
             <label>Password</label>
             <input type="password" id="lock-password" placeholder="Enter password" autocomplete="current-password"/>
           </div>
-          ${showError ? `<div style="color:oklch(0.7 0.19 25);font-size:12.5px">Mali ang password. Subukan ulit.</div>` : ''}
+          ${showError ? `<div style="color:oklch(0.7 0.19 25);font-size:12.5px">Incorrect password. Please try again.</div>` : ''}
           <button type="submit" class="btn-primary" style="text-align:center">Unlock</button>
         </form>
       </div>`;
@@ -281,18 +281,23 @@
   }
 
   const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients'];
+  const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', goals: 'goals', clients: 'clients' };
 
   async function fetchRemoteState() {
-    const res = await fetch(`${SUPABASE_ROW_URL}&select=data`, {
+    const cols = Object.values(PERSIST_COLUMNS).join(',');
+    const res = await fetch(`${SUPABASE_ROW_URL}&select=${cols}`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
     });
     if (!res.ok) throw new Error('Failed to load remote state: ' + res.status);
     const rows = await res.json();
-    return rows[0] ? rows[0].data : null;
+    return rows[0] || null;
   }
-  function persist() {
+  // Persists only the PERSIST_KEYS that actually changed, each to its own column —
+  // this way a change to one entity (e.g. clients) can never clobber another (e.g. loans)
+  // even if two tabs/devices save at nearly the same time.
+  function persist(changedKeys) {
     const payload = {};
-    PERSIST_KEYS.forEach(k => { payload[k] = state[k]; });
+    changedKeys.forEach(k => { payload[PERSIST_COLUMNS[k]] = state[k]; });
     fetch(SUPABASE_ROW_URL, {
       method: 'PATCH',
       headers: {
@@ -301,7 +306,7 @@
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
-      body: JSON.stringify({ data: payload }),
+      body: JSON.stringify(payload),
     }).catch(e => console.error('Save failed', e));
   }
 
@@ -311,7 +316,8 @@
   function setState(patch) {
     const partial = typeof patch === 'function' ? patch(state) : patch;
     state = { ...state, ...partial };
-    persist();
+    const changedKeys = PERSIST_KEYS.filter(k => k in partial);
+    if (changedKeys.length) persist(changedKeys);
     render();
   }
 
@@ -402,13 +408,13 @@
     const avgDaily = monthTotal / Math.max(TODAY.getDate(), 1);
     let analysisText, analysisColor;
     if (todayTotal > avgDaily * 1.3) {
-      analysisText = `Mas magastos ka ngayon (${fmtMoney(todayTotal)}) kumpara sa average mong ${fmtMoney(Math.round(avgDaily))}/day this month.`;
+      analysisText = `You're spending more today (${fmtMoney(todayTotal)}) compared to your average of ${fmtMoney(Math.round(avgDaily))}/day this month.`;
       analysisColor = 'oklch(0.7 0.18 40)';
     } else if (todayTotal > 0 && todayTotal < avgDaily * 0.7) {
-      analysisText = `Tipid ka ngayon — ${fmtMoney(todayTotal)} lang kumpara sa average mong ${fmtMoney(Math.round(avgDaily))}/day.`;
+      analysisText = `You're spending less today — only ${fmtMoney(todayTotal)} compared to your average of ${fmtMoney(Math.round(avgDaily))}/day.`;
       analysisColor = 'oklch(0.75 0.15 160)';
     } else {
-      analysisText = `Nasa normal range ang gastos mo ngayon (${fmtMoney(todayTotal)} vs ${fmtMoney(Math.round(avgDaily))}/day average).`;
+      analysisText = `Your spending today is in the normal range (${fmtMoney(todayTotal)} vs ${fmtMoney(Math.round(avgDaily))}/day average).`;
       analysisColor = 'oklch(0.65 0.02 280)';
     }
     const decorateExpense = (e) => ({ ...e, dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) });
@@ -479,10 +485,10 @@
     const periodLabel = insightsPeriod === 'weekly' ? 'this week' : 'this month';
     const goalsAvgPercent = goalCards.length ? Math.round(goalCards.reduce((s, g) => s + g.percent, 0) / goalCards.length) : 0;
     const insightCards = [
-      { icon: '💵', title: 'Cash Flow Analysis', text: `Kumita ka ng ${fmtMoney(monthlyRevenue)} ${periodLabel === 'this week' ? 'this month so far' : 'this month'} laban sa ${fmtMoney(monthTotal)} na gastos — net profit na ${fmtMoney(netProfit)}. ${netProfit > 0 ? 'Positive cash flow, keep it up.' : 'Mas malaki gastos kumpara kita, subaybayan ang expenses.'}` },
-      { icon: '📊', title: `${insightsPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Report`, text: `${outstanding > 0 ? `May ${fmtMoney(outstanding)} pang outstanding balance sa mga shoots mo.` : 'Walang outstanding balance sa mga shoots — lahat bayad.'} ${openHigh.length > 0 ? `${openHigh.length} high-priority shoot(s) ang kailangan pa asikasuhin.` : 'Walang urgent na high-priority shoots ngayon.'}` },
-      { icon: '🎯', title: 'Goal Tracking', text: `Ang mga savings goals mo ay nasa average na ${goalsAvgPercent}% completion. Yearly income progress: ${yearlyProgressPercent}% ng ${fmtMoney(yearlyGoalIncome)} target.` },
-      { icon: '💡', title: 'Business Recommendations', text: activeClients < 3 ? 'Konti pa lang ang active clients mo — subukan mag-follow up sa mga leads na "Contacted" o "Proposal Sent" status.' : `Maganda ang client base mo (${activeClients} active). Panatilihin ang follow-up sa mga pending proposals para hindi mawala ang momentum.` },
+      { icon: '💵', title: 'Cash Flow Analysis', text: `You earned ${fmtMoney(monthlyRevenue)} ${periodLabel === 'this week' ? 'this month so far' : 'this month'} against ${fmtMoney(monthTotal)} in expenses — a net profit of ${fmtMoney(netProfit)}. ${netProfit > 0 ? 'Positive cash flow, keep it up.' : 'Expenses are outpacing income, keep an eye on spending.'}` },
+      { icon: '📊', title: `${insightsPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Report`, text: `${outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.'} ${openHigh.length > 0 ? `${openHigh.length} high-priority shoot(s) still need attention.` : 'No urgent high-priority shoots right now.'}` },
+      { icon: '🎯', title: 'Goal Tracking', text: `Your savings goals are at an average of ${goalsAvgPercent}% completion. Yearly income progress: ${yearlyProgressPercent}% of the ${fmtMoney(yearlyGoalIncome)} target.` },
+      { icon: '💡', title: 'Business Recommendations', text: activeClients < 3 ? 'You have relatively few active clients — try following up on leads marked "Contacted" or "Proposal Sent".' : `You have a solid client base (${activeClients} active). Keep following up on pending proposals to maintain momentum.` },
     ];
     const chartMax = Math.max(monthlyRevenue, monthTotal, 1);
 
@@ -1244,7 +1250,7 @@
               <span style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.primary)}</span>
               <span style="font-size:12px;color:oklch(0.6 0.02 280);flex:none">${esc(it.secondary)}</span>
             </div>`).join('')}
-          ${(!data || data.items.length === 0) ? `<div style="color:oklch(0.5 0.02 280);font-size:13px;padding:6px 4px">Wala pang laman.</div>` : ''}
+          ${(!data || data.items.length === 0) ? `<div style="color:oklch(0.5 0.02 280);font-size:13px;padding:6px 4px">Nothing here yet.</div>` : ''}
         </div>
       </div>
     </div>`;
@@ -1295,7 +1301,12 @@
       if (el) {
         el.focus();
         if (selStart != null && el.setSelectionRange) {
-          try { el.setSelectionRange(selStart, selEnd); } catch (e) { /* not a text input */ }
+          // number inputs don't support setSelectionRange directly; briefly switch
+          // to text so the cursor position restores correctly, then switch back.
+          const isNumber = el.type === 'number';
+          if (isNumber) el.type = 'text';
+          try { el.setSelectionRange(selStart, selEnd); } catch (e) { /* not a text-like input */ }
+          if (isNumber) el.type = 'number';
         }
       }
     }
@@ -1351,11 +1362,17 @@
 
       case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: 0, monthlyDue: 0, remainingBalance: 0, dueDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
-      case 'loan-delete': setState(s => ({ loans: s.loans.filter(l => l.id !== s.loanDraft.id), loanModal: null, loanDraft: null })); break;
+      case 'loan-delete':
+        if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
+        setState(s => ({ loans: s.loans.filter(l => l.id !== s.loanDraft.id), loanModal: null, loanDraft: null }));
+        break;
 
       case 'goal-add-open': setState({ goalModal: { mode: 'add' }, goalDraft: { id: null, name: '', target: 0, current: 0 } }); break;
       case 'goal-edit': openEditGoal(id); break;
-      case 'goal-delete': setState(s => ({ goals: s.goals.filter(g => g.id !== s.goalDraft.id), goalModal: null, goalDraft: null })); break;
+      case 'goal-delete':
+        if (!confirm(`Are you sure you want to delete the goal "${state.goalDraft.name || 'this goal'}"? This cannot be undone.`)) break;
+        setState(s => ({ goals: s.goals.filter(g => g.id !== s.goalDraft.id), goalModal: null, goalDraft: null }));
+        break;
 
       case 'client-add-open': setState({ clientModal: { mode: 'add' }, clientDraft: { id: null, name: '', phone: '', email: '', leadStatus: 'New Lead', followUpDate: '', notes: '' } }); break;
       case 'client-edit': openEditClient(id); break;
@@ -1571,7 +1588,12 @@
     try {
       const remote = await fetchRemoteState();
       if (remote) {
-        PERSIST_KEYS.forEach(k => { if (remote[k]) state = { ...state, [k]: remote[k] }; });
+        // null/undefined = column never saved to yet (use sample data); an actual [] means
+        // someone intentionally emptied that list, which must be respected, not overwritten.
+        PERSIST_KEYS.forEach(k => {
+          const val = remote[PERSIST_COLUMNS[k]];
+          if (val != null) state = { ...state, [k]: val };
+        });
       }
     } catch (e) {
       console.error('Failed to load shared data, showing local defaults', e);
