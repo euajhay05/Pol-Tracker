@@ -182,6 +182,63 @@
     return cells;
   }
 
+  function monthlyTotals(items, dateKey, amountKey, monthsBack) {
+    const months = [];
+    for (let i = 0; i < monthsBack; i++) {
+      const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - i, 1);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const total = items.filter(x => x[dateKey] && x[dateKey].slice(0, 7) === key).reduce((s, x) => s + (Number(x[amountKey]) || 0), 0);
+      months.push({ key, label, total });
+    }
+    return months;
+  }
+
+  /* ---------------- access lock ---------------- */
+
+  const LOCK_PASSWORD_HASH = 'd8b801bcbd0a8be19c2454a45d6600e22e02c81ef8a90e1046a66cd022b0631e';
+  const UNLOCK_KEY = 'shoottracker_unlocked_v1';
+
+  async function sha256Hex(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function isUnlocked() {
+    try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setUnlocked() {
+    try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) { /* storage unavailable */ }
+  }
+
+  function renderLockScreen(showError) {
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
+        <form id="lock-form" style="width:320px;max-width:100%;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;justify-content:center;margin-bottom:2px"><div class="logo-badge">pol.</div></div>
+          <div class="sg" style="font-weight:700;font-size:16px;text-align:center">ShootTracker</div>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="lock-password" placeholder="Enter password" autocomplete="current-password"/>
+          </div>
+          ${showError ? `<div style="color:oklch(0.7 0.19 25);font-size:12.5px">Mali ang password. Subukan ulit.</div>` : ''}
+          <button type="submit" class="btn-primary" style="text-align:center">Unlock</button>
+        </form>
+      </div>`;
+    const input = document.getElementById('lock-password');
+    input.focus();
+    document.getElementById('lock-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hash = await sha256Hex(input.value);
+      if (hash === LOCK_PASSWORD_HASH) {
+        setUnlocked();
+        init();
+      } else {
+        renderLockScreen(true);
+      }
+    });
+  }
+
   /* ---------------- state ---------------- */
 
   const STORAGE_KEY = 'shoottracker_state_v1';
@@ -365,6 +422,10 @@
     const fullTimeSharePercent = combinedTotal > 0 ? Math.round((totalFullTime / combinedTotal) * 100) : 0;
     const sideHustleSharePercent = combinedTotal > 0 ? 100 - fullTimeSharePercent : 0;
 
+    const monthlyFullTime = monthlyTotals(fullTimeIncome, 'date', 'amount', 6);
+    const monthlySideHustle = monthlyTotals(shoots, 'date', 'paid', 6);
+    const monthlyCombined = monthlyFullTime.map((m, i) => ({ key: m.key, label: m.label, total: m.total + monthlySideHustle[i].total }));
+
     const clientRows = state.clients.map(c => {
       const lm = LEAD_STATUS_META[c.leadStatus] || LEAD_STATUS_META['New Lead'];
       const linked = shoots.filter(s => s.client.trim().toLowerCase() === c.name.trim().toLowerCase());
@@ -424,6 +485,7 @@
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
       totalFullTime, monthFullTime, fullTimeRows, combinedTotal, fullTimeSharePercent, sideHustleSharePercent,
+      monthlyFullTime, monthlySideHustle, monthlyCombined,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
       chipStats, chipModalKey, chipModalData, insightsPeriod, insightCards, chartMax,
     };
@@ -682,6 +744,21 @@
 
   /* ---------------- finances ---------------- */
 
+  function monthlyBreakdownCard(title, months) {
+    const max = Math.max(1, ...months.map(m => m.total));
+    return `
+      <div class="card" style="margin-top:20px">
+        <div class="card-title">${esc(title)}</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${months.map(m => `
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.7 0.02 280)">${esc(m.label)}</span><span style="font-weight:700">${fmtMoney(m.total)}</span></div>
+              ${progressBar(Math.round((m.total / max) * 100))}
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
   function viewFinances(ctx) {
     const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${state.financeTab === key ? 'oklch(0.95 0.01 280)' : 'oklch(0.6 0.02 280)'};background:${state.financeTab === key ? 'oklch(0.72 0.19 300 / 0.2)' : 'transparent'}" data-action="finance-tab" data-tab="${key}">${label}</button>`;
 
@@ -701,7 +778,8 @@
             <div style="font-size:13.5px;color:oklch(0.75 0.15 160)">${s.paidLabel}</div>
             <div style="font-size:13.5px;font-weight:700;color:${s.balanceColor}">${s.balanceLabel}</div>
           </div>`).join('')}
-      </div>`;
+      </div>
+      ${monthlyBreakdownCard('Monthly Comparison (Side Hustle Collected)', ctx.monthlySideHustle)}`;
 
     const fullTime = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
@@ -718,14 +796,16 @@
         </form>
       </div>
       <div class="table-wrap">
-        <div class="t-head" style="grid-template-columns:2fr 1fr 1fr"><div>Source</div><div>Date</div><div>Amount</div></div>
+        <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 32px"><div>Source</div><div>Date</div><div>Amount</div><div></div></div>
         ${ctx.fullTimeRows.map(f => `
-          <div class="t-row" style="grid-template-columns:2fr 1fr 1fr">
+          <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 32px">
             <div style="font-weight:600;font-size:14px">${esc(f.source)}</div>
             <div style="font-size:12.5px;color:oklch(0.65 0.02 280)">${f.dateLabel}</div>
             <div style="font-size:13.5px;font-weight:600;color:oklch(0.75 0.15 160)">${f.amountLabel}</div>
+            <button type="button" style="all:unset;cursor:pointer;color:oklch(0.6 0.02 280);font-size:14px;text-align:right" data-action="fulltime-delete" data-id="${esc(f.id)}" title="Delete">✕</button>
           </div>`).join('')}
-      </div>`;
+      </div>
+      ${monthlyBreakdownCard('Monthly Comparison (Full-Time)', ctx.monthlyFullTime)}`;
 
     const combined = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
@@ -744,7 +824,8 @@
           <div style="display:flex;align-items:center;gap:6px;color:oklch(0.7 0.02 280)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.75 0.15 200)"></span>Full-Time (${ctx.fullTimeSharePercent}%)</div>
           <div style="display:flex;align-items:center;gap:6px;color:oklch(0.7 0.02 280)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.72 0.19 300)"></span>Side Hustle (${ctx.sideHustleSharePercent}%)</div>
         </div>
-      </div>`;
+      </div>
+      ${monthlyBreakdownCard('Monthly Comparison (Combined)', ctx.monthlyCombined)}`;
 
     return `
     <div class="page-head"><div><div class="page-title sg">Finances</div><div class="page-sub">Package value vs. what's been collected</div></div></div>
@@ -1248,6 +1329,7 @@
       case 'cal-select': setState({ selectedDate: el.dataset.date }); break;
 
       case 'finance-tab': setState({ financeTab: el.dataset.tab }); break;
+      case 'fulltime-delete': setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) })); break;
 
       case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: 0, monthlyDue: 0, remainingBalance: 0, dueDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
@@ -1471,5 +1553,8 @@
     render();
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => {
+    if (isUnlocked()) init();
+    else renderLockScreen(false);
+  });
 })();
