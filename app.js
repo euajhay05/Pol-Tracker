@@ -247,6 +247,7 @@
   function defaultState() {
     return {
       view: 'dashboard',
+      mobileNavOpen: false,
       shoots: SAMPLE_SHOOTS,
       expenses: SAMPLE_EXPENSES,
       loans: SAMPLE_LOANS,
@@ -511,8 +512,15 @@
   }
 
   function renderSidebar() {
+    const open = state.mobileNavOpen;
     return `
-    <aside class="sidebar">
+    <div class="mobile-topbar">
+      <button type="button" class="hamburger-btn" data-action="mobile-nav-toggle"><span></span><span></span><span></span></button>
+      <div class="logo-badge" style="padding:6px 10px;font-size:13px">pol.</div>
+      <div class="sg" style="font-weight:700;font-size:14px">Pol Tracker</div>
+    </div>
+    ${open ? `<div class="sidebar-backdrop" data-action="mobile-nav-close"></div>` : ''}
+    <aside class="sidebar${open ? ' open' : ''}">
       <div class="logo-wrap"><div class="logo-badge">pol.</div></div>
       <nav class="navlist">
         ${navBtn('dashboard', '▦', 'Dashboard')}
@@ -1316,7 +1324,9 @@
   function handleAction(action, el, ev) {
     const id = el.dataset.id;
     switch (action) {
-      case 'nav': setState({ view: el.dataset.view }); break;
+      case 'nav': setState({ view: el.dataset.view, mobileNavOpen: false }); break;
+      case 'mobile-nav-toggle': setState(s => ({ mobileNavOpen: !s.mobileNavOpen })); break;
+      case 'mobile-nav-close': setState({ mobileNavOpen: false }); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
       case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
