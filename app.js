@@ -226,7 +226,7 @@
       <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
         <form id="lock-form" style="width:320px;max-width:100%;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px">
           <div style="display:flex;justify-content:center;margin-bottom:2px"><div class="logo-badge">pol.</div></div>
-          <div class="sg" style="font-weight:700;font-size:16px;text-align:center">ShootTracker</div>
+          <div class="sg" style="font-weight:700;font-size:16px;text-align:center">Pol Tracker</div>
           <div class="field">
             <label>Password</label>
             <input type="password" id="lock-password" placeholder="Enter password" autocomplete="current-password"/>
