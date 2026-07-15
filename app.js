@@ -152,10 +152,24 @@
   /* ---------------- access lock ---------------- */
 
   const LOCK_PASSWORD_HASH = 'd8b801bcbd0a8be19c2454a45d6600e22e02c81ef8a90e1046a66cd022b0631e';
+  const UNLOCK_AT_KEY = 'shoottracker_unlocked_at';
+  const UNLOCK_GRACE_MS = 5 * 60 * 1000; // stay unlocked across refreshes for 5 minutes after login
 
   async function sha256Hex(str) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function isWithinUnlockGrace() {
+    try {
+      const at = Number(localStorage.getItem(UNLOCK_AT_KEY));
+      return at > 0 && (Date.now() - at) < UNLOCK_GRACE_MS;
+    } catch (e) { return false; }
+  }
+  function markUnlocked() {
+    try { localStorage.setItem(UNLOCK_AT_KEY, String(Date.now())); } catch (e) { /* storage unavailable */ }
+  }
+  function clearUnlocked() {
+    try { localStorage.removeItem(UNLOCK_AT_KEY); } catch (e) { /* storage unavailable */ }
   }
 
   function renderLockScreen(showError) {
@@ -179,6 +193,7 @@
       e.preventDefault();
       const hash = await sha256Hex(input.value);
       if (hash === LOCK_PASSWORD_HASH) {
+        markUnlocked();
         init();
       } else {
         renderLockScreen(true);
@@ -1288,7 +1303,7 @@
       case 'nav': setState({ view: el.dataset.view, mobileNavOpen: false }); break;
       case 'mobile-nav-toggle': setState(s => ({ mobileNavOpen: !s.mobileNavOpen })); break;
       case 'mobile-nav-close': setState({ mobileNavOpen: false }); break;
-      case 'logout': renderLockScreen(false); break;
+      case 'logout': clearUnlocked(); renderLockScreen(false); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
       case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
@@ -1556,5 +1571,8 @@
     render();
   }
 
-  document.addEventListener('DOMContentLoaded', () => renderLockScreen(false));
+  document.addEventListener('DOMContentLoaded', () => {
+    if (isWithinUnlockGrace()) init();
+    else renderLockScreen(false);
+  });
 })();
