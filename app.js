@@ -43,6 +43,16 @@
     'Client':        { color: 'oklch(0.75 0.12 160)', bg: 'oklch(0.75 0.12 160 / 0.16)' },
     'Lost':          { color: 'oklch(0.6 0.02 280)',  bg: 'oklch(0.6 0.02 280 / 0.16)' },
   };
+  const EXPENSE_CATEGORIES = [
+    { value: 'essentials', short: 'E', label: 'Essentials', color: 'oklch(0.75 0.15 200)', bg: 'oklch(0.75 0.15 200 / 0.16)' },
+    { value: 'parent',     short: 'P', label: 'Parent Support', color: 'oklch(0.72 0.19 300)', bg: 'oklch(0.72 0.19 300 / 0.16)' },
+    { value: 'wants',      short: 'W', label: 'Wants', color: 'oklch(0.78 0.14 80)', bg: 'oklch(0.78 0.14 80 / 0.16)' },
+    { value: 'loan',       short: 'M', label: 'Loan Payment', color: 'oklch(0.7 0.19 25)', bg: 'oklch(0.7 0.19 25 / 0.16)' },
+    { value: 'business',   short: 'B', label: 'Business', color: 'oklch(0.7 0.15 260)', bg: 'oklch(0.7 0.15 260 / 0.16)' },
+    { value: 'other',      short: 'O', label: 'Other', color: 'oklch(0.6 0.02 280)', bg: 'oklch(0.6 0.02 280 / 0.16)' },
+  ];
+  function expenseCategoryMeta(value) { return EXPENSE_CATEGORIES.find(c => c.value === value) || EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1]; }
+
   const DOC_TYPE_META = {
     contract:  { title: 'Service Agreement / Contract', body: (d) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", to be delivered on ${d.date || '[Date]'} for a total contract value of ${fmtMoney(d.amount)}.` },
     quotation: { title: 'Quotation / Proposal',          body: (d) => `Quotation prepared for ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}". Proposed rate: ${fmtMoney(d.amount)}. Valid until ${d.date || '[Date]'}.` },
@@ -68,14 +78,14 @@
     { id: 's8', client: 'Travel Vlog - Palawan', location: 'Palawan', date: addDays(TODAY_STR, 26), time: '06:00', priority: 'Low', status: 'planned', scriptStatus: 'Not Started', notes: '', shootType: 'Real Estate', packageTier: 'premium', package: 12000, paid: 20000 },
   ];
   const SAMPLE_EXPENSES = [
-    { id: 'e1', description: 'Grab to BGC shoot', amount: 280, date: TODAY_STR },
-    { id: 'e2', description: 'Lunch - crew', amount: 650, date: TODAY_STR },
-    { id: 'e3', description: 'Gas', amount: 1200, date: addDays(TODAY_STR, -1) },
-    { id: 'e4', description: 'Parking - Tagaytay', amount: 150, date: addDays(TODAY_STR, -2) },
-    { id: 'e5', description: 'SD Card', amount: 2200, date: addDays(TODAY_STR, -5) },
-    { id: 'e6', description: 'Drone battery', amount: 3400, date: addDays(TODAY_STR, -7) },
-    { id: 'e7', description: 'Coffee meeting w/ client', amount: 320, date: addDays(TODAY_STR, -10) },
-    { id: 'e8', description: 'Toll fees', amount: 480, date: addDays(TODAY_STR, -13) },
+    { id: 'e1', description: 'Grab to BGC shoot', amount: 280, date: TODAY_STR, category: 'business' },
+    { id: 'e2', description: 'Lunch - crew', amount: 650, date: TODAY_STR, category: 'business' },
+    { id: 'e3', description: 'Gas', amount: 1200, date: addDays(TODAY_STR, -1), category: 'essentials' },
+    { id: 'e4', description: 'Parking - Tagaytay', amount: 150, date: addDays(TODAY_STR, -2), category: 'essentials' },
+    { id: 'e5', description: 'SD Card', amount: 2200, date: addDays(TODAY_STR, -5), category: 'business' },
+    { id: 'e6', description: 'Drone battery', amount: 3400, date: addDays(TODAY_STR, -7), category: 'business' },
+    { id: 'e7', description: 'Coffee meeting w/ client', amount: 320, date: addDays(TODAY_STR, -10), category: 'business' },
+    { id: 'e8', description: 'Toll fees', amount: 480, date: addDays(TODAY_STR, -13), category: 'essentials' },
   ];
   const SAMPLE_FULLTIME = [
     { id: 'ft1', source: 'Salary - 1st Cutoff', amount: 35000, date: THIS_MONTH_KEY + '-01' },
@@ -261,7 +271,7 @@
       calendarMonth: TODAY.getMonth(),
       selectedDate: TODAY_STR,
       telegramModalOpen: false,
-      expenseDraft: { description: '', amount: '', date: TODAY_STR },
+      expenseDraft: { description: '', amount: '', date: TODAY_STR, category: 'essentials' },
       loanModal: null,
       loanDraft: null,
       goalModal: null,
@@ -403,10 +413,12 @@
       analysisText = `Nasa normal range ang gastos mo ngayon (${fmtMoney(todayTotal)} vs ${fmtMoney(Math.round(avgDaily))}/day average).`;
       analysisColor = 'oklch(0.65 0.02 280)';
     }
-    const recentExpenses = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4)
-      .map(e => ({ ...e, dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) }));
-    const allExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))
-      .map(e => ({ ...e, dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) }));
+    const decorateExpense = (e) => {
+      const cm = expenseCategoryMeta(e.category);
+      return { ...e, dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount), categoryShort: cm.short, categoryLabel: cm.label, categoryColor: cm.color, categoryBg: cm.bg };
+    };
+    const recentExpenses = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4).map(decorateExpense);
+    const allExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).map(decorateExpense);
     const filteredExpenseRows = allExpenseRows.filter(e => e.description.toLowerCase().includes(state.expensesSearch.toLowerCase()));
     const lastExp = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))[0] || { description: '—', amount: 0 };
 
@@ -854,12 +866,14 @@
       ${searchClear}
     </div>
     <div class="table-wrap">
-      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr"><div>Description</div><div>Date</div><div>Amount</div></div>
+      <div class="t-head" style="grid-template-columns:1.8fr 1fr 1fr 1fr 32px"><div>Description</div><div>Category</div><div>Date</div><div>Amount</div><div></div></div>
       ${ctx.filteredExpenseRows.map(ex => `
-        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr">
+        <div class="t-row" style="grid-template-columns:1.8fr 1fr 1fr 1fr 32px">
           <div style="font-weight:600;font-size:14px">${esc(ex.description)}</div>
+          <div>${badge(ex.categoryShort + ' — ' + ex.categoryLabel, ex.categoryColor, ex.categoryBg)}</div>
           <div style="font-size:12.5px;color:oklch(0.65 0.02 280)">${ex.dateLabel}</div>
           <div style="font-size:13.5px;font-weight:600">${ex.amountLabel}</div>
+          <button type="button" style="all:unset;cursor:pointer;color:oklch(0.6 0.02 280);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
         </div>`).join('')}
       ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.5 0.02 280);font-size:13.5px">No expenses match your search.</div>` : ''}
     </div>`;
@@ -1124,6 +1138,11 @@
             <div class="field"><label>Amount (₱)</label><input type="number" min="0" value="${esc(d.amount)}" data-bind="expenseDraft.amount" placeholder="0"/></div>
             <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="expenseDraft.date"/></div>
           </div>
+          <div class="field"><label>Category</label>
+            <select data-bind="expenseDraft.category">
+              ${EXPENSE_CATEGORIES.map(c => `<option value="${c.value}" ${d.category === c.value ? 'selected' : ''}>${c.short} — ${esc(c.label)}</option>`).join('')}
+            </select>
+          </div>
           <button type="submit" class="btn-primary" style="text-align:center;margin-top:4px">Add Expense</button>
         </form>
       </div>
@@ -1317,7 +1336,7 @@
     switch (action) {
       case 'nav': setState({ view: el.dataset.view }); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
-      case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
+      case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR, category: 'essentials' } }); break;
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
 
       case 'shoot-add-open': openAddShoot(); break;
@@ -1330,6 +1349,7 @@
 
       case 'finance-tab': setState({ financeTab: el.dataset.tab }); break;
       case 'fulltime-delete': setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) })); break;
+      case 'expense-delete': setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) })); break;
 
       case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: 0, monthlyDue: 0, remainingBalance: 0, dueDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
@@ -1512,7 +1532,7 @@
       } else if (action === 'save-telegram-expense') {
         const d = state.expenseDraft;
         if (!d.description || !d.amount) { setState({ telegramModalOpen: false }); return; }
-        const entry = { id: 'ex' + Date.now(), description: d.description, amount: Number(d.amount) || 0, date: d.date || TODAY_STR };
+        const entry = { id: 'ex' + Date.now(), description: d.description, amount: Number(d.amount) || 0, date: d.date || TODAY_STR, category: d.category || 'other' };
         setState(s => ({ expenses: [...s.expenses, entry], telegramModalOpen: false }));
       } else if (action === 'save-fulltime') {
         const d = state.ftDraft;
