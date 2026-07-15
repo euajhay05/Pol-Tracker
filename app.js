@@ -58,52 +58,6 @@
   const TODAY = new Date(TODAY_STR + 'T00:00:00');
   const THIS_MONTH_KEY = TODAY_STR.slice(0, 7);
 
-  const SAMPLE_SHOOTS = [
-    { id: 's1', client: 'Podcast Ep 12 Recording', location: 'Home Studio', date: TODAY_STR, time: '10:00', priority: 'Low', status: 'posted', scriptStatus: 'Final', notes: '', shootType: 'Vlog / Reel', packageTier: 'basic', package: 8000, paid: 8000 },
-    { id: 's2', client: "Nadine's Vlog Collab", location: 'Tagaytay', date: addDays(TODAY_STR, 1), time: '08:00', priority: 'High', status: 'idea', scriptStatus: 'Drafting', notes: 'script draft v1', shootType: 'Vlog / Reel', packageTier: 'standard', package: 10000, paid: 0 },
-    { id: 's3', client: 'Globe Telecom Brand Anthem', location: 'BGC Studio', date: addDays(TODAY_STR, 3), time: '13:00', priority: 'High', status: 'planned', scriptStatus: 'In Review', notes: 'deck.link/globe-anthem', shootType: 'Brand Deal', packageTier: 'custom', package: 150000, paid: 75000 },
-    { id: 's4', client: 'Wedding SDE - Marco & Anna', location: 'Tagaytay', date: addDays(TODAY_STR, 5), time: '14:00', priority: 'Medium', status: 'edited', scriptStatus: 'Approved', notes: '', shootType: 'Other', packageTier: 'ultimate', package: 18000, paid: 18000 },
-    { id: 's5', client: 'Personal Short Film - Rain', location: 'Quezon City', date: addDays(TODAY_STR, 10), time: '07:00', priority: 'Medium', status: 'shot', scriptStatus: 'Final', notes: '', shootType: 'Personal Project', packageTier: 'custom', package: 0, paid: 0 },
-    { id: 's6', client: 'Smart Prepaid Ad', location: 'Cebu', date: addDays(TODAY_STR, 15), time: '09:00', priority: 'Medium', status: 'idea', scriptStatus: 'Not Started', notes: '', shootType: 'Brand Deal', packageTier: 'custom', package: 120000, paid: 0 },
-    { id: 's7', client: 'Jollibee Summer Campaign', location: 'Makati Studio', date: addDays(TODAY_STR, 18), time: '11:00', priority: 'High', status: 'planned', scriptStatus: 'In Review', notes: 'script.link/jbee-summer', shootType: 'Brand Deal', packageTier: 'custom', package: 300000, paid: 150000 },
-    { id: 's8', client: 'Travel Vlog - Palawan', location: 'Palawan', date: addDays(TODAY_STR, 26), time: '06:00', priority: 'Low', status: 'planned', scriptStatus: 'Not Started', notes: '', shootType: 'Real Estate', packageTier: 'premium', package: 12000, paid: 20000 },
-  ];
-  const SAMPLE_EXPENSES = [
-    { id: 'e1', description: 'Grab to BGC shoot', amount: 280, date: TODAY_STR },
-    { id: 'e2', description: 'Lunch - crew', amount: 650, date: TODAY_STR },
-    { id: 'e3', description: 'Gas', amount: 1200, date: addDays(TODAY_STR, -1) },
-    { id: 'e4', description: 'Parking - Tagaytay', amount: 150, date: addDays(TODAY_STR, -2) },
-    { id: 'e5', description: 'SD Card', amount: 2200, date: addDays(TODAY_STR, -5) },
-    { id: 'e6', description: 'Drone battery', amount: 3400, date: addDays(TODAY_STR, -7) },
-    { id: 'e7', description: 'Coffee meeting w/ client', amount: 320, date: addDays(TODAY_STR, -10) },
-    { id: 'e8', description: 'Toll fees', amount: 480, date: addDays(TODAY_STR, -13) },
-  ];
-  const SAMPLE_FULLTIME = [
-    { id: 'ft1', source: 'Salary - 1st Cutoff', amount: 35000, date: THIS_MONTH_KEY + '-01' },
-    { id: 'ft2', source: 'Salary - 2nd Cutoff', amount: 35000, date: TODAY_STR },
-    { id: 'ft3', source: 'Salary - 1st Cutoff', amount: 35000, date: addDays(THIS_MONTH_KEY + '-01', -30) },
-    { id: 'ft4', source: 'Salary - 2nd Cutoff', amount: 35000, date: addDays(THIS_MONTH_KEY + '-01', -15) },
-  ];
-  const SAMPLE_GOALS = [
-    { id: 'g1', name: 'Car Fund', target: 500000, current: 180000 },
-    { id: 'g2', name: 'Emergency Fund', target: 150000, current: 95000 },
-    { id: 'g3', name: 'International Stocks', target: 300000, current: 62000 },
-    { id: 'g4', name: 'Pag-IBIG MP2', target: 200000, current: 40000 },
-    { id: 'g5', name: 'Creative Fund', target: 100000, current: 35000 },
-  ];
-  const SAMPLE_LOANS = [
-    { id: 'ln1', lender: 'BPI Personal Loan', amount: 200000, monthlyDue: 9500, remainingBalance: 120000, dueDate: addDays(TODAY_STR, 10), status: 'ongoing' },
-    { id: 'ln2', lender: 'Home Credit - Camera Gear', amount: 60000, monthlyDue: 5000, remainingBalance: 0, dueDate: '', status: 'paid' },
-  ];
-  const SAMPLE_CLIENTS = [
-    { id: 'c1', name: 'Nadine Reyes', phone: '0917 123 4567', email: 'nadine@email.com', leadStatus: 'Booked', followUpDate: addDays(TODAY_STR, 1), notes: '' },
-    { id: 'c2', name: 'Globe Telecom', phone: '0917 555 0199', email: 'marketing@globe.com', leadStatus: 'Client', followUpDate: addDays(TODAY_STR, 5), notes: 'Recurring brand partner' },
-    { id: 'c3', name: 'Marco Dela Cruz', phone: '0918 222 3344', email: 'marco.dc@email.com', leadStatus: 'Client', followUpDate: '', notes: 'Wedding SDE client' },
-    { id: 'c4', name: 'Smart Communications', phone: '0917 888 9900', email: 'ads@smart.com.ph', leadStatus: 'Proposal Sent', followUpDate: addDays(TODAY_STR, 7), notes: 'Waiting on quote approval' },
-    { id: 'c5', name: 'Jollibee Foods Corp', phone: '0918 444 5566', email: 'brand@jfc.com', leadStatus: 'Contacted', followUpDate: addDays(TODAY_STR, 3), notes: '' },
-    { id: 'c6', name: 'Anna Villanueva', phone: '0917 333 2211', email: 'anna.v@email.com', leadStatus: 'New Lead', followUpDate: addDays(TODAY_STR, 2), notes: 'Inquired about travel vlog package' },
-  ];
-
   /* ---------------- helpers ---------------- */
 
   function addDays(dstr, n) {
@@ -250,12 +204,12 @@
     return {
       view: 'dashboard',
       mobileNavOpen: false,
-      shoots: SAMPLE_SHOOTS,
-      expenses: SAMPLE_EXPENSES,
-      loans: SAMPLE_LOANS,
-      fullTimeIncome: SAMPLE_FULLTIME,
-      goals: SAMPLE_GOALS,
-      clients: SAMPLE_CLIENTS,
+      shoots: [],
+      expenses: [],
+      loans: [],
+      fullTimeIncome: [],
+      goals: [],
+      clients: [],
       financeTab: 'sidehustle',
       ftDraft: { source: '', amount: '', date: TODAY_STR },
       modal: null,
@@ -810,7 +764,7 @@
         <div class="card-title">Add Income</div>
         <form data-action="save-fulltime" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
           <div class="field" style="flex:2;min-width:160px"><label>Source</label><input type="text" value="${esc(state.ftDraft.source)}" data-bind="ftDraft.source" placeholder="e.g. Salary - 1st Cutoff"/></div>
-          <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="number" min="0" value="${esc(state.ftDraft.amount)}" data-bind="ftDraft.amount" placeholder="0"/></div>
+          <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(state.ftDraft.amount)}" data-bind="ftDraft.amount" placeholder="0"/></div>
           <div class="field" style="flex:1;min-width:130px"><label>Date</label><input type="date" value="${esc(state.ftDraft.date)}" data-bind="ftDraft.date"/></div>
           <button type="submit" class="btn-primary">Add</button>
         </form>
@@ -972,7 +926,7 @@
         <div class="field"><label>Client Name</label><input type="text" value="${esc(d.clientName)}" data-bind="docDraft.clientName" placeholder="e.g. Nadine Reyes"/></div>
         <div class="field"><label>Project / Service</label><input type="text" value="${esc(d.description)}" data-bind="docDraft.description" placeholder="e.g. Vlog Collab - Tagaytay"/></div>
         <div class="row-2">
-          <div class="field"><label>Amount (₱)</label><input type="number" min="0" value="${esc(d.amount)}" data-bind="docDraft.amount"/></div>
+          <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="docDraft.amount"/></div>
           <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="docDraft.date"/></div>
         </div>
         <div class="field"><label>Terms / Notes</label><input type="text" value="${esc(d.notes)}" data-bind="docDraft.notes" placeholder="e.g. 50% downpayment, balance on delivery"/></div>
@@ -1110,9 +1064,9 @@
             <div class="field"><label>Package</label>
               <select data-bind="draft.packageTier" data-special="packageTier">${PACKAGE_TIERS.map(t => `<option value="${t.value}" ${d.packageTier === t.value ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
             </div>
-            <div class="field"><label>Paid so far (₱)</label><input type="number" min="0" value="${esc(d.paid)}" data-bind="draft.paid" placeholder="0"/></div>
+            <div class="field"><label>Paid so far (₱)</label><input type="text" inputmode="decimal" value="${esc(d.paid)}" data-bind="draft.paid" placeholder="0"/></div>
           </div>
-          ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="number" min="0" value="${esc(d.package)}" data-bind="draft.package" placeholder="0"/></div>` : ''}
+          ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.package)}" data-bind="draft.package" placeholder="0"/></div>` : ''}
           ` : ''}
           ${isScripted ? `
           <div class="field"><label>Script Status</label>
@@ -1142,7 +1096,7 @@
         <form data-action="save-telegram-expense" style="display:flex;flex-direction:column;gap:12px">
           <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot"/></div>
           <div class="row-2">
-            <div class="field"><label>Amount (₱)</label><input type="number" min="0" value="${esc(d.amount)}" data-bind="expenseDraft.amount" placeholder="0"/></div>
+            <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="expenseDraft.amount" placeholder="0"/></div>
             <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="expenseDraft.date"/></div>
           </div>
           <button type="submit" class="btn-primary" style="text-align:center;margin-top:4px">Add Expense</button>
@@ -1162,11 +1116,11 @@
         <div class="modal-fields">
           <div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan"/></div>
           <div class="row-2">
-            <div class="field"><label>Loan Amount (₱)</label><input type="number" min="0" value="${esc(d.amount)}" data-bind="loanDraft.amount"/></div>
-            <div class="field"><label>Remaining Balance (₱)</label><input type="number" min="0" value="${esc(d.remainingBalance)}" data-bind="loanDraft.remainingBalance"/></div>
+            <div class="field"><label>Loan Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="loanDraft.amount"/></div>
+            <div class="field"><label>Remaining Balance (₱)</label><input type="text" inputmode="decimal" value="${esc(d.remainingBalance)}" data-bind="loanDraft.remainingBalance"/></div>
           </div>
           <div class="row-2">
-            <div class="field"><label>Monthly Due (₱)</label><input type="number" min="0" value="${esc(d.monthlyDue)}" data-bind="loanDraft.monthlyDue"/></div>
+            <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(d.monthlyDue)}" data-bind="loanDraft.monthlyDue"/></div>
             <div class="field"><label>Due Date</label><input type="date" value="${esc(d.dueDate)}" data-bind="loanDraft.dueDate"/></div>
           </div>
           <div class="field"><label>Status</label>
@@ -1195,8 +1149,8 @@
         <div class="modal-fields">
           <div class="field"><label>Goal Name</label><input type="text" value="${esc(d.name)}" data-bind="goalDraft.name" placeholder="e.g. Car Fund"/></div>
           <div class="row-2">
-            <div class="field"><label>Target Amount (₱)</label><input type="number" min="0" value="${esc(d.target)}" data-bind="goalDraft.target"/></div>
-            <div class="field"><label>Current Amount (₱)</label><input type="number" min="0" value="${esc(d.current)}" data-bind="goalDraft.current"/></div>
+            <div class="field"><label>Target Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.target)}" data-bind="goalDraft.target"/></div>
+            <div class="field"><label>Current Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.current)}" data-bind="goalDraft.current"/></div>
           </div>
         </div>
         <div class="modal-actions">
@@ -1301,12 +1255,7 @@
       if (el) {
         el.focus();
         if (selStart != null && el.setSelectionRange) {
-          // number inputs don't support setSelectionRange directly; briefly switch
-          // to text so the cursor position restores correctly, then switch back.
-          const isNumber = el.type === 'number';
-          if (isNumber) el.type = 'text';
           try { el.setSelectionRange(selStart, selEnd); } catch (e) { /* not a text-like input */ }
-          if (isNumber) el.type = 'number';
         }
       }
     }
@@ -1315,7 +1264,7 @@
   /* ---------------- actions ---------------- */
 
   function openAddShoot() {
-    setState({ modal: { mode: 'add' }, draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', priority: 'Medium', status: 'idea', scriptStatus: 'Not Started', shootType: 'Vlog / Reel', notes: '', packageTier: 'none', package: 0, paid: 0 } });
+    setState({ modal: { mode: 'add' }, draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', priority: 'Medium', status: 'idea', scriptStatus: 'Not Started', shootType: 'Vlog / Reel', notes: '', packageTier: 'none', package: '', paid: '' } });
   }
   function openEditShoot(id) {
     const sh = state.shoots.find(s => s.id === id);
@@ -1360,14 +1309,14 @@
       case 'fulltime-delete': setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) })); break;
       case 'expense-delete': setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) })); break;
 
-      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: 0, monthlyDue: 0, remainingBalance: 0, dueDate: '', status: 'ongoing' } }); break;
+      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', remainingBalance: '', dueDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
       case 'loan-delete':
         if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
         setState(s => ({ loans: s.loans.filter(l => l.id !== s.loanDraft.id), loanModal: null, loanDraft: null }));
         break;
 
-      case 'goal-add-open': setState({ goalModal: { mode: 'add' }, goalDraft: { id: null, name: '', target: 0, current: 0 } }); break;
+      case 'goal-add-open': setState({ goalModal: { mode: 'add' }, goalDraft: { id: null, name: '', target: '', current: '' } }); break;
       case 'goal-edit': openEditGoal(id); break;
       case 'goal-delete':
         if (!confirm(`Are you sure you want to delete the goal "${state.goalDraft.name || 'this goal'}"? This cannot be undone.`)) break;
