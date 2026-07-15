@@ -152,17 +152,10 @@
   /* ---------------- access lock ---------------- */
 
   const LOCK_PASSWORD_HASH = 'd8b801bcbd0a8be19c2454a45d6600e22e02c81ef8a90e1046a66cd022b0631e';
-  const UNLOCK_KEY = 'shoottracker_unlocked_v1';
 
   async function sha256Hex(str) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  function isUnlocked() {
-    try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
-  }
-  function setUnlocked() {
-    try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) { /* storage unavailable */ }
   }
 
   function renderLockScreen(showError) {
@@ -186,7 +179,6 @@
       e.preventDefault();
       const hash = await sha256Hex(input.value);
       if (hash === LOCK_PASSWORD_HASH) {
-        setUnlocked();
         init();
       } else {
         renderLockScreen(true);
@@ -502,6 +494,9 @@
         ${navBtn('docs', '▧', 'Documents')}
         ${navBtn('insights', '✦', 'Insights')}
       </nav>
+      <button type="button" class="nav-btn" style="margin-top:auto;color:oklch(0.7 0.19 25)" data-action="logout">
+        <span class="ic">⏻</span>Log out
+      </button>
     </aside>`;
   }
 
@@ -1293,6 +1288,7 @@
       case 'nav': setState({ view: el.dataset.view, mobileNavOpen: false }); break;
       case 'mobile-nav-toggle': setState(s => ({ mobileNavOpen: !s.mobileNavOpen })); break;
       case 'mobile-nav-close': setState({ mobileNavOpen: false }); break;
+      case 'logout': renderLockScreen(false); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
       case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
@@ -1413,9 +1409,12 @@
 
   /* ---------------- event wiring ---------------- */
 
-  async function init() {
+  let listenersWired = false;
+
+  function wireListeners() {
+    if (listenersWired) return;
+    listenersWired = true;
     const app = document.getElementById('app');
-    app.innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:14px">Loading your data…</div>`;
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
@@ -1533,11 +1532,17 @@
         else if (state.chipModal) setState({ chipModal: null });
       }
     });
+  }
+
+  async function init() {
+    wireListeners();
+    const app = document.getElementById('app');
+    app.innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:14px">Loading your data…</div>`;
 
     try {
       const remote = await fetchRemoteState();
       if (remote) {
-        // null/undefined = column never saved to yet (use sample data); an actual [] means
+        // null/undefined = column never saved to yet (show empty); an actual [] means
         // someone intentionally emptied that list, which must be respected, not overwritten.
         PERSIST_KEYS.forEach(k => {
           const val = remote[PERSIST_COLUMNS[k]];
@@ -1551,8 +1556,5 @@
     render();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    if (isUnlocked()) init();
-    else renderLockScreen(false);
-  });
+  document.addEventListener('DOMContentLoaded', () => renderLockScreen(false));
 })();
