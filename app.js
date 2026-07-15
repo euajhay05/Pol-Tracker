@@ -242,7 +242,9 @@
 
   /* ---------------- state ---------------- */
 
-  const STORAGE_KEY = 'shoottracker_state_v1';
+  const SUPABASE_URL = 'https://lufmszmhflmecvpislwy.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_z8a0uQ0ri_txFoxzPvYV2A_4xRG44N-';
+  const SUPABASE_ROW_URL = `${SUPABASE_URL}/rest/v1/tracker_state?id=eq.1`;
 
   function defaultState() {
     return {
@@ -280,26 +282,30 @@
 
   const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients'];
 
-  function loadState() {
-    const base = defaultState();
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw);
-        PERSIST_KEYS.forEach(k => { if (saved[k]) base[k] = saved[k]; });
-      }
-    } catch (e) { /* ignore corrupt storage */ }
-    return base;
+  async function fetchRemoteState() {
+    const res = await fetch(`${SUPABASE_ROW_URL}&select=data`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    if (!res.ok) throw new Error('Failed to load remote state: ' + res.status);
+    const rows = await res.json();
+    return rows[0] ? rows[0].data : null;
   }
   function persist() {
-    try {
-      const toSave = {};
-      PERSIST_KEYS.forEach(k => { toSave[k] = state[k]; });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-    } catch (e) { /* storage unavailable */ }
+    const payload = {};
+    PERSIST_KEYS.forEach(k => { payload[k] = state[k]; });
+    fetch(SUPABASE_ROW_URL, {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ data: payload }),
+    }).catch(e => console.error('Save failed', e));
   }
 
-  let state = loadState();
+  let state = defaultState();
   let draggingId = null;
 
   function setState(patch) {
@@ -1441,8 +1447,9 @@
 
   /* ---------------- event wiring ---------------- */
 
-  function init() {
+  async function init() {
     const app = document.getElementById('app');
+    app.innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:14px">Loading your data…</div>`;
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
@@ -1484,7 +1491,6 @@
       const bind = e.target.dataset.bind;
       if (bind) {
         applyBind(bind, e.target.value);
-        persist();
         render();
       }
     });
@@ -1499,15 +1505,15 @@
             const contact = [c.phone, c.email].filter(Boolean).join(' · ');
             state = setPath(state, 'docDraft.clientName', c.name);
             state = setPath(state, 'docDraft.clientContact', contact);
-            persist(); render();
+            render();
           }
         }
         return;
       }
       const special = el.dataset.special;
-      if (special) { applySpecialSideEffect(special, el.value); persist(); render(); return; }
+      if (special) { applySpecialSideEffect(special, el.value); render(); return; }
       const bind = el.dataset.bind;
-      if (bind) { applyBind(bind, el.value); persist(); render(); }
+      if (bind) { applyBind(bind, el.value); render(); }
     });
 
     app.addEventListener('submit', (e) => {
@@ -1561,6 +1567,15 @@
         else if (state.chipModal) setState({ chipModal: null });
       }
     });
+
+    try {
+      const remote = await fetchRemoteState();
+      if (remote) {
+        PERSIST_KEYS.forEach(k => { if (remote[k]) state = { ...state, [k]: remote[k] }; });
+      }
+    } catch (e) {
+      console.error('Failed to load shared data, showing local defaults', e);
+    }
 
     render();
   }
