@@ -11,11 +11,13 @@
     Low:    { color: 'oklch(0.75 0.12 160)', bg: 'oklch(0.75 0.12 160 / 0.16)' },
   };
   const STATUS_META = [
-    { value: 'idea',    label: 'Booked',    color: 'oklch(0.6 0.02 280)',   progress: 8 },
-    { value: 'planned', label: 'Shooting',  color: 'oklch(0.7 0.15 260)',   progress: 30 },
-    { value: 'shot',    label: 'Editing',   color: 'oklch(0.75 0.15 200)',  progress: 60 },
-    { value: 'edited',  label: 'Revision',  color: 'oklch(0.78 0.14 80)',   progress: 85 },
-    { value: 'posted',  label: 'Completed', color: 'oklch(0.75 0.12 160)',  progress: 100 },
+    { value: 'tentative', label: 'Tentative',  color: 'oklch(0.62 0.06 260)',  progress: 3 },
+    { value: 'idea',      label: 'Booked',     color: 'oklch(0.6 0.02 280)',   progress: 8 },
+    { value: 'reschedule', label: 'Reschedule', color: 'oklch(0.7 0.15 40)',   progress: 15 },
+    { value: 'planned',   label: 'Shooting',   color: 'oklch(0.7 0.15 260)',   progress: 30 },
+    { value: 'shot',      label: 'Editing',    color: 'oklch(0.75 0.15 200)',  progress: 60 },
+    { value: 'edited',    label: 'Revision',   color: 'oklch(0.78 0.14 80)',   progress: 85 },
+    { value: 'posted',    label: 'Completed',  color: 'oklch(0.75 0.12 160)',  progress: 100 },
   ];
   const SCRIPT_STATUS_META = {
     'Not Started': { color: 'oklch(0.6 0.02 280)',  bg: 'oklch(0.6 0.02 280 / 0.14)' },
@@ -86,12 +88,17 @@
     const d = new Date(dstr + 'T00:00:00');
     return Math.round((d - TODAY) / 86400000);
   }
-  function daysLeftLabelAndColor(days) {
+  // Urgency window scales with priority: High shoots only need attention close to the
+  // date, Low priority ones should start flagging much earlier so they don't get forgotten.
+  const URGENCY_DAYS_BY_PRIORITY = { High: 2, Medium: 5, Low: 14 };
+  function daysLeftLabelAndColor(days, priority) {
     if (days === null) return { label: 'No date', color: 'oklch(0.5 0.02 280)' };
     if (days < 0) return { label: `${Math.abs(days)}d overdue`, color: 'oklch(0.7 0.19 25)' };
     if (days === 0) return { label: 'Today', color: 'oklch(0.7 0.19 25)' };
-    if (days <= 3) return { label: `${days}d left`, color: 'oklch(0.7 0.19 25)' };
-    if (days <= 7) return { label: `${days}d left`, color: 'oklch(0.78 0.14 80)' };
+    const redAt = URGENCY_DAYS_BY_PRIORITY[priority] || URGENCY_DAYS_BY_PRIORITY.Medium;
+    const orangeAt = redAt * 2;
+    if (days <= redAt) return { label: `${days}d left`, color: 'oklch(0.7 0.19 25)' };
+    if (days <= orangeAt) return { label: `${days}d left`, color: 'oklch(0.78 0.14 80)' };
     return { label: `${days}d left`, color: 'oklch(0.6 0.02 280)' };
   }
   function statusMeta(status) { return STATUS_META.find(s => s.value === status) || STATUS_META[0]; }
@@ -211,6 +218,7 @@
     return {
       view: 'dashboard',
       mobileNavOpen: false,
+      dashboardMonthOffset: 0,
       shoots: [],
       expenses: [],
       loans: [],
@@ -289,7 +297,7 @@
     const sm = statusMeta(sh.status);
     const scm = SCRIPT_STATUS_META[sh.scriptStatus] || SCRIPT_STATUS_META['Not Started'];
     const days = daysLeftOf(sh.date);
-    const dl = daysLeftLabelAndColor(days);
+    const dl = daysLeftLabelAndColor(days, sh.priority);
     const balance = (Number(sh.package) || 0) - (Number(sh.paid) || 0);
     return {
       ...sh,
@@ -416,6 +424,18 @@
     const monthlyRevenue = monthPaidFromShoots + monthFullTime;
     const netProfit = monthlyRevenue - monthTotal;
     const yearlyGoalIncome = 1200000;
+
+    // Dashboard's Net Profit card can browse past months independently of the
+    // "this month" figures used elsewhere (Expenses page, Insights, etc.).
+    const dashboardMonthOffset = state.dashboardMonthOffset || 0;
+    const dashboardMonthDate = new Date(TODAY.getFullYear(), TODAY.getMonth() - dashboardMonthOffset, 1);
+    const dashboardMonthKey = dashboardMonthDate.getFullYear() + '-' + String(dashboardMonthDate.getMonth() + 1).padStart(2, '0');
+    const dashboardMonthLabel = dashboardMonthOffset === 0 ? 'This Month' : dashboardMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const dashboardPaidFromShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashboardMonthKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
+    const dashboardFullTime = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === dashboardMonthKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
+    const dashboardExpensesTotal = expenses.filter(e => e.date && e.date.slice(0, 7) === dashboardMonthKey).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const dashboardRevenue = dashboardPaidFromShoots + dashboardFullTime;
+    const dashboardNetProfit = dashboardRevenue - dashboardExpensesTotal;
     const yearlyProgressPercent = Math.min(100, Math.round((combinedTotal / yearlyGoalIncome) * 100));
 
     const chipStats = [
@@ -461,6 +481,7 @@
       totalFullTime, monthFullTime, fullTimeRows, combinedTotal, fullTimeSharePercent, sideHustleSharePercent,
       monthlyFullTime, monthlySideHustle, monthlyCombined,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
+      dashboardMonthOffset, dashboardMonthLabel, dashboardRevenue, dashboardExpensesTotal, dashboardNetProfit,
       chipStats, chipModalKey, chipModalData, insightsPeriod, insightCards, chartMax,
     };
   }
@@ -528,12 +549,16 @@
 
     <div class="card" style="border-radius:18px;margin-bottom:16px;display:flex;align-items:center;gap:32px;flex-wrap:wrap">
       <div>
-        <div style="color:oklch(0.6 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Net Profit This Month</div>
-        <div class="sg" style="font-size:44px;font-weight:700;margin-top:6px;color:${ctx.netProfit >= 0 ? 'oklch(0.75 0.15 160)' : 'oklch(0.7 0.18 40)'}">${fmtMoney(ctx.netProfit)}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button type="button" class="btn-ghost" style="padding:2px 6px;font-size:13px" data-action="dashboard-period-prev" title="Previous month">‹</button>
+          <div style="color:oklch(0.6 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Net Profit — ${esc(ctx.dashboardMonthLabel)}</div>
+          <button type="button" class="btn-ghost" style="padding:2px 6px;font-size:13px;opacity:${ctx.dashboardMonthOffset === 0 ? '0.3' : '1'}" data-action="dashboard-period-next" title="Next month">›</button>
+        </div>
+        <div class="sg" style="font-size:44px;font-weight:700;margin-top:6px;color:${ctx.dashboardNetProfit >= 0 ? 'oklch(0.75 0.15 160)' : 'oklch(0.7 0.18 40)'}">${fmtMoney(ctx.dashboardNetProfit)}</div>
       </div>
       <div style="display:flex;gap:28px;flex-wrap:wrap;margin-left:auto">
-        <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Revenue</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px">${fmtMoney(ctx.monthlyRevenue)}</div></div>
-        <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Expenses</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px">${fmtMoney(ctx.monthTotal)}</div></div>
+        <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Revenue</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px">${fmtMoney(ctx.dashboardRevenue)}</div></div>
+        <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Expenses</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px">${fmtMoney(ctx.dashboardExpensesTotal)}</div></div>
         <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Pending</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px;color:oklch(0.7 0.18 40)">${fmtMoney(ctx.outstanding)}</div></div>
       </div>
     </div>
@@ -1056,6 +1081,10 @@
             <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="draft.date"/></div>
             <div class="field"><label>Time</label><input type="time" value="${esc(d.time)}" data-bind="draft.time"/></div>
           </div>
+          <div class="row-2">
+            <div class="field"><label>Deadline</label><input type="date" value="${esc(d.deadline)}" data-bind="draft.deadline"/></div>
+            <div class="field"><label>Booked / Contacted Date</label><input type="date" value="${esc(d.bookedDate)}" data-bind="draft.bookedDate"/></div>
+          </div>
           <div class="field"><label>Shoot Type</label>
             <select data-bind="draft.shootType" data-special="shootType">
               ${SHOOT_TYPES.map(t => `<option value="${t}" ${d.shootType === t ? 'selected' : ''}>${t}</option>`).join('')}
@@ -1274,7 +1303,7 @@
   /* ---------------- actions ---------------- */
 
   function openAddShoot() {
-    setState({ modal: { mode: 'add' }, draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', priority: 'Medium', status: 'idea', scriptStatus: 'Not Started', shootType: 'Vlog / Reel', notes: '', packageTier: 'none', package: '', paid: '' } });
+    setState({ modal: { mode: 'add' }, draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', deadline: '', bookedDate: TODAY_STR, priority: 'Medium', status: 'idea', scriptStatus: 'Not Started', shootType: 'Vlog / Reel', notes: '', packageTier: 'none', package: '', paid: '' } });
   }
   function openEditShoot(id) {
     const sh = state.shoots.find(s => s.id === id);
@@ -1305,6 +1334,8 @@
       case 'mobile-nav-close': setState({ mobileNavOpen: false }); break;
       case 'logout': clearUnlocked(); renderLockScreen(false); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
+      case 'dashboard-period-prev': setState(s => ({ dashboardMonthOffset: (s.dashboardMonthOffset || 0) + 1 })); break;
+      case 'dashboard-period-next': setState(s => ({ dashboardMonthOffset: Math.max(0, (s.dashboardMonthOffset || 0) - 1) })); break;
       case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
 
