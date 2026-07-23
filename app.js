@@ -89,6 +89,16 @@
     const h12 = ((h + 11) % 12) + 1;
     return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
   }
+  function setTimePart(timeStr, part, value) {
+    let [hh, mm] = (timeStr || '09:00').split(':').map(Number);
+    let hour12 = hh % 12 === 0 ? 12 : hh % 12;
+    let meridiem = hh >= 12 ? 'PM' : 'AM';
+    if (part === 'hour') hour12 = value;
+    if (part === 'minute') mm = value;
+    if (part === 'meridiem') meridiem = value;
+    const newHH = meridiem === 'PM' ? (hour12 % 12) + 12 : (hour12 % 12);
+    return `${String(newHH).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  }
   function daysLeftOf(dstr) {
     if (!dstr) return null;
     const d = new Date(dstr + 'T00:00:00');
@@ -243,6 +253,10 @@
       draft: null,
       shootAddonsOpen: false,
       shootConfirmCloseOpen: false,
+      shootDatePickerOpen: false,
+      timePickerOpen: false,
+      shootDateCalYear: TODAY.getFullYear(),
+      shootDateCalMonth: TODAY.getMonth(),
       shootsMode: 'board',
       calendarYear: TODAY.getFullYear(),
       calendarMonth: TODAY.getMonth(),
@@ -344,7 +358,9 @@
       showScriptBadge: sh.packageTier !== 'basic' && sh.packageTier !== 'standard',
       showClientScriptBadge: sh.packageTier === 'basic' || sh.packageTier === 'standard',
       showDpBadge: pkg > 0 && paidAmt > 0,
-      dpPaidLabel: fmtMoney(Math.min(paidAmt, dpAmt)) + (paidAmt >= dpAmt ? ' ✓' : ` / ${fmtMoney(dpAmt)}`),
+      dpBadgeLabel: paidAmt >= pkg
+        ? 'Paid in full ✓'
+        : `DP paid: ${fmtMoney(paidAmt)}${paidAmt >= dpAmt ? ' ✓' : ' / ' + fmtMoney(dpAmt)}`,
       packageTierLabel: (liveTiers.find(t => t.value === (sh.packageTier || 'custom')) || PACKAGE_TIERS[4]).label,
       statusLabel: sm.label,
       progressPercent: sm.progress,
@@ -748,7 +764,7 @@
       ${s.showScriptBadge ? `<div style="margin-bottom:10px">${badge('Script: ' + s.scriptStatusLabel, s.scriptStatusColor, s.scriptStatusBg)}</div>` : ''}
       ${s.showClientScriptBadge ? `<div style="margin-bottom:10px">${badge('Client Script', 'oklch(0.4 0.13 150)', 'oklch(0.92 0.06 150)')}</div>` : ''}
       ${progressBar(s.progressPercent, 'oklch(0.55 0.12 175)')}
-      ${s.showDpBadge ? `<div style="margin-top:8px">${badge('DP paid: ' + s.dpPaidLabel, 'oklch(0.4 0.13 150)', 'oklch(0.92 0.06 150)')}</div>` : ''}
+      ${s.showDpBadge ? `<div style="margin-top:8px">${badge(s.dpBadgeLabel, 'oklch(0.4 0.13 150)', 'oklch(0.92 0.06 150)')}</div>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
         <div style="font-size:11.5px;font-weight:700;color:${s.daysLeftColor}">${s.daysLeftLabel}</div>
         <div style="font-size:11.5px;color:oklch(0.48 0.015 150)">${s.balanceLabel}</div>
@@ -1223,6 +1239,14 @@
 
     const statusOptions = (isEdit ? STATUS_META : STATUS_META.filter(sm => sm.value === 'tentative' || sm.value === 'idea'));
 
+    const shootDateDisplayLabel = d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select date';
+    const pickerMonthLabel = new Date(state.shootDateCalYear, state.shootDateCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const pickerCells = buildCalendarCells(state.shootDateCalYear, state.shootDateCalMonth, state.shoots, d.date);
+    const timeDisplayLabel = fmtTime(d.time || '09:00');
+    const [curHH, curMM] = (d.time || '09:00').split(':').map(Number);
+    const curHour12 = curHH % 12 === 0 ? 12 : curHH % 12;
+    const curMeridiem = curHH >= 12 ? 'PM' : 'AM';
+
     return `
     <div class="modal-backdrop" data-action="modal-backdrop-close" data-which="shoot">
       <form class="modal-box" style="width:460px" data-stop data-action="save-shoot">
@@ -1236,8 +1260,50 @@
           </div>
           <div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>
           <div class="row-2">
-            <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="draft.date"/></div>
-            <div class="field"><label>Time</label><input type="time" value="${esc(d.time)}" data-bind="draft.time"/></div>
+            <div class="field" style="position:relative">
+              <label>Date</label>
+              <button type="button" data-action="date-picker-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
+                <span>${shootDateDisplayLabel}</span>
+              </button>
+              ${state.shootDatePickerOpen ? `
+              <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                  <div class="sg" style="font-weight:700;font-size:15px">${pickerMonthLabel}</div>
+                  <div style="display:flex;gap:6px">
+                    <button type="button" data-action="shoot-date-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+                    <button type="button" data-action="shoot-date-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+                  ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+                  ${pickerCells.map(c => c.blank ? `<div></div>` : `
+                    <div data-action="date-picker-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">
+                      <span>${c.dayNum}</span>
+                      <span style="display:flex;gap:2px">${c.dots.map(color => `<span style="width:4px;height:4px;border-radius:50%;background:${color}"></span>`).join('')}</span>
+                    </div>`).join('')}
+                </div>
+              </div>` : ''}
+            </div>
+            <div class="field" style="position:relative">
+              <label>Time</label>
+              <button type="button" data-action="time-picker-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
+                <span>${timeDisplayLabel}</span>
+              </button>
+              ${state.timePickerOpen ? `
+              <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:10px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:190px;display:flex;gap:6px">
+                <div style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;flex:1">
+                  ${Array.from({ length: 12 }, (_, i) => i + 1).map(h => `<button type="button" data-action="time-part-pick" data-part="hour" data-value="${h}" style="all:unset;cursor:pointer;text-align:center;padding:7px 0;border-radius:8px;font-weight:700;font-size:13px;background:${h === curHour12 ? 'oklch(0.45 0.14 150)' : 'transparent'};color:${h === curHour12 ? 'oklch(1 0 0)' : 'oklch(0.25 0.02 150)'}">${String(h).padStart(2, '0')}</button>`).join('')}
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;flex:1">
+                  ${[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => `<button type="button" data-action="time-part-pick" data-part="minute" data-value="${m}" style="all:unset;cursor:pointer;text-align:center;padding:7px 0;border-radius:8px;font-weight:700;font-size:13px;background:${m === curMM ? 'oklch(0.45 0.14 150)' : 'transparent'};color:${m === curMM ? 'oklch(1 0 0)' : 'oklch(0.25 0.02 150)'}">${String(m).padStart(2, '0')}</button>`).join('')}
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;flex:0.8">
+                  ${['AM', 'PM'].map(mo => `<button type="button" data-action="time-part-pick" data-part="meridiem" data-value="${mo}" style="all:unset;cursor:pointer;text-align:center;padding:7px 0;border-radius:8px;font-weight:700;font-size:13px;background:${mo === curMeridiem ? 'oklch(0.45 0.14 150)' : 'transparent'};color:${mo === curMeridiem ? 'oklch(1 0 0)' : 'oklch(0.25 0.02 150)'}">${mo}</button>`).join('')}
+                </div>
+              </div>` : ''}
+            </div>
           </div>
           <div class="field"><label>Status</label>
             <select data-bind="draft.status">${statusOptions.map(sm => `<option value="${sm.value}" ${d.status === sm.value ? 'selected' : ''}>${sm.label}</option>`).join('')}</select>
@@ -1540,12 +1606,21 @@
   /* ---------------- actions ---------------- */
 
   function openAddShoot() {
-    setState({ modal: { mode: 'add' }, shootAddonsOpen: false, draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} } });
+    setState({
+      modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false,
+      shootDateCalYear: TODAY.getFullYear(), shootDateCalMonth: TODAY.getMonth(),
+      draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
+    });
   }
   function openEditShoot(id) {
     const sh = state.shoots.find(s => s.id === id);
     if (!sh) return;
-    setState({ modal: { mode: 'edit', id }, shootAddonsOpen: false, draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh } });
+    const calBase = new Date((sh.date || TODAY_STR) + 'T00:00:00');
+    setState({
+      modal: { mode: 'edit', id }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false,
+      shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
+      draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh },
+    });
   }
   function openEditLoan(id) {
     const l = state.loans.find(x => x.id === id);
@@ -1585,6 +1660,17 @@
       case 'shoot-addon-inc': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) + 1 } } })); break;
       case 'shoot-addon-dec': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: Math.max(0, ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) - 1) } } })); break;
       case 'shoot-milestone-pick': setState(s => ({ draft: { ...s.draft, paid: Number(el.dataset.amount) || 0 } })); break;
+      case 'date-picker-toggle': setState(s => ({ shootDatePickerOpen: !s.shootDatePickerOpen, timePickerOpen: false })); break;
+      case 'time-picker-toggle': setState(s => ({ timePickerOpen: !s.timePickerOpen, shootDatePickerOpen: false })); break;
+      case 'shoot-date-cal-prev': setState(s => { let m = s.shootDateCalMonth - 1, y = s.shootDateCalYear; if (m < 0) { m = 11; y--; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
+      case 'shoot-date-cal-next': setState(s => { let m = s.shootDateCalMonth + 1, y = s.shootDateCalYear; if (m > 11) { m = 0; y++; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
+      case 'date-picker-pick': setState(s => ({ draft: { ...s.draft, date: el.dataset.date }, shootDatePickerOpen: false })); break;
+      case 'time-part-pick': {
+        const part = el.dataset.part;
+        const value = part === 'meridiem' ? el.dataset.value : Number(el.dataset.value);
+        setState(s => ({ draft: { ...s.draft, time: setTimePart(s.draft.time, part, value) } }));
+        break;
+      }
       case 'shoots-mode': setState({ shootsMode: el.dataset.mode }); break;
       case 'cal-prev': setState(s => { let m = s.calendarMonth - 1, y = s.calendarYear; if (m < 0) { m = 11; y--; } return { calendarMonth: m, calendarYear: y }; }); break;
       case 'cal-next': setState(s => { let m = s.calendarMonth + 1, y = s.calendarYear; if (m > 11) { m = 0; y++; } return { calendarMonth: m, calendarYear: y }; }); break;
@@ -1710,6 +1796,12 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
+      if ((state.shootDatePickerOpen || state.timePickerOpen) && !e.target.closest('[data-picker-popover]')) {
+        const action = actionEl ? actionEl.dataset.action : null;
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false });
+        }
+      }
       if (!actionEl) return;
       const stopEl = e.target.closest('[data-stop]');
       if (stopEl && !stopEl.contains(actionEl)) return;
