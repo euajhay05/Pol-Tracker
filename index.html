@@ -9,41 +9,41 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
-    --bg:oklch(0.16 0.02 280);
-    --sidebar:oklch(0.13 0.02 280);
-    --panel:oklch(0.21 0.02 280);
-    --panel2:oklch(0.19 0.02 280);
-    --card:oklch(0.24 0.02 280);
-    --card2:oklch(0.25 0.02 280);
-    --border:oklch(1 0 0 / 0.07);
-    --border2:oklch(1 0 0 / 0.05);
-    --border3:oklch(1 0 0 / 0.08);
-    --text:oklch(0.95 0.01 280);
-    --text-dim:oklch(0.65 0.02 280);
-    --text-dim2:oklch(0.6 0.02 280);
-    --text-dim3:oklch(0.55 0.02 280);
-    --text-dim4:oklch(0.5 0.02 280);
-    --accent1:oklch(0.72 0.19 300);
-    --accent2:oklch(0.66 0.18 320);
-    --accent-on:oklch(0.15 0.02 280);
-    --teal:oklch(0.75 0.15 200);
-    --danger:oklch(0.7 0.19 25);
-    --warn:oklch(0.78 0.14 80);
-    --good:oklch(0.75 0.15 160);
-    --pending:oklch(0.7 0.18 40);
-    --track:oklch(0.3 0.02 280);
-    --track2:oklch(0.32 0.02 280);
+    --bg:oklch(0.97 0.008 150);
+    --sidebar:oklch(1 0 0);
+    --panel:oklch(1 0 0);
+    --panel2:oklch(0.97 0.006 150);
+    --card:oklch(0.97 0.006 150);
+    --card2:oklch(0.96 0.01 150);
+    --border:oklch(0 0 0 / 0.07);
+    --border2:oklch(0 0 0 / 0.05);
+    --border3:oklch(0 0 0 / 0.08);
+    --text:oklch(0.22 0.02 150);
+    --text-dim:oklch(0.45 0.015 150);
+    --text-dim2:oklch(0.48 0.015 150);
+    --text-dim3:oklch(0.5 0.015 150);
+    --text-dim4:oklch(0.55 0.015 150);
+    --accent1:oklch(0.55 0.14 150);
+    --accent2:oklch(0.42 0.12 155);
+    --accent-on:oklch(1 0 0);
+    --teal:oklch(0.55 0.12 175);
+    --danger:oklch(0.58 0.19 25);
+    --warn:oklch(0.58 0.16 80);
+    --good:oklch(0.5 0.15 150);
+    --pending:oklch(0.62 0.17 45);
+    --track:oklch(0.91 0.012 150);
+    --track2:oklch(0.89 0.012 150);
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}
   ::-webkit-scrollbar{width:8px;height:8px}
-  ::-webkit-scrollbar-thumb{background:oklch(0.35 0.02 280);border-radius:8px}
+  ::-webkit-scrollbar-thumb{background:oklch(0.8 0.015 150);border-radius:8px}
   ::-webkit-scrollbar-track{background:transparent}
 
   .app-shell{display:flex;height:100vh;width:100%;overflow:hidden}
   .sidebar{width:220px;flex:none;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 16px;gap:28px;overflow-y:auto}
   .logo-wrap{display:flex;align-items:center;gap:9px;padding:0 8px}
-  .logo-badge{background:oklch(0.98 0 0);border-radius:6px;padding:8px 14px;display:flex;align-items:center;justify-content:center;color:#141019;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.01em}
+  .logo-badge{background:oklch(1 0 0);border:1px solid oklch(0 0 0 / 0.08);border-radius:6px;padding:8px 14px;display:flex;align-items:center;justify-content:center;color:#141019;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.01em}
   nav.navlist{display:flex;flex-direction:column;gap:4px}
   .nav-section{font-size:10.5px;font-weight:700;color:var(--text-dim4);letter-spacing:0.06em;text-transform:uppercase;padding:14px 12px 4px}
   .nav-btn{all:unset;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer}
@@ -59,9 +59,9 @@
   .card-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;margin-bottom:16px}
 
   .btn-primary{all:unset;cursor:pointer;padding:10px 16px;border-radius:9px;background:linear-gradient(135deg, var(--accent1), var(--accent2));color:var(--accent-on);font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px}
-  .btn-danger{all:unset;cursor:pointer;padding:11px 16px;border-radius:9px;background:oklch(0.28 0.06 25);color:oklch(0.85 0.1 25);font-weight:600;font-size:13.5px}
+  .btn-danger{all:unset;cursor:pointer;padding:11px 16px;border-radius:9px;background:oklch(0.92 0.08 25);color:oklch(0.5 0.19 25);font-weight:600;font-size:13.5px}
   .btn-ghost{all:unset;cursor:pointer;color:var(--text-dim2)}
-  .btn-telegram{all:unset;cursor:pointer;display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:9px;background:oklch(0.3 0.1 240 / 0.25);color:oklch(0.75 0.13 235);font-weight:600;font-size:13px}
+  .btn-telegram{all:unset;cursor:pointer;display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:9px;background:oklch(0.55 0.14 235 / 0.14);color:oklch(0.5 0.15 235);font-weight:600;font-size:13px}
 
   .field label{font-size:12px;color:var(--text-dim2);font-weight:600;display:block;margin-bottom:6px}
   .field input, .field select{width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit}
@@ -102,7 +102,7 @@
   .cal-cell{aspect-ratio:1;border-radius:9px;padding:6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer}
 
   select{appearance:none;-webkit-appearance:none}
-  input::placeholder{color:oklch(0.5 0.02 280)}
+  input::placeholder{color:oklch(0.55 0.015 150)}
 
   .mobile-topbar{display:none;align-items:center;gap:12px;padding:12px 16px;background:var(--sidebar);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:30}
   .hamburger-btn{all:unset;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;width:36px;height:36px;flex:none;border-radius:9px;background:var(--card)}
@@ -118,11 +118,12 @@
     .table-wrap{overflow-x:auto}
     .t-head,.t-row{min-width:520px}
     .modal-box{width:420px}
+    .dash-hero-grid{grid-template-columns:1fr !important}
   }
 </style>
 </head>
 <body>
 <div id="app"></div>
-<script src="app.js?v=17"></script>
+<script src="app.js?v=24"></script>
 </body>
 </html>

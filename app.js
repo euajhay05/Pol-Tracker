@@ -5,26 +5,19 @@
 
   /* ---------------- constants & sample data ---------------- */
 
-  const PRIORITY_META = {
-    High:   { color: 'oklch(0.7 0.19 25)',   bg: 'oklch(0.7 0.19 25 / 0.16)' },
-    Medium: { color: 'oklch(0.78 0.14 80)',  bg: 'oklch(0.78 0.14 80 / 0.16)' },
-    Low:    { color: 'oklch(0.75 0.12 160)', bg: 'oklch(0.75 0.12 160 / 0.16)' },
-  };
   const STATUS_META = [
-    { value: 'tentative', label: 'Tentative',  color: 'oklch(0.62 0.06 260)',  progress: 3 },
-    { value: 'idea',      label: 'Booked',     color: 'oklch(0.6 0.02 280)',   progress: 8 },
-    { value: 'reschedule', label: 'Reschedule', color: 'oklch(0.7 0.15 40)',   progress: 15 },
-    { value: 'planned',   label: 'Shooting',   color: 'oklch(0.7 0.15 260)',   progress: 30 },
-    { value: 'shot',      label: 'Editing',    color: 'oklch(0.75 0.15 200)',  progress: 60 },
-    { value: 'edited',    label: 'Revision',   color: 'oklch(0.78 0.14 80)',   progress: 85 },
-    { value: 'posted',    label: 'Completed',  color: 'oklch(0.75 0.12 160)',  progress: 100 },
+    { value: 'tentative', label: 'Tentative',  color: 'oklch(0.6 0.02 150)',   progress: 5 },
+    { value: 'idea',      label: 'Booked',     color: 'oklch(0.48 0.015 150)', progress: 15 },
+    { value: 'resched',   label: 'Resched',    color: 'oklch(0.62 0.17 45)',   progress: 15 },
+    { value: 'shot',      label: 'Editing',    color: 'oklch(0.55 0.12 175)',  progress: 55 },
+    { value: 'edited',    label: 'Revision',   color: 'oklch(0.58 0.16 80)',   progress: 85 },
+    { value: 'posted',    label: 'Completed',  color: 'oklch(0.45 0.14 150)',  progress: 100 },
   ];
   const SCRIPT_STATUS_META = {
-    'Not Started': { color: 'oklch(0.6 0.02 280)',  bg: 'oklch(0.6 0.02 280 / 0.14)' },
-    'Drafting':    { color: 'oklch(0.75 0.15 240)', bg: 'oklch(0.75 0.15 240 / 0.16)' },
-    'In Review':   { color: 'oklch(0.78 0.14 80)',  bg: 'oklch(0.78 0.14 80 / 0.16)' },
-    'Approved':    { color: 'oklch(0.75 0.12 160)', bg: 'oklch(0.75 0.12 160 / 0.16)' },
-    'Final':       { color: 'oklch(0.72 0.19 300)', bg: 'oklch(0.72 0.19 300 / 0.16)' },
+    'Not Started': { color: 'oklch(0.48 0.015 150)', bg: 'oklch(0.48 0.015 150 / 0.14)' },
+    'Drafting':    { color: 'oklch(0.5 0.16 240)',   bg: 'oklch(0.55 0.15 240 / 0.16)' },
+    'In Review':   { color: 'oklch(0.58 0.16 80)',   bg: 'oklch(0.62 0.15 80 / 0.16)' },
+    'Final':       { color: 'oklch(0.55 0.14 150)',  bg: 'oklch(0.55 0.14 150 / 0.16)' },
   };
   const PACKAGE_TIERS = [
     { value: 'basic',    label: 'Package 1 - Basic (₱8,000)',     price: 8000 },
@@ -32,18 +25,31 @@
     { value: 'premium',  label: 'Package 3 - Premium (₱12,000)',  price: 12000 },
     { value: 'ultimate', label: 'Package 4 - Ultimate (₱18,000)', price: 18000 },
     { value: 'custom',   label: 'Custom Quote',                   price: null },
-    { value: 'none',     label: 'No Package (Personal/Non-paid)', price: 0 },
   ];
-  const SHOOT_TYPES = ['Real Estate', 'Vlog / Reel', 'Brand Deal', 'Personal Project', 'Other'];
+  function getLiveTiers(rates) {
+    return PACKAGE_TIERS.map(t => {
+      if (t.price === null || !(t.value in rates)) return t;
+      const price = Number(rates[t.value]) || 0;
+      const name = t.label.split(' - ')[1].split(' (')[0];
+      return { ...t, price, label: `${t.label.split(' - ')[0]} - ${name} (₱${price.toLocaleString('en-US')})` };
+    });
+  }
+  const ADDON_DEFS = [
+    { key: 'walkthrough', label: 'Walkthrough Video', price: 3000, unitLabel: 'per video' },
+    { key: 'rawFootage',  label: 'Raw Footage + Color Grading', price: 3000, unitLabel: 'flat rate' },
+    { key: 'aiScene',     label: 'AI Scene', price: 1000, unitLabel: 'per scene' },
+  ];
+  const USD_TO_PHP = 58;
+  const SHOOT_TYPES = ['Real Estate', 'General Project'];
   const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   const LEAD_STATUSES = ['New Lead', 'Contacted', 'Proposal Sent', 'Booked', 'Client', 'Lost'];
   const LEAD_STATUS_META = {
-    'New Lead':      { color: 'oklch(0.7 0.15 260)',  bg: 'oklch(0.7 0.15 260 / 0.16)' },
-    'Contacted':     { color: 'oklch(0.78 0.14 80)',  bg: 'oklch(0.78 0.14 80 / 0.16)' },
-    'Proposal Sent': { color: 'oklch(0.75 0.15 200)', bg: 'oklch(0.75 0.15 200 / 0.16)' },
-    'Booked':        { color: 'oklch(0.72 0.19 300)', bg: 'oklch(0.72 0.19 300 / 0.16)' },
-    'Client':        { color: 'oklch(0.75 0.12 160)', bg: 'oklch(0.75 0.12 160 / 0.16)' },
-    'Lost':          { color: 'oklch(0.6 0.02 280)',  bg: 'oklch(0.6 0.02 280 / 0.16)' },
+    'New Lead':      { color: 'oklch(0.5 0.16 235)',  bg: 'oklch(0.55 0.15 235 / 0.16)' },
+    'Contacted':     { color: 'oklch(0.58 0.16 80)',  bg: 'oklch(0.62 0.15 80 / 0.16)' },
+    'Proposal Sent': { color: 'oklch(0.55 0.12 175)', bg: 'oklch(0.55 0.12 175 / 0.16)' },
+    'Booked':        { color: 'oklch(0.55 0.14 150)', bg: 'oklch(0.55 0.14 150 / 0.16)' },
+    'Client':        { color: 'oklch(0.45 0.14 150)', bg: 'oklch(0.5 0.13 150 / 0.14)' },
+    'Lost':          { color: 'oklch(0.48 0.015 150)', bg: 'oklch(0.48 0.015 150 / 0.16)' },
   };
 
   const DOC_TYPE_META = {
@@ -88,20 +94,24 @@
     const d = new Date(dstr + 'T00:00:00');
     return Math.round((d - TODAY) / 86400000);
   }
-  // Urgency window scales with priority: High shoots only need attention close to the
-  // date, Low priority ones should start flagging much earlier so they don't get forgotten.
-  const URGENCY_DAYS_BY_PRIORITY = { High: 2, Medium: 5, Low: 14 };
-  function daysLeftLabelAndColor(days, priority) {
-    if (days === null) return { label: 'No date', color: 'oklch(0.5 0.02 280)' };
-    if (days < 0) return { label: `${Math.abs(days)}d overdue`, color: 'oklch(0.7 0.19 25)' };
-    if (days === 0) return { label: 'Today', color: 'oklch(0.7 0.19 25)' };
-    const redAt = URGENCY_DAYS_BY_PRIORITY[priority] || URGENCY_DAYS_BY_PRIORITY.Medium;
-    const orangeAt = redAt * 2;
-    if (days <= redAt) return { label: `${days}d left`, color: 'oklch(0.7 0.19 25)' };
-    if (days <= orangeAt) return { label: `${days}d left`, color: 'oklch(0.78 0.14 80)' };
-    return { label: `${days}d left`, color: 'oklch(0.6 0.02 280)' };
+  function daysLeftLabelAndColor(days) {
+    if (days === null) return { label: 'No date', color: 'oklch(0.55 0.015 150)' };
+    if (days < 0) return { label: `${Math.abs(days)}d overdue`, color: 'oklch(0.58 0.19 25)' };
+    if (days === 0) return { label: 'Today', color: 'oklch(0.58 0.19 25)' };
+    if (days <= 3) return { label: `${days}d left`, color: 'oklch(0.58 0.19 25)' };
+    if (days <= 7) return { label: `${days}d left`, color: 'oklch(0.58 0.16 80)' };
+    return { label: `${days}d left`, color: 'oklch(0.48 0.015 150)' };
   }
   function statusMeta(status) { return STATUS_META.find(s => s.value === status) || STATUS_META[0]; }
+  function goalIcon(name) {
+    const n = (name || '').toLowerCase();
+    if (n.includes('car')) return '🚗';
+    if (n.includes('emergency')) return '🛟';
+    if (n.includes('stock')) return '📈';
+    if (n.includes('mp2') || n.includes('pag-ibig') || n.includes('pagibig')) return '🏦';
+    if (n.includes('creative')) return '🎬';
+    return '🎯';
+  }
   function esc(v) {
     return String(v == null ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -135,10 +145,10 @@
       const isSelected = dateStr === selectedDate;
       cells.push({
         dayNum: d, dateStr,
-        bg: isSelected ? 'oklch(0.72 0.19 300 / 0.22)' : (isToday ? 'oklch(1 0 0 / 0.06)' : 'oklch(0.24 0.02 280)'),
-        border: isSelected ? 'oklch(0.72 0.19 300 / 0.6)' : 'oklch(1 0 0 / 0.05)',
-        textColor: isToday ? 'oklch(0.85 0.15 300)' : 'oklch(0.85 0.01 280)',
-        dots: dayShoots.slice(0, 4).map(s => (PRIORITY_META[s.priority] || PRIORITY_META.Medium).color),
+        bg: isSelected ? 'oklch(0.55 0.14 150 / 0.22)' : (isToday ? 'oklch(0 0 0 / 0.06)' : 'oklch(0.97 0.006 150)'),
+        border: isSelected ? 'oklch(0.55 0.14 150 / 0.6)' : 'oklch(0 0 0 / 0.05)',
+        textColor: isToday ? 'oklch(0.6 0.15 150)' : 'oklch(0.35 0.015 150)',
+        dots: dayShoots.slice(0, 4).map(s => statusMeta(s.status).color),
       });
     }
     return cells;
@@ -190,7 +200,7 @@
             <label>Password</label>
             <input type="password" id="lock-password" placeholder="Enter password" autocomplete="current-password"/>
           </div>
-          ${showError ? `<div style="color:oklch(0.7 0.19 25);font-size:12.5px">Incorrect password. Please try again.</div>` : ''}
+          ${showError ? `<div style="color:oklch(0.58 0.19 25);font-size:12.5px">Incorrect password. Please try again.</div>` : ''}
           <button type="submit" class="btn-primary" style="text-align:center">Unlock</button>
         </form>
       </div>`;
@@ -218,17 +228,20 @@
     return {
       view: 'dashboard',
       mobileNavOpen: false,
-      dashboardMonthOffset: 0,
       shoots: [],
       expenses: [],
       loans: [],
       fullTimeIncome: [],
       goals: [],
       clients: [],
+      packageRates: { basic: 8000, standard: 10000, premium: 12000, ultimate: 18000 },
       financeTab: 'sidehustle',
+      dateRangeFrom: addDays(TODAY_STR, -30),
+      dateRangeTo: TODAY_STR,
       ftDraft: { source: '', amount: '', date: TODAY_STR },
       modal: null,
       draft: null,
+      shootAddonsOpen: false,
       shootsMode: 'board',
       calendarYear: TODAY.getFullYear(),
       calendarMonth: TODAY.getMonth(),
@@ -249,8 +262,8 @@
     };
   }
 
-  const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients'];
-  const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', goals: 'goals', clients: 'clients' };
+  const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients', 'packageRates'];
+  const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', goals: 'goals', clients: 'clients', packageRates: 'package_rates' };
 
   async function fetchRemoteState() {
     const cols = Object.values(PERSIST_COLUMNS).join(',');
@@ -292,30 +305,53 @@
 
   /* ---------------- derived data ---------------- */
 
+  // Defensive display-time fallbacks for older stored values that no longer exist
+  // in this design (also normalized once in-storage on load, see fetchRemoteState callers).
+  function normalizeShootStatus(status) {
+    if (status === 'reschedule') return 'resched';
+    if (status === 'planned') return 'shot';
+    return status;
+  }
+  function normalizeScriptStatus(scriptStatus) {
+    if (scriptStatus === 'Approved') return 'Final';
+    return scriptStatus;
+  }
+  function normalizeShootType(shootType) {
+    return SHOOT_TYPES.includes(shootType) ? shootType : 'General Project';
+  }
+
   function decorate(sh) {
-    const pm = PRIORITY_META[sh.priority] || PRIORITY_META.Medium;
-    const sm = statusMeta(sh.status);
-    const scm = SCRIPT_STATUS_META[sh.scriptStatus] || SCRIPT_STATUS_META['Not Started'];
+    const status = normalizeShootStatus(sh.status);
+    const scriptStatus = normalizeScriptStatus(sh.scriptStatus) || 'Not Started';
+    const shootType = normalizeShootType(sh.shootType);
+    const sm = statusMeta(status);
+    const scm = SCRIPT_STATUS_META[scriptStatus] || SCRIPT_STATUS_META['Not Started'];
     const days = daysLeftOf(sh.date);
-    const dl = daysLeftLabelAndColor(days, sh.priority);
-    const balance = (Number(sh.package) || 0) - (Number(sh.paid) || 0);
+    const dl = daysLeftLabelAndColor(days);
+    const pkg = Number(sh.package) || 0;
+    const paidAmt = Number(sh.paid) || 0;
+    const balance = pkg - paidAmt;
+    const dpAmt = pkg * 0.2;
+    const liveTiers = getLiveTiers(state.packageRates);
     return {
       ...sh,
+      status, shootType,
       dateLabel: fmtDate(sh.date),
       timeLabel: fmtTime(sh.time),
-      priorityColor: pm.color, priorityBg: pm.bg,
-      scriptStatusLabel: sh.scriptStatus || 'Not Started',
+      scriptStatusLabel: scriptStatus,
       scriptStatusColor: scm.color, scriptStatusBg: scm.bg,
-      showScriptBadge: (sh.shootType || 'Other') !== 'Vlog / Reel',
-      packageTierLabel: (PACKAGE_TIERS.find(t => t.value === (sh.packageTier || 'custom')) || PACKAGE_TIERS[4]).label,
-      shootType: sh.shootType || 'Other',
+      showScriptBadge: sh.packageTier !== 'basic' && sh.packageTier !== 'standard',
+      showClientScriptBadge: sh.packageTier === 'basic' || sh.packageTier === 'standard',
+      showDpBadge: pkg > 0 && paidAmt > 0,
+      dpPaidLabel: fmtMoney(Math.min(paidAmt, dpAmt)) + (paidAmt >= dpAmt ? ' ✓' : ` / ${fmtMoney(dpAmt)}`),
+      packageTierLabel: (liveTiers.find(t => t.value === (sh.packageTier || 'custom')) || PACKAGE_TIERS[4]).label,
       statusLabel: sm.label,
       progressPercent: sm.progress,
       daysLeft: days,
       daysLeftLabel: dl.label, daysLeftColor: dl.color,
       packageLabel: fmtMoney(sh.package), paidLabel: fmtMoney(sh.paid),
       balanceLabel: balance > 0 ? fmtMoney(balance) : 'Paid up',
-      balanceColor: balance > 0 ? 'oklch(0.7 0.18 40)' : 'oklch(0.75 0.15 160)',
+      balanceColor: balance > 0 ? 'oklch(0.62 0.17 45)' : 'oklch(0.5 0.15 150)',
     };
   }
 
@@ -324,23 +360,47 @@
     const shoots = state.shoots.map(decorate);
 
     const navColor = (name) => view === name
-      ? { color: 'oklch(0.95 0.01 280)', bg: 'oklch(0.72 0.19 300 / 0.15)' }
-      : { color: 'oklch(0.65 0.02 280)', bg: 'transparent' };
+      ? { color: 'oklch(0.4 0.13 150)', bg: 'oklch(0.92 0.06 150)' }
+      : { color: 'oklch(0.45 0.015 150)', bg: 'transparent' };
 
-    const goalCards = state.goals.map(g => ({
-      ...g,
-      percent: g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0,
-      targetLabel: fmtMoney(g.target), currentLabel: fmtMoney(g.current),
-    }));
+    const goalCards = state.goals.map(g => {
+      const currency = g.currency || 'PHP';
+      return {
+        ...g, currency,
+        icon: goalIcon(g.name),
+        percent: g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0,
+        targetLabel: fmtMoney(g.target), currentLabel: fmtMoney(g.current),
+        isUSD: currency === 'USD',
+        usdCurrentLabel: currency === 'USD' ? `$${Math.round(g.current / USD_TO_PHP).toLocaleString('en-US')}` : '',
+        usdTargetLabel: currency === 'USD' ? `$${Math.round(g.target / USD_TO_PHP).toLocaleString('en-US')}` : '',
+      };
+    });
 
     const thisMonth = shoots.filter(s => s.date && s.date.slice(0, 7) === THIS_MONTH_KEY);
     const completed = shoots.filter(s => s.status === 'posted');
-    const openHigh = shoots.filter(s => s.priority === 'High' && s.status !== 'posted');
     const outstanding = shoots.reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
+
+    const lastMonthDate = new Date(TODAY.getFullYear(), TODAY.getMonth() - 1, 1);
+    const lastMonthKey = lastMonthDate.getFullYear() + '-' + String(lastMonthDate.getMonth() + 1).padStart(2, '0');
+    const lastMonthShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === lastMonthKey);
+    const shootsThisMonthCount = thisMonth.length;
+    const shootsLastMonthCount = lastMonthShoots.length;
+    const shootsMomDelta = shootsThisMonthCount - shootsLastMonthCount;
+    const shootsMomPct = shootsLastMonthCount > 0 ? Math.round((shootsMomDelta / shootsLastMonthCount) * 100) : (shootsThisMonthCount > 0 ? 100 : 0);
+    const shootsMomLabel = shootsMomDelta === 0 ? 'No change' : `${shootsMomDelta > 0 ? '▲' : '▼'} ${Math.abs(shootsMomPct)}%`;
+    const shootsMomColor = shootsMomDelta > 0 ? 'oklch(0.45 0.14 150)' : (shootsMomDelta < 0 ? 'oklch(0.58 0.19 25)' : 'oklch(0.5 0.015 150)');
+    const shootsMomBg = shootsMomDelta > 0 ? 'oklch(0.5 0.13 150 / 0.14)' : (shootsMomDelta < 0 ? 'oklch(0.58 0.19 25 / 0.14)' : 'oklch(0.91 0.012 150)');
+    const shootsMaxCount = Math.max(shootsThisMonthCount, shootsLastMonthCount, 1);
+    const shootsThisMonthBarPct = Math.max(8, Math.round((shootsThisMonthCount / shootsMaxCount) * 100));
+    const shootsLastMonthBarPct = Math.max(8, Math.round((shootsLastMonthCount / shootsMaxCount) * 100));
 
     const upcomingList = shoots.filter(s => s.status !== 'posted' && s.daysLeft !== null)
       .sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 5);
-    const highPriorityList = openHigh.slice().sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+    const nextUpList = upcomingList.slice(0, 4).map(s => ({
+      ...s,
+      dayNum: s.date ? String(new Date(s.date + 'T00:00:00').getDate()) : '–',
+    }));
+    const noNextUp = nextUpList.length === 0;
 
     const shootsSearchLower = state.shootsSearch.toLowerCase();
     const searchedShoots = shootsSearchLower
@@ -362,7 +422,7 @@
       return {
         ...l, paidPercent,
         statusLabel: isPaid ? 'Paid Off' : 'Ongoing',
-        statusColor: isPaid ? 'oklch(0.75 0.15 160)' : 'oklch(0.78 0.14 80)',
+        statusColor: isPaid ? 'oklch(0.5 0.15 150)' : 'oklch(0.58 0.16 80)',
         statusBg: isPaid ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.78 0.14 80 / 0.16)',
         amountLabel: fmtMoney(l.amount), remainingLabel: fmtMoney(l.remainingBalance), monthlyDueLabel: fmtMoney(l.monthlyDue),
         dueLabel: l.dueDate ? `Due ${fmtDate(l.dueDate)}` : 'No active due date',
@@ -378,13 +438,13 @@
     let analysisText, analysisColor;
     if (todayTotal > avgDaily * 1.3) {
       analysisText = `You're spending more today (${fmtMoney(todayTotal)}) compared to your average of ${fmtMoney(Math.round(avgDaily))}/day this month.`;
-      analysisColor = 'oklch(0.7 0.18 40)';
+      analysisColor = 'oklch(0.62 0.17 45)';
     } else if (todayTotal > 0 && todayTotal < avgDaily * 0.7) {
       analysisText = `You're spending less today — only ${fmtMoney(todayTotal)} compared to your average of ${fmtMoney(Math.round(avgDaily))}/day.`;
-      analysisColor = 'oklch(0.75 0.15 160)';
+      analysisColor = 'oklch(0.5 0.15 150)';
     } else {
       analysisText = `Your spending today is in the normal range (${fmtMoney(todayTotal)} vs ${fmtMoney(Math.round(avgDaily))}/day average).`;
-      analysisColor = 'oklch(0.65 0.02 280)';
+      analysisColor = 'oklch(0.45 0.015 150)';
     }
     const decorateExpense = (e) => ({ ...e, dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) });
     const recentExpenses = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4).map(decorateExpense);
@@ -404,9 +464,18 @@
     const fullTimeSharePercent = combinedTotal > 0 ? Math.round((totalFullTime / combinedTotal) * 100) : 0;
     const sideHustleSharePercent = combinedTotal > 0 ? 100 - fullTimeSharePercent : 0;
 
-    const monthlyFullTime = monthlyTotals(fullTimeIncome, 'date', 'amount', 6);
-    const monthlySideHustle = monthlyTotals(shoots, 'date', 'paid', 6);
-    const monthlyCombined = monthlyFullTime.map((m, i) => ({ key: m.key, label: m.label, total: m.total + monthlySideHustle[i].total }));
+    const dateRangeFrom = state.dateRangeFrom || TODAY_STR;
+    const dateRangeTo = state.dateRangeTo || dateRangeFrom;
+    const inSelectedRange = (dateStr) => dateStr && dateStr >= dateRangeFrom && dateStr <= dateRangeTo;
+    const rangeShoots = shoots.filter(s => inSelectedRange(s.date));
+    const rangeFullTimeIncome = fullTimeIncome.filter(f => inSelectedRange(f.date));
+    const rangeSideHustleCollected = rangeShoots.reduce((sum, s) => sum + (Number(s.paid) || 0), 0);
+    const rangeTotalFullTime = rangeFullTimeIncome.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+    const rangeCombinedTotal = rangeTotalFullTime + rangeSideHustleCollected;
+    const rangeFullTimeSharePercent = rangeCombinedTotal > 0 ? Math.round((rangeTotalFullTime / rangeCombinedTotal) * 100) : 0;
+    const rangeSideHustleSharePercent = rangeCombinedTotal > 0 ? 100 - rangeFullTimeSharePercent : 0;
+    const rangeFullTimeRows = rangeFullTimeIncome.slice().sort((a, b) => b.date.localeCompare(a.date)).map(f => ({ ...f, dateLabel: fmtDate(f.date), amountLabel: fmtMoney(f.amount) }));
+    const dateRangeLabel = `${fmtDate(dateRangeFrom)} - ${fmtDate(dateRangeTo)}`;
 
     const clientRows = state.clients.map(c => {
       const lm = LEAD_STATUS_META[c.leadStatus] || LEAD_STATUS_META['New Lead'];
@@ -424,32 +493,44 @@
     const monthlyRevenue = monthPaidFromShoots + monthFullTime;
     const netProfit = monthlyRevenue - monthTotal;
     const yearlyGoalIncome = 1200000;
-
-    // Dashboard's Net Profit card can browse past months independently of the
-    // "this month" figures used elsewhere (Expenses page, Insights, etc.).
-    const dashboardMonthOffset = state.dashboardMonthOffset || 0;
-    const dashboardMonthDate = new Date(TODAY.getFullYear(), TODAY.getMonth() - dashboardMonthOffset, 1);
-    const dashboardMonthKey = dashboardMonthDate.getFullYear() + '-' + String(dashboardMonthDate.getMonth() + 1).padStart(2, '0');
-    const dashboardMonthLabel = dashboardMonthOffset === 0 ? 'This Month' : dashboardMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const dashboardPaidFromShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashboardMonthKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
-    const dashboardFullTime = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === dashboardMonthKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
-    const dashboardExpensesTotal = expenses.filter(e => e.date && e.date.slice(0, 7) === dashboardMonthKey).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const dashboardRevenue = dashboardPaidFromShoots + dashboardFullTime;
-    const dashboardNetProfit = dashboardRevenue - dashboardExpensesTotal;
     const yearlyProgressPercent = Math.min(100, Math.round((combinedTotal / yearlyGoalIncome) * 100));
 
-    const chipStats = [
-      { key: 'thisMonth', label: 'Shoots this month', value: String(thisMonth.length), color: 'oklch(0.95 0.01 280)' },
-      { key: 'completed', label: 'Completed', value: String(completed.length), color: 'oklch(0.75 0.15 160)' },
-      { key: 'highPriority', label: 'High Priority Open', value: String(openHigh.length), color: 'oklch(0.7 0.19 25)' },
-      { key: 'activeClients', label: 'Active Clients', value: String(activeClients), color: 'oklch(0.95 0.01 280)' },
+    const userFirstName = 'Pol';
+    const liveDateTimeLabel = new Date().toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    const WEEK_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const nowForWeek = new Date();
+    const weekStart = new Date(nowForWeek); weekStart.setDate(nowForWeek.getDate() - nowForWeek.getDay()); weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+    const weekRangeLabel = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    const todayISO = nowForWeek.toISOString().slice(0, 10);
+    const weekCounts = WEEK_LABELS.map((label, i) => {
+      const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+      const dStr = d.toISOString().slice(0, 10);
+      return { day: label, count: shoots.filter(s => s.date === dStr).length, isToday: dStr === todayISO };
+    });
+    const maxWeekCount = Math.max(...weekCounts.map(w => w.count), 1);
+    const peakCount = Math.max(...weekCounts.map(w => w.count));
+    const weekBars = weekCounts.map(w => ({
+      day: w.day, count: w.count,
+      isPeak: w.count > 0 && w.count === peakCount,
+      heightPx: w.count > 0 ? Math.max(24, Math.round((w.count / maxWeekCount) * 130)) : 130,
+      fill: w.count > 0
+        ? (w.isToday ? 'linear-gradient(180deg, oklch(0.6 0.15 150), oklch(0.45 0.14 150))' : 'oklch(0.55 0.14 150)')
+        : 'repeating-linear-gradient(135deg, oklch(0.91 0.012 150), oklch(0.91 0.012 150) 4px, oklch(0.95 0.008 150) 4px, oklch(0.95 0.008 150) 8px)',
+      labelColor: w.isToday ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)',
+    }));
+
+    const statCards = [
+      { key: 'thisMonth', label: 'Shoots This Month', value: String(thisMonth.length), sub: 'Booked for this month', hero: true },
+      { key: 'completed', label: 'Completed', value: String(completed.length), sub: 'Delivered to clients', hero: false },
+      { key: 'activeClients', label: 'Active Clients', value: String(activeClients), sub: 'Booked or ongoing', hero: false },
     ];
 
     const chipModalKey = state.chipModal;
     const CHIP_MODAL_META = {
       thisMonth: { title: 'Shoots This Month', items: thisMonth.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
       completed: { title: 'Completed Shoots', items: completed.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
-      highPriority: { title: 'High Priority Open', items: openHigh.map(s => ({ primary: s.client, secondary: s.daysLeftLabel })) },
       activeClients: { title: 'Active Clients', items: state.clients.filter(c => c.leadStatus === 'Booked' || c.leadStatus === 'Client').map(c => ({ primary: c.name, secondary: c.leadStatus })) },
     };
     let chipModalData = chipModalKey ? CHIP_MODAL_META[chipModalKey] : null;
@@ -467,22 +548,25 @@
     const goalsAvgPercent = goalCards.length ? Math.round(goalCards.reduce((s, g) => s + g.percent, 0) / goalCards.length) : 0;
     const insightCards = [
       { icon: '💵', title: 'Cash Flow Analysis', text: `You earned ${fmtMoney(monthlyRevenue)} ${periodLabel === 'this week' ? 'this month so far' : 'this month'} against ${fmtMoney(monthTotal)} in expenses — a net profit of ${fmtMoney(netProfit)}. ${netProfit > 0 ? 'Positive cash flow, keep it up.' : 'Expenses are outpacing income, keep an eye on spending.'}` },
-      { icon: '📊', title: `${insightsPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Report`, text: `${outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.'} ${openHigh.length > 0 ? `${openHigh.length} high-priority shoot(s) still need attention.` : 'No urgent high-priority shoots right now.'}` },
+      { icon: '📊', title: `${insightsPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Report`, text: outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.' },
       { icon: '🎯', title: 'Goal Tracking', text: `Your savings goals are at an average of ${goalsAvgPercent}% completion. Yearly income progress: ${yearlyProgressPercent}% of the ${fmtMoney(yearlyGoalIncome)} target.` },
       { icon: '💡', title: 'Business Recommendations', text: activeClients < 3 ? 'You have relatively few active clients — try following up on leads marked "Contacted" or "Proposal Sent".' : `You have a solid client base (${activeClients} active). Keep following up on pending proposals to maintain momentum.` },
     ];
     const chartMax = Math.max(monthlyRevenue, monthTotal, 1);
 
     return {
-      view, shoots, navColor, goalCards, thisMonth, completed, openHigh, outstanding,
-      upcomingList, highPriorityList, columns, totalPackage, totalPaid, loanCards,
+      view, shoots, navColor, goalCards, thisMonth, completed, outstanding,
+      upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
       totalFullTime, monthFullTime, fullTimeRows, combinedTotal, fullTimeSharePercent, sideHustleSharePercent,
-      monthlyFullTime, monthlySideHustle, monthlyCombined,
+      dateRangeFrom, dateRangeTo, dateRangeLabel, rangeShoots, rangeSideHustleCollected, rangeTotalFullTime,
+      rangeCombinedTotal, rangeFullTimeSharePercent, rangeSideHustleSharePercent, rangeFullTimeRows,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
-      dashboardMonthOffset, dashboardMonthLabel, dashboardRevenue, dashboardExpensesTotal, dashboardNetProfit,
-      chipStats, chipModalKey, chipModalData, insightsPeriod, insightCards, chartMax,
+      userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
+      chipModalKey, chipModalData, insightsPeriod, insightCards, chartMax,
+      shootsThisMonthCount, shootsLastMonthCount, shootsMomLabel, shootsMomColor, shootsMomBg,
+      shootsThisMonthBarPct, shootsLastMonthBarPct,
     };
   }
 
@@ -492,7 +576,7 @@
     return `<span class="badge" style="background:${bg};color:${color}">${esc(label)}</span>`;
   }
   function progressBar(percent, gradient) {
-    const bg = gradient || 'linear-gradient(90deg, oklch(0.72 0.19 300), oklch(0.75 0.15 200))';
+    const bg = gradient || 'linear-gradient(90deg, oklch(0.55 0.14 150), oklch(0.55 0.12 175))';
     return `<div class="progress"><div style="width:${percent}%;background:${bg}"></div></div>`;
   }
 
@@ -530,7 +614,7 @@
         ${navBtn('docs', '▧', 'Documents')}
         ${navBtn('insights', '✦', 'Insights')}
       </nav>
-      <button type="button" class="nav-btn" style="margin-top:auto;color:oklch(0.7 0.19 25)" data-action="logout">
+      <button type="button" class="nav-btn" style="margin-top:auto;color:oklch(0.58 0.19 25)" data-action="logout">
         <span class="ic">⏻</span>Log out
       </button>
     </aside>`;
@@ -540,84 +624,96 @@
 
   function viewDashboard(ctx) {
     return `
-    <div class="page-head">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px">
       <div>
-        <div class="page-title sg">Dashboard</div>
+        <div class="sg" style="font-size:30px;font-weight:700;letter-spacing:-0.01em">Welcome Back, <span style="color:oklch(0.4 0.13 150)">${esc(ctx.userFirstName)}</span></div>
         <div class="page-sub">Your production priorities at a glance</div>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;color:oklch(0.4 0.02 150)">🕒 ${esc(ctx.liveDateTimeLabel)}</div>
     </div>
 
-    <div class="card" style="border-radius:18px;margin-bottom:16px;display:flex;align-items:center;gap:32px;flex-wrap:wrap">
-      <div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <button type="button" class="btn-ghost" style="padding:2px 6px;font-size:13px" data-action="dashboard-period-prev" title="Previous month">‹</button>
-          <div style="color:oklch(0.6 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Net Profit — ${esc(ctx.dashboardMonthLabel)}</div>
-          <button type="button" class="btn-ghost" style="padding:2px 6px;font-size:13px;opacity:${ctx.dashboardMonthOffset === 0 ? '0.3' : '1'}" data-action="dashboard-period-next" title="Next month">›</button>
+    <div class="dash-hero-grid" style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:16px;align-items:stretch">
+      <div style="background:linear-gradient(160deg, oklch(0.42 0.14 150), oklch(0.28 0.1 155));border-radius:18px;padding:26px;display:flex;flex-direction:column;justify-content:space-between;color:oklch(1 0 0);min-height:150px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:oklch(0.9 0.05 150)">Net Profit This Month</div>
+          <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:oklch(1 0 0 / 0.18)">${THIS_MONTH_KEY}</div>
         </div>
-        <div class="sg" style="font-size:44px;font-weight:700;margin-top:6px;color:${ctx.dashboardNetProfit >= 0 ? 'oklch(0.75 0.15 160)' : 'oklch(0.7 0.18 40)'}">${fmtMoney(ctx.dashboardNetProfit)}</div>
+        <div class="sg" style="font-size:42px;font-weight:700;margin-top:8px">${fmtMoney(ctx.netProfit)}</div>
+        <div style="display:flex;gap:26px;margin-top:14px;flex-wrap:wrap">
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Revenue</div><div style="font-size:16px;font-weight:700;margin-top:2px">${fmtMoney(ctx.monthlyRevenue)}</div></div>
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Expenses</div><div style="font-size:16px;font-weight:700;margin-top:2px">${fmtMoney(ctx.monthTotal)}</div></div>
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Pending</div><div style="font-size:16px;font-weight:700;margin-top:2px">${fmtMoney(ctx.outstanding)}</div></div>
+        </div>
       </div>
-      <div style="display:flex;gap:28px;flex-wrap:wrap;margin-left:auto">
-        <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Revenue</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px">${fmtMoney(ctx.dashboardRevenue)}</div></div>
-        <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Expenses</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px">${fmtMoney(ctx.dashboardExpensesTotal)}</div></div>
-        <div><div style="color:oklch(0.55 0.02 280);font-size:11.5px;font-weight:600;text-transform:uppercase">Pending</div><div class="sg" style="font-size:19px;font-weight:700;margin-top:3px;color:oklch(0.7 0.18 40)">${fmtMoney(ctx.outstanding)}</div></div>
+      <div class="card" style="display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px">
+          <div class="card-title" style="margin-bottom:0">Shoots This Week</div>
+          <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${esc(ctx.weekRangeLabel)}</div>
+        </div>
+        <div style="flex:1;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:0 2px">
+          ${ctx.weekBars.map(wb => `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative">
+              ${wb.isPeak ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.4 0.13 150);color:oklch(1 0 0);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap">${wb.count}</div>` : ''}
+              <div style="width:24px;height:${wb.heightPx}px;border-radius:12px;background:${wb.fill};flex:none"></div>
+              <div style="font-size:11px;font-weight:600;color:${wb.labelColor}">${wb.day}</div>
+            </div>`).join('')}
+        </div>
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px">
-      ${ctx.chipStats.map(chip => `
-        <button type="button" data-action="chip-open" data-key="${chip.key}" style="all:unset;cursor:pointer;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:9px 16px;display:flex;align-items:center;gap:8px">
-          <span style="font-size:12.5px;color:oklch(0.6 0.02 280)">${esc(chip.label)}</span>
-          <span class="sg" style="font-size:14.5px;font-weight:700;color:${chip.color}">${esc(chip.value)}</span>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+      ${ctx.statCards.map(sc => `
+        <button type="button" data-action="chip-open" data-key="${sc.key}" style="all:unset;cursor:pointer;min-width:0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px;${sc.hero
+          ? 'background:linear-gradient(160deg, oklch(0.4 0.13 150), oklch(0.3 0.1 150));color:oklch(1 0 0)'
+          : 'background:var(--panel);border:1px solid var(--border);color:var(--text)'}">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:13px;font-weight:600;color:${sc.hero ? 'oklch(0.95 0.03 150)' : 'oklch(0.4 0.02 150)'}">${esc(sc.label)}</div>
+            <div style="width:26px;height:26px;border-radius:50%;background:${sc.hero ? 'oklch(1 0 0 / 0.15)' : 'oklch(0.92 0.06 150)'};display:flex;align-items:center;justify-content:center;font-size:12px;color:${sc.hero ? 'oklch(1 0 0)' : 'oklch(0.4 0.13 150)'};flex:none">↗</div>
+          </div>
+          <div class="sg" style="font-size:30px;font-weight:700">${esc(sc.value)}</div>
+          <div style="font-size:11.5px;color:${sc.hero ? 'oklch(0.85 0.06 150)' : 'oklch(0.5 0.015 150)'}">${esc(sc.sub)}</div>
         </button>`).join('')}
     </div>
 
     <div class="card" style="padding:18px 22px;margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
         <div class="sg" style="font-weight:700;font-size:13.5px">Yearly Progress</div>
-        <div style="font-size:12px;color:oklch(0.6 0.02 280)">${fmtMoney(ctx.combinedTotal)} / ${fmtMoney(ctx.yearlyGoalIncome)}</div>
+        <div style="font-size:12px;color:oklch(0.48 0.015 150)">${fmtMoney(ctx.combinedTotal)} / ${fmtMoney(ctx.yearlyGoalIncome)}</div>
       </div>
-      ${progressBar(ctx.yearlyProgressPercent)}
+      ${progressBar(ctx.yearlyProgressPercent, 'linear-gradient(90deg, oklch(0.55 0.14 150), oklch(0.55 0.12 175))')}
     </div>
 
-    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:start">
-      <div class="card">
-        <div class="card-title">High Priority</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          ${ctx.highPriorityList.map(s => `
-            <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--card2);border-radius:11px;cursor:pointer" data-action="shoot-edit" data-id="${esc(s.id)}">
-              <div style="width:8px;height:8px;border-radius:50%;background:${s.priorityColor};flex:none"></div>
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.client)}</div>
-                <div style="color:oklch(0.65 0.02 280);font-size:12.5px;margin-top:2px">${esc(s.location)} · ${esc(s.statusLabel)}</div>
-              </div>
-              <div style="font-size:12px;font-weight:700;color:${s.daysLeftColor};flex:none">${esc(s.daysLeftLabel)}</div>
-            </div>`).join('')}
-          ${ctx.highPriorityList.length === 0 ? `<div style="color:oklch(0.5 0.02 280);font-size:13.5px;padding:8px 4px">Nothing urgent right now.</div>` : ''}
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Upcoming Deadlines</div>
-        <div style="display:flex;flex-direction:column;gap:14px">
-          ${ctx.upcomingList.map(s => `
-            <div>
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-                <div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.client)}</div>
-                <div style="font-size:11.5px;font-weight:700;color:${s.daysLeftColor};flex:none;margin-left:8px">${esc(s.daysLeftLabel)}</div>
-              </div>
-              ${progressBar(s.progressPercent)}
-            </div>`).join('')}
-        </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Who's Up Next</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${ctx.nextUpList.map(n => `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--card2);border-radius:11px;cursor:pointer" data-action="shoot-edit" data-id="${esc(n.id)}">
+            <div style="width:38px;height:38px;border-radius:10px;background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none">${esc(n.dayNum)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.client)}</div>
+              <div style="color:oklch(0.5 0.015 150);font-size:11.5px;margin-top:1px">${n.dateLabel} · ${esc(n.location)}</div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:${n.daysLeftColor};flex:none">${n.daysLeftLabel}</div>
+          </div>`).join('')}
+        ${ctx.noNextUp ? `<div style="color:oklch(0.55 0.015 150);font-size:13.5px;padding:8px 4px">No shoots scheduled yet.</div>` : ''}
       </div>
     </div>
 
-    <div class="card" style="margin-top:20px">
+    <div style="margin-top:20px">
       <div class="card-title">Goals</div>
-      <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
         ${ctx.goalCards.map(g => `
-          <div>
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>${esc(g.name)}</span><span style="color:oklch(0.6 0.02 280)">${g.percent}%</span></div>
-            ${progressBar(g.percent, 'oklch(0.75 0.15 200)')}
+          <div class="card" style="padding:14px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+              <div style="font-weight:700;font-size:12.5px;letter-spacing:-0.005em">${g.icon} ${esc(g.name)}</div>
+              <div style="font-size:11px;font-weight:700;color:oklch(0.45 0.14 150)">${g.percent}%</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin:8px 0 6px">
+              ${g.isUSD
+                ? `<span style="font-size:12px;font-weight:700">${g.usdCurrentLabel}</span><span style="font-size:10.5px;color:oklch(0.5 0.015 150)">/ ${g.usdTargetLabel}</span>`
+                : `<span style="font-size:12px;font-weight:700">${g.currentLabel}</span><span style="font-size:10.5px;color:oklch(0.5 0.015 150)">/ ${g.targetLabel}</span>`}
+            </div>
+            ${progressBar(g.percent, 'linear-gradient(90deg, oklch(0.5 0.13 165), oklch(0.42 0.12 155))')}
           </div>`).join('')}
       </div>
     </div>
@@ -631,28 +727,8 @@
               <div style="font-weight:700;font-size:13.5px">${esc(l.lender)}</div>
               ${badge(l.statusLabel, l.statusColor, l.statusBg)}
             </div>
-            ${progressBar(l.paidPercent, 'oklch(0.75 0.15 200)')}
-            <div style="font-size:12px;color:oklch(0.6 0.02 280);margin-top:8px">${l.remainingLabel} left of ${l.amountLabel}</div>
-          </div>`).join('')}
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div class="card-title" style="margin-bottom:0">Daily Expenses</div>
-        <button type="button" class="btn-telegram" data-action="telegram-open">✈ Log via Telegram</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:16px">
-        <div><div style="color:oklch(0.6 0.02 280);font-size:12px;font-weight:600;text-transform:uppercase">Today</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:4px">${fmtMoney(ctx.todayTotal)}</div></div>
-        <div><div style="color:oklch(0.6 0.02 280);font-size:12px;font-weight:600;text-transform:uppercase">This Month</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:4px">${fmtMoney(ctx.monthTotal)}</div></div>
-      </div>
-      <div style="background:oklch(0.16 0.02 280);border:1px solid oklch(1 0 0 / 0.06);border-radius:11px;padding:13px 15px;font-size:13px;color:${ctx.analysisColor};margin-bottom:14px;line-height:1.5">${esc(ctx.analysisText)}</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${ctx.recentExpenses.map(ex => `
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px">
-            <span style="color:oklch(0.8 0.01 280);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ex.description)}</span>
-            <span style="color:oklch(0.55 0.02 280);flex:none">${ex.dateLabel}</span>
-            <span style="font-weight:600;flex:none;width:80px;text-align:right">${ex.amountLabel}</span>
+            ${progressBar(l.paidPercent, 'oklch(0.55 0.12 175)')}
+            <div style="font-size:12px;color:oklch(0.48 0.015 150);margin-top:8px">${l.remainingLabel} left of ${l.amountLabel}</div>
           </div>`).join('')}
       </div>
     </div>`;
@@ -665,15 +741,16 @@
     <div class="shoot-card" draggable="true" data-action="shoot-edit" data-id="${esc(s.id)}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
         <div style="font-weight:600;font-size:14px;line-height:1.3">${esc(s.client)}</div>
-        ${badge(s.priority, s.priorityColor, s.priorityBg)}
       </div>
-      <div style="color:oklch(0.65 0.02 280);font-size:12.5px;margin-bottom:3px">${esc(s.location)} · ${esc(s.shootType)}</div>
-      <div style="color:oklch(0.6 0.02 280);font-size:12px;margin-bottom:8px">${s.dateLabel} · ${s.timeLabel}</div>
+      <div style="color:oklch(0.45 0.015 150);font-size:12.5px;margin-bottom:3px">${esc(s.location)} · ${esc(s.shootType)}</div>
+      <div style="color:oklch(0.48 0.015 150);font-size:12px;margin-bottom:8px">${s.dateLabel} · ${s.timeLabel}</div>
       ${s.showScriptBadge ? `<div style="margin-bottom:10px">${badge('Script: ' + s.scriptStatusLabel, s.scriptStatusColor, s.scriptStatusBg)}</div>` : ''}
-      ${progressBar(s.progressPercent, 'oklch(0.75 0.15 200)')}
+      ${s.showClientScriptBadge ? `<div style="margin-bottom:10px">${badge('Client Script', 'oklch(0.4 0.13 150)', 'oklch(0.92 0.06 150)')}</div>` : ''}
+      ${progressBar(s.progressPercent, 'oklch(0.55 0.12 175)')}
+      ${s.showDpBadge ? `<div style="margin-top:8px">${badge('DP paid: ' + s.dpPaidLabel, 'oklch(0.4 0.13 150)', 'oklch(0.92 0.06 150)')}</div>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
         <div style="font-size:11.5px;font-weight:700;color:${s.daysLeftColor}">${s.daysLeftLabel}</div>
-        <div style="font-size:11.5px;color:oklch(0.6 0.02 280)">${s.balanceLabel}</div>
+        <div style="font-size:11.5px;color:oklch(0.48 0.015 150)">${s.balanceLabel}</div>
       </div>
     </div>`;
   }
@@ -687,7 +764,7 @@
             <div class="kanban-col-head">
               <div style="width:7px;height:7px;border-radius:50%;background:${col.color}"></div>
               <div style="font-weight:700;font-size:13.5px">${col.label}</div>
-              <div style="color:oklch(0.55 0.02 280);font-size:12px;margin-left:auto">${col.shoots.length}</div>
+              <div style="color:oklch(0.5 0.015 150);font-size:12px;margin-left:auto">${col.shoots.length}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:10px;min-height:40px">
               ${col.shoots.map(shootCard).join('')}
@@ -704,7 +781,7 @@
             <button type="button" class="btn-ghost" style="padding:6px 10px;border-radius:8px;font-size:15px" data-action="cal-next">›</button>
           </div>
           <div class="cal-grid" style="margin-bottom:8px">
-            ${WEEKDAY_LABELS.map(wd => `<div style="text-align:center;font-size:11px;color:oklch(0.5 0.02 280);font-weight:700;padding-bottom:4px">${wd}</div>`).join('')}
+            ${WEEKDAY_LABELS.map(wd => `<div style="text-align:center;font-size:11px;color:oklch(0.55 0.015 150);font-weight:700;padding-bottom:4px">${wd}</div>`).join('')}
           </div>
           <div class="cal-grid">
             ${ctx.calendarCells.map(c => c.blank
@@ -723,9 +800,9 @@
             ${ctx.selectedDateShoots.map(s => `
               <div style="background:var(--card2);border-radius:10px;padding:11px;cursor:pointer" data-action="shoot-edit" data-id="${esc(s.id)}">
                 <div style="font-weight:600;font-size:13.5px;margin-bottom:3px">${esc(s.client)}</div>
-                <div style="color:oklch(0.6 0.02 280);font-size:12px">${s.timeLabel} · ${esc(s.location)}</div>
+                <div style="color:oklch(0.48 0.015 150);font-size:12px">${s.timeLabel} · ${esc(s.location)}</div>
               </div>`).join('')}
-            ${ctx.selectedDateShoots.length === 0 ? `<div style="color:oklch(0.5 0.02 280);font-size:13px">No shoots this day.</div>` : ''}
+            ${ctx.selectedDateShoots.length === 0 ? `<div style="color:oklch(0.55 0.015 150);font-size:13px">No shoots this day.</div>` : ''}
           </div>
         </div>
       </div>`;
@@ -738,8 +815,8 @@
       </div>
       <div style="display:flex;gap:12px;align-items:center">
         <div class="tabbar">
-          <button type="button" class="tab-btn" style="color:${state.shootsMode === 'board' ? 'oklch(0.95 0.01 280)' : 'oklch(0.6 0.02 280)'};background:${state.shootsMode === 'board' ? 'oklch(0.72 0.19 300 / 0.2)' : 'transparent'}" data-action="shoots-mode" data-mode="board">Board</button>
-          <button type="button" class="tab-btn" style="color:${state.shootsMode === 'calendar' ? 'oklch(0.95 0.01 280)' : 'oklch(0.6 0.02 280)'};background:${state.shootsMode === 'calendar' ? 'oklch(0.72 0.19 300 / 0.2)' : 'transparent'}" data-action="shoots-mode" data-mode="calendar">Calendar</button>
+          <button type="button" class="tab-btn" style="color:${state.shootsMode === 'board' ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${state.shootsMode === 'board' ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="shoots-mode" data-mode="board">Board</button>
+          <button type="button" class="tab-btn" style="color:${state.shootsMode === 'calendar' ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${state.shootsMode === 'calendar' ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="shoots-mode" data-mode="calendar">Calendar</button>
         </div>
         <button type="button" class="btn-primary" data-action="shoot-add-open">+ New Shoot</button>
       </div>
@@ -753,47 +830,40 @@
 
   /* ---------------- finances ---------------- */
 
-  function monthlyBreakdownCard(title, months) {
-    const max = Math.max(1, ...months.map(m => m.total));
-    return `
-      <div class="card" style="margin-top:20px">
-        <div class="card-title">${esc(title)}</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          ${months.map(m => `
-            <div>
-              <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.7 0.02 280)">${esc(m.label)}</span><span style="font-weight:700">${fmtMoney(m.total)}</span></div>
-              ${progressBar(Math.round((m.total / max) * 100))}
-            </div>`).join('')}
-        </div>
-      </div>`;
-  }
-
   function viewFinances(ctx) {
-    const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${state.financeTab === key ? 'oklch(0.95 0.01 280)' : 'oklch(0.6 0.02 280)'};background:${state.financeTab === key ? 'oklch(0.72 0.19 300 / 0.2)' : 'transparent'}" data-action="finance-tab" data-tab="${key}">${label}</button>`;
+    const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${state.financeTab === key ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${state.financeTab === key ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="finance-tab" data-tab="${key}">${label}</button>`;
+
+    const dateRangePicker = `
+      <div style="display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 14px">
+        <span style="font-size:13px;font-weight:600;color:oklch(0.4 0.02 150)">📅</span>
+        <div class="field" style="flex:none"><input type="date" value="${esc(ctx.dateRangeFrom)}" data-bind="dateRangeFrom" style="padding:6px 8px;font-size:13px"/></div>
+        <span style="font-size:13px;color:oklch(0.5 0.015 150)">to</span>
+        <div class="field" style="flex:none"><input type="date" value="${esc(ctx.dateRangeTo)}" data-bind="dateRangeTo" style="padding:6px 8px;font-size:13px"/></div>
+      </div>`;
 
     const sideHustle = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Package Value</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalPackage)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Collected</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.75 0.15 160)">${fmtMoney(ctx.totalPaid)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.7 0.18 40)">${fmtMoney(ctx.outstanding)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Package Value</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalPackage)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Collected</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.5 0.15 150)">${fmtMoney(ctx.rangeSideHustleCollected)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.outstanding)}</div></div>
       </div>
       <div class="table-wrap">
         <div class="t-head" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1fr"><div>Client / Project</div><div>Status</div><div>Package</div><div>Paid</div><div>Remaining Balance</div></div>
-        ${ctx.shoots.map(s => `
+        ${ctx.rangeShoots.map(s => `
           <div class="t-row" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;cursor:pointer" data-action="shoot-edit" data-id="${esc(s.id)}">
-            <div><div style="font-weight:600;font-size:14px">${esc(s.client)}</div><div style="color:oklch(0.6 0.02 280);font-size:12px;margin-top:2px">${esc(s.location)}</div></div>
-            <div style="font-size:12.5px;color:oklch(0.75 0.02 280)">${s.statusLabel}</div>
-            <div><div style="font-size:13.5px;font-weight:600">${s.packageLabel}</div><div style="color:oklch(0.55 0.02 280);font-size:11px;margin-top:2px">${s.packageTierLabel}</div></div>
-            <div style="font-size:13.5px;color:oklch(0.75 0.15 160)">${s.paidLabel}</div>
+            <div><div style="font-weight:600;font-size:14px">${esc(s.client)}</div><div style="color:oklch(0.48 0.015 150);font-size:12px;margin-top:2px">${esc(s.location)}</div></div>
+            <div style="font-size:12.5px;color:oklch(0.4 0.015 150)">${s.statusLabel}</div>
+            <div><div style="font-size:13.5px;font-weight:600">${s.packageLabel}</div><div style="color:oklch(0.5 0.015 150);font-size:11px;margin-top:2px">${s.packageTierLabel}</div></div>
+            <div style="font-size:13.5px;color:oklch(0.5 0.15 150)">${s.paidLabel}</div>
             <div style="font-size:13.5px;font-weight:700;color:${s.balanceColor}">${s.balanceLabel}</div>
           </div>`).join('')}
-      </div>
-      ${monthlyBreakdownCard('Monthly Comparison (Side Hustle Collected)', ctx.monthlySideHustle)}`;
+        ${ctx.rangeShoots.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No shoots in this date range.</div>` : ''}
+      </div>`;
 
     const fullTime = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">This Month</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthFullTime)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.rangeTotalFullTime)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">This Month</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthFullTime)}</div></div>
       </div>
       <div class="card" style="margin-bottom:24px">
         <div class="card-title">Add Income</div>
@@ -806,38 +876,40 @@
       </div>
       <div class="table-wrap">
         <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 32px"><div>Source</div><div>Date</div><div>Amount</div><div></div></div>
-        ${ctx.fullTimeRows.map(f => `
+        ${ctx.rangeFullTimeRows.map(f => `
           <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 32px">
             <div style="font-weight:600;font-size:14px">${esc(f.source)}</div>
-            <div style="font-size:12.5px;color:oklch(0.65 0.02 280)">${f.dateLabel}</div>
-            <div style="font-size:13.5px;font-weight:600;color:oklch(0.75 0.15 160)">${f.amountLabel}</div>
-            <button type="button" style="all:unset;cursor:pointer;color:oklch(0.6 0.02 280);font-size:14px;text-align:right" data-action="fulltime-delete" data-id="${esc(f.id)}" title="Delete">✕</button>
+            <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${f.dateLabel}</div>
+            <div style="font-size:13.5px;font-weight:600;color:oklch(0.5 0.15 150)">${f.amountLabel}</div>
+            <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="fulltime-delete" data-id="${esc(f.id)}" title="Delete">✕</button>
           </div>`).join('')}
-      </div>
-      ${monthlyBreakdownCard('Monthly Comparison (Full-Time)', ctx.monthlyFullTime)}`;
+        ${ctx.rangeFullTimeRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No income entries in this date range.</div>` : ''}
+      </div>`;
 
     const combined = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Full-Time</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Side Hustle Collected</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalPaid)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Combined Income</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.75 0.15 200)">${fmtMoney(ctx.combinedTotal)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.7 0.18 40)">${fmtMoney(ctx.outstanding)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Full-Time</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.rangeTotalFullTime)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Side Hustle Collected</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.rangeSideHustleCollected)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Combined Income</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.55 0.12 175)">${fmtMoney(ctx.rangeCombinedTotal)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.outstanding)}</div></div>
       </div>
       <div class="card">
         <div class="card-title">Income Split</div>
-        <div style="height:14px;border-radius:8px;overflow:hidden;display:flex;background:oklch(0.3 0.02 280)">
-          <div style="width:${ctx.fullTimeSharePercent}%;background:oklch(0.75 0.15 200)"></div>
-          <div style="width:${ctx.sideHustleSharePercent}%;background:oklch(0.72 0.19 300)"></div>
+        <div style="height:14px;border-radius:8px;overflow:hidden;display:flex;background:oklch(0.91 0.012 150)">
+          <div style="width:${ctx.rangeFullTimeSharePercent}%;background:oklch(0.55 0.12 175)"></div>
+          <div style="width:${ctx.rangeSideHustleSharePercent}%;background:oklch(0.55 0.14 150)"></div>
         </div>
         <div style="display:flex;gap:20px;margin-top:12px;font-size:12.5px">
-          <div style="display:flex;align-items:center;gap:6px;color:oklch(0.7 0.02 280)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.75 0.15 200)"></span>Full-Time (${ctx.fullTimeSharePercent}%)</div>
-          <div style="display:flex;align-items:center;gap:6px;color:oklch(0.7 0.02 280)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.72 0.19 300)"></span>Side Hustle (${ctx.sideHustleSharePercent}%)</div>
+          <div style="display:flex;align-items:center;gap:6px;color:oklch(0.42 0.015 150)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.55 0.12 175)"></span>Full-Time (${ctx.rangeFullTimeSharePercent}%)</div>
+          <div style="display:flex;align-items:center;gap:6px;color:oklch(0.42 0.015 150)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.55 0.14 150)"></span>Side Hustle (${ctx.rangeSideHustleSharePercent}%)</div>
         </div>
-      </div>
-      ${monthlyBreakdownCard('Monthly Comparison (Combined)', ctx.monthlyCombined)}`;
+      </div>`;
 
     return `
-    <div class="page-head"><div><div class="page-title sg">Finances</div><div class="page-sub">Package value vs. what's been collected</div></div></div>
+    <div class="page-head">
+      <div><div class="page-title sg">Finances</div><div class="page-sub">Package value vs. what's been collected</div></div>
+      ${dateRangePicker}
+    </div>
     <div class="tabbar" style="margin-bottom:24px">
       ${tab('sidehustle', 'Side Hustle')}${tab('fulltime', 'Full-Time')}${tab('combined', 'Combined')}
     </div>
@@ -854,10 +926,8 @@
       <button type="button" class="btn-telegram" data-action="telegram-open">✈ Log via Telegram</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-      <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">Today</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.todayTotal)}</div></div>
-      <div class="card" style="padding:20px"><div style="color:oklch(0.65 0.02 280);font-size:12.5px;font-weight:600;text-transform:uppercase">This Month</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthTotal)}</div></div>
+      <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">This Month</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthTotal)}</div></div>
     </div>
-    <div style="background:oklch(0.16 0.02 280);border:1px solid oklch(1 0 0 / 0.06);border-radius:11px;padding:14px 16px;font-size:13.5px;color:${ctx.analysisColor};margin-bottom:20px;line-height:1.5">${esc(ctx.analysisText)}</div>
     <div class="search-wrap">
       <input type="text" value="${esc(state.expensesSearch)}" data-bind="expensesSearch" placeholder="Search expenses..."/>
       ${searchClear}
@@ -867,11 +937,11 @@
       ${ctx.filteredExpenseRows.map(ex => `
         <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 32px">
           <div style="font-weight:600;font-size:14px">${esc(ex.description)}</div>
-          <div style="font-size:12.5px;color:oklch(0.65 0.02 280)">${ex.dateLabel}</div>
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${ex.dateLabel}</div>
           <div style="font-size:13.5px;font-weight:600">${ex.amountLabel}</div>
-          <button type="button" style="all:unset;cursor:pointer;color:oklch(0.6 0.02 280);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
+          <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
         </div>`).join('')}
-      ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.5 0.02 280);font-size:13.5px">No expenses match your search.</div>` : ''}
+      ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses match your search.</div>` : ''}
     </div>`;
   }
 
@@ -889,18 +959,24 @@
       <input type="text" value="${esc(state.loansSearch)}" data-bind="loansSearch" placeholder="Search loans by lender..."/>
       ${searchClear}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
       ${filtered.map(l => `
-        <div class="card" style="padding:20px;cursor:pointer" data-action="loan-edit" data-id="${esc(l.id)}">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-            <div><div style="font-weight:700;font-size:14.5px">${esc(l.lender)}</div><div style="color:oklch(0.6 0.02 280);font-size:12px;margin-top:2px">${esc(l.dueLabel)}</div></div>
-            ${badge(l.statusLabel, l.statusColor, l.statusBg)}
+        <div style="background:oklch(1 0 0);border:1px solid oklch(0 0 0 / 0.06);border-radius:20px;padding:24px;cursor:pointer;box-shadow:0 1px 3px oklch(0 0 0 / 0.04)" data-action="loan-edit" data-id="${esc(l.id)}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+            <div style="font-weight:800;font-size:17px;letter-spacing:-0.01em">${esc(l.lender)}</div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;padding:5px 12px;border-radius:20px;background:${l.statusBg};color:${l.statusColor};flex:none">${l.statusLabel}</div>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:12.5px;color:oklch(0.65 0.02 280);margin-bottom:6px"><span>${l.remainingLabel} left</span><span>${l.amountLabel} total</span></div>
-          ${progressBar(l.paidPercent)}
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-            <div style="font-size:12.5px;color:oklch(0.6 0.02 280)">Monthly due: <span style="color:oklch(0.9 0.01 280);font-weight:600">${l.monthlyDueLabel}</span></div>
-            ${l.showDueBadge ? `<div style="font-size:11px;font-weight:700;color:${l.dueBadgeColor}">${l.dueBadgeLabel}</div>` : ''}
+          <div style="color:oklch(0.5 0.015 150);font-size:13.5px;margin-bottom:18px">${esc(l.dueLabel)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+            <span style="font-size:15px;font-weight:700">${l.remainingLabel} <span style="font-weight:500;color:oklch(0.5 0.015 150);font-size:12.5px">left</span></span>
+            <span style="font-size:13px;color:oklch(0.5 0.015 150)">${l.amountLabel} total</span>
+          </div>
+          <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden;margin-bottom:18px">
+            <div style="height:100%;width:${l.paidPercent}%;background:linear-gradient(90deg, oklch(0.5 0.13 165), oklch(0.42 0.12 155));border-radius:5px"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:13.5px;color:oklch(0.45 0.015 150)">Monthly due: <span style="color:oklch(0.2 0.02 150);font-weight:700">${l.monthlyDueLabel}</span></div>
+            ${l.showDueBadge ? `<div style="font-size:12px;font-weight:700;color:${l.dueBadgeColor}">${l.dueBadgeLabel}</div>` : ''}
           </div>
         </div>`).join('')}
     </div>`;
@@ -925,14 +1001,14 @@
         <div class="t-row" style="grid-template-columns:1.6fr 1.2fr 1fr 1fr 0.6fr">
           <div style="font-weight:600;font-size:14px;cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">${esc(c.name)}</div>
           <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">
-            <div style="font-size:12.5px;color:oklch(0.75 0.02 280)">${esc(c.phone)}</div>
-            <div style="font-size:11.5px;color:oklch(0.55 0.02 280);margin-top:1px">${esc(c.email)}</div>
+            <div style="font-size:12.5px;color:oklch(0.4 0.015 150)">${esc(c.phone)}</div>
+            <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:1px">${esc(c.email)}</div>
           </div>
           <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">${badge(c.leadStatus, c.statusColor, c.statusBg)}</div>
-          <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}"><div style="font-size:12.5px;color:oklch(0.65 0.02 280)">${c.followUpLabel}</div></div>
-          <button type="button" style="all:unset;cursor:pointer;font-size:11.5px;color:oklch(0.72 0.19 300);text-decoration:underline" data-action="client-view-shoots" data-id="${esc(c.id)}">${esc(c.shootCountLabel)}</button>
+          <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}"><div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${c.followUpLabel}</div></div>
+          <button type="button" style="all:unset;cursor:pointer;font-size:11.5px;color:oklch(0.55 0.14 150);text-decoration:underline" data-action="client-view-shoots" data-id="${esc(c.id)}">${esc(c.shootCountLabel)}</button>
         </div>`).join('')}
-      ${ctx.clientRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.5 0.02 280);font-size:13.5px">No clients match your search.</div>` : ''}
+      ${ctx.clientRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No clients match your search.</div>` : ''}
     </div>`;
   }
 
@@ -943,9 +1019,15 @@
     const docType = state.docType;
     const meta = DOC_TYPE_META[docType];
     const isInvoice = docType === 'invoice';
-    const paymentStatusColor = d.paymentStatus === 'Paid' ? 'oklch(0.4 0.12 160)' : d.paymentStatus === 'Partial' ? 'oklch(0.4 0.12 80)' : 'oklch(0.4 0.15 25)';
-    const paymentStatusBg = d.paymentStatus === 'Paid' ? 'oklch(0.9 0.08 160)' : d.paymentStatus === 'Partial' ? 'oklch(0.9 0.08 80)' : 'oklch(0.9 0.08 25)';
-    const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${docType === key ? 'oklch(0.95 0.01 280)' : 'oklch(0.6 0.02 280)'};background:${docType === key ? 'oklch(0.72 0.19 300 / 0.2)' : 'transparent'}" data-action="doc-type" data-doctype="${key}">${label}</button>`;
+    const paymentStatusColor = d.paymentStatus === 'Paid' ? 'oklch(0.45 0.13 150)' : d.paymentStatus === 'Partial' ? 'oklch(0.55 0.14 80)' : 'oklch(0.55 0.18 25)';
+    const paymentStatusBg = d.paymentStatus === 'Paid' ? 'oklch(0.92 0.06 150)' : d.paymentStatus === 'Partial' ? 'oklch(0.93 0.07 80)' : 'oklch(0.92 0.08 25)';
+    const packageRateRows = [
+      { key: 'basic', label: 'Package 1 - Basic' },
+      { key: 'standard', label: 'Package 2 - Standard' },
+      { key: 'premium', label: 'Package 3 - Premium' },
+      { key: 'ultimate', label: 'Package 4 - Ultimate' },
+    ];
+    const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${docType === key ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${docType === key ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="doc-type" data-doctype="${key}">${label}</button>`;
 
     return `
     <div class="page-head"><div><div class="page-title sg">Documents</div><div class="page-sub">Generate contracts, quotations, and invoices</div></div></div>
@@ -966,7 +1048,7 @@
         </div>
         <div class="field"><label>Terms / Notes</label><input type="text" value="${esc(d.notes)}" data-bind="docDraft.notes" placeholder="e.g. 50% downpayment, balance on delivery"/></div>
         ${isInvoice ? `
-        <div style="border-top:1px solid oklch(1 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
+        <div style="border-top:1px solid oklch(0 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
           <div class="row-2">
             <div class="field"><label>Invoice Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/></div>
             <div class="field"><label>Due Date</label><input type="date" value="${esc(d.dueDate)}" data-bind="docDraft.dueDate"/></div>
@@ -984,19 +1066,27 @@
         </div>` : ''}
         <button type="button" class="btn-primary" style="text-align:center;margin-top:4px" data-action="doc-generate">Generate ${meta.title}</button>
       </div>
-      <div id="doc-preview-panel" style="background:oklch(0.97 0 0);color:oklch(0.2 0.01 280);border-radius:16px;padding:32px;min-height:360px">
+      <div id="doc-preview-panel" style="background:oklch(0.99 0 0);color:oklch(0.28 0.02 150);border-radius:16px;padding:32px;min-height:360px">
         <div class="sg" style="font-weight:700;font-size:20px;letter-spacing:-0.02em;margin-bottom:16px">pol.</div>
         <div class="sg" style="font-weight:700;font-size:18px;margin-bottom:4px">${meta.title}</div>
-        <div style="font-size:12px;color:oklch(0.45 0.01 280);margin-bottom:20px">Pol Film Productions · ${esc(d.date)}</div>
+        <div style="font-size:12px;color:oklch(0.4 0.02 150);margin-bottom:20px">Pol Film Productions · ${esc(d.date)}</div>
         ${isInvoice ? `
-          <div style="font-size:12.5px;color:oklch(0.5 0.01 280);margin-bottom:14px">Invoice #${esc(d.invoiceNumber)} · Due ${esc(d.dueDate)}</div>
-          <div style="font-size:13px;color:oklch(0.35 0.01 280);margin-bottom:14px">${esc(d.clientContact)}</div>` : ''}
+          <div style="font-size:12.5px;color:oklch(0.55 0.015 150);margin-bottom:14px">Invoice #${esc(d.invoiceNumber)} · Due ${esc(d.dueDate)}</div>
+          <div style="font-size:13px;color:oklch(0.5 0.02 150);margin-bottom:14px">${esc(d.clientContact)}</div>` : ''}
         <div style="font-size:13.5px;line-height:1.7">${esc(meta.body(d))}</div>
         ${isInvoice ? `
-          <div style="margin-top:16px;font-size:13px;line-height:1.7;color:oklch(0.3 0.01 280)"><div style="font-weight:700;margin-bottom:4px">Breakdown</div><div>${esc(d.lineItems)}</div></div>
+          <div style="margin-top:16px;font-size:13px;line-height:1.7;color:oklch(0.55 0.02 150)"><div style="font-weight:700;margin-bottom:4px">Breakdown</div><div>${esc(d.lineItems)}</div></div>
           <div style="margin-top:16px;font-size:13px;line-height:1.7"><div style="font-weight:700;margin-bottom:4px">Payment Details</div><div>${esc(d.paymentDetails)}</div></div>
           <div style="margin-top:12px;font-size:12.5px;font-weight:700;display:inline-block;padding:4px 10px;border-radius:6px;background:${paymentStatusBg};color:${paymentStatusColor}">${esc(d.paymentStatus)}</div>` : ''}
-        <div style="margin-top:24px;padding-top:16px;border-top:1px solid oklch(0.85 0 0);font-size:13px;color:oklch(0.4 0.01 280)">${esc(d.notes)}</div>
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid oklch(0.3 0 0);font-size:13px;color:oklch(0.42 0.02 150)">${esc(d.notes)}</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <div class="card-title" style="margin-bottom:4px">Package Rates</div>
+      <div style="color:oklch(0.5 0.015 150);font-size:12.5px;margin-bottom:16px">Update your pricing here — changes apply to new shoots only. Shoots already booked keep their locked-in price.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+        ${packageRateRows.map(pr => `
+          <div class="field"><label>${pr.label}</label><input type="text" inputmode="decimal" value="${esc(state.packageRates[pr.key])}" data-bind="packageRates.${pr.key}" data-special="packageRate" data-key="${pr.key}"/></div>`).join('')}
       </div>
     </div>`;
   }
@@ -1004,30 +1094,48 @@
   /* ---------------- insights ---------------- */
 
   function viewInsights(ctx) {
-    const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${ctx.insightsPeriod === key ? 'oklch(0.95 0.01 280)' : 'oklch(0.6 0.02 280)'};background:${ctx.insightsPeriod === key ? 'oklch(0.72 0.19 300 / 0.2)' : 'transparent'}" data-action="insights-period" data-period="${key}">${label}</button>`;
+    const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${ctx.insightsPeriod === key ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${ctx.insightsPeriod === key ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="insights-period" data-period="${key}">${label}</button>`;
     return `
     <div class="page-head">
       <div><div class="page-title sg">Insights</div><div class="page-sub">AI-generated analysis of your business</div></div>
       <div class="tabbar">${tab('weekly', 'Weekly')}${tab('monthly', 'Monthly')}</div>
     </div>
     <div class="card" style="margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:14px">Shoots: This Month vs Last Month</div>
+      <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:14px">
+        <div class="sg" style="font-size:34px;font-weight:700">${ctx.shootsThisMonthCount}</div>
+        <div style="font-size:13px;font-weight:700;color:${ctx.shootsMomColor};background:${ctx.shootsMomBg};padding:4px 10px;border-radius:20px">${ctx.shootsMomLabel}</div>
+        <div style="font-size:12.5px;color:oklch(0.5 0.015 150)">vs ${ctx.shootsLastMonthCount} last month</div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:16px;height:70px">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+          <div style="width:60%;background:oklch(0.85 0.02 150);border-radius:8px 8px 0 0;height:${ctx.shootsLastMonthBarPct}%"></div>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150)">Last Month</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+          <div style="width:60%;background:oklch(0.5 0.14 150);border-radius:8px 8px 0 0;height:${ctx.shootsThisMonthBarPct}%"></div>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150)">This Month</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
       <div class="card-title" style="margin-bottom:14px">Revenue vs Expenses</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.7 0.02 280)">Revenue</span><span style="font-weight:700">${fmtMoney(ctx.monthlyRevenue)}</span></div>
-          <div style="height:10px;background:oklch(0.3 0.02 280);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.monthlyRevenue / ctx.chartMax) * 100)}%;background:oklch(0.75 0.15 200);border-radius:5px"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">Revenue</span><span style="font-weight:700">${fmtMoney(ctx.monthlyRevenue)}</span></div>
+          <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.monthlyRevenue / ctx.chartMax) * 100)}%;background:oklch(0.55 0.12 175);border-radius:5px"></div></div>
         </div>
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.7 0.02 280)">Expenses</span><span style="font-weight:700">${fmtMoney(ctx.monthTotal)}</span></div>
-          <div style="height:10px;background:oklch(0.3 0.02 280);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.monthTotal / ctx.chartMax) * 100)}%;background:oklch(0.7 0.18 40);border-radius:5px"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">Expenses</span><span style="font-weight:700">${fmtMoney(ctx.monthTotal)}</span></div>
+          <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.monthTotal / ctx.chartMax) * 100)}%;background:oklch(0.62 0.17 45);border-radius:5px"></div></div>
         </div>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px">
       ${ctx.insightCards.map(ic => `
         <div class="card">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="color:oklch(0.72 0.19 300)">${ic.icon}</span><div class="sg" style="font-weight:700;font-size:15px">${esc(ic.title)}</div></div>
-          <div style="font-size:13.5px;line-height:1.6;color:oklch(0.8 0.01 280)">${esc(ic.text)}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="color:oklch(0.55 0.14 150)">${ic.icon}</span><div class="sg" style="font-weight:700;font-size:15px">${esc(ic.title)}</div></div>
+          <div style="font-size:13.5px;line-height:1.6;color:oklch(0.32 0.015 150)">${esc(ic.text)}</div>
         </div>`).join('')}
     </div>`;
   }
@@ -1050,11 +1158,14 @@
       ${filtered.map(g => `
         <div class="card" style="padding:20px;cursor:pointer" data-action="goal-edit" data-id="${esc(g.id)}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-            <div style="font-weight:700;font-size:14.5px">${esc(g.name)}</div>
-            <div style="font-size:12px;font-weight:700;color:oklch(0.75 0.15 200)">${g.percent}%</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:34px;height:34px;border-radius:10px;background:oklch(0.92 0.06 150);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none">${g.icon}</div>
+              <div style="font-weight:700;font-size:14.5px">${esc(g.name)}</div>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:oklch(0.55 0.12 175)">${g.percent}%</div>
           </div>
           ${progressBar(g.percent)}
-          <div style="display:flex;justify-content:space-between;font-size:12.5px;color:oklch(0.65 0.02 280);margin-top:10px"><span>${g.currentLabel} saved</span><span>${g.targetLabel} goal</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;color:oklch(0.45 0.015 150);margin-top:10px"><span>${g.currentLabel} saved</span><span>${g.targetLabel} goal</span></div>
         </div>`).join('')}
     </div>`;
   }
@@ -1065,13 +1176,59 @@
     if (!state.modal) return '';
     const d = state.draft;
     const isEdit = state.modal.mode === 'edit';
-    const isPaidType = d.shootType !== 'Vlog / Reel' && d.shootType !== 'Personal Project';
-    const isScripted = d.shootType !== 'Vlog / Reel';
-    const isCustomPackage = (d.packageTier || 'custom') === 'custom';
+    const isRealEstate = d.shootType === 'Real Estate';
+    const liveTiers = getLiveTiers(state.packageRates);
+    const isCustomPackage = isRealEstate && (d.packageTier || 'custom') === 'custom';
+    const isScriptedShootType = isRealEstate && d.packageTier !== 'basic' && d.packageTier !== 'standard';
+    const draftPackageAmount = (!isRealEstate || d.packageTier === 'custom')
+      ? (Number(d.package) || 0)
+      : ((liveTiers.find(t => t.value === d.packageTier) || {}).price || 0);
+    const draftAddons = d.addons || {};
+    const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (draftAddons[ad.key] || 0) * ad.price, 0);
+    const draftGrandTotal = draftPackageAmount + addonsTotal;
+    const hasAddons = addonsTotal > 0;
+    const draftPaidAmount = Number(d.paid) || 0;
+    const showPaymentTerms = isRealEstate && draftGrandTotal > 0;
+    const showSimpleTotal = !isRealEstate && draftGrandTotal > 0;
+    const draftGrandTotalLabel = fmtMoney(draftGrandTotal);
+    const draftBalanceLabel = fmtMoney(Math.max(draftGrandTotal - draftPaidAmount, 0));
+
+    const milestoneDefs = [
+      { key: 'dp', label: '20% Down Payment', shortLabel: '20% DP', weight: 20, portion: draftGrandTotal * 0.2, target: draftGrandTotal * 0.2 },
+      { key: 'shoot', label: '30% After Shoot', shortLabel: '30% Shoot', weight: 30, portion: draftGrandTotal * 0.3, target: draftGrandTotal * 0.5 },
+      { key: 'final', label: '50% Final Delivery', shortLabel: '50% Final', weight: 50, portion: draftGrandTotal * 0.5, target: draftGrandTotal },
+    ];
+    const paymentMilestones = milestoneDefs.map(m => {
+      const covered = draftPaidAmount >= m.target;
+      return {
+        ...m,
+        mark: covered ? '✓' : '',
+        barColor: covered ? 'oklch(0.45 0.14 150)' : 'oklch(0.88 0.012 150)',
+        labelColor: covered ? 'oklch(0.45 0.14 150)' : 'oklch(0.55 0.015 150)',
+        chipBg: covered ? 'oklch(0.92 0.06 150)' : 'oklch(1 0 0)',
+        chipBorder: covered ? 'oklch(0.45 0.14 150 / 0.3)' : 'oklch(0 0 0 / 0.08)',
+        amountLabel: fmtMoney(m.portion),
+      };
+    });
+
+    const shootTypePills = [
+      { value: 'Real Estate', label: 'Real Estate', icon: '🏠' },
+      { value: 'General Project', label: 'General Project', icon: '🎬' },
+    ].map(tp => {
+      const active = d.shootType === tp.value;
+      const accent = tp.value === 'Real Estate' ? { color: 'oklch(0.5 0.16 235)', bg: 'oklch(0.55 0.15 240 / 0.16)' } : { color: 'oklch(0.45 0.14 150)', bg: 'oklch(0.5 0.13 150 / 0.14)' };
+      return { ...tp, bg: active ? accent.bg : 'oklch(0.97 0.006 150)', color: active ? accent.color : 'oklch(0.5 0.015 150)', border: active ? accent.color : 'oklch(0 0 0 / 0.08)' };
+    });
+
+    const statusOptions = (isEdit ? STATUS_META : STATUS_META.filter(sm => sm.value === 'tentative' || sm.value === 'idea'));
+
     return `
     <div class="modal-backdrop" data-action="modal-backdrop-close" data-which="shoot">
       <form class="modal-box" style="width:460px" data-stop data-action="save-shoot">
         <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Shoot' : 'New Shoot'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="shoot">✕</button></div>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          ${shootTypePills.map(tp => `<button type="button" data-action="shoot-type-pick" data-type="${esc(tp.value)}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${tp.bg};color:${tp.color};border:1px solid ${tp.border}">${tp.icon} ${esc(tp.label)}</button>`).join('')}
+        </div>
         <div class="modal-fields">
           <div class="field"><label>Client / Project</label><input type="text" list="clientNamesList" value="${esc(d.client)}" data-bind="draft.client" placeholder="e.g. Globe Telecom Anthem"/>
             <datalist id="clientNamesList">${state.clients.map(c => `<option value="${esc(c.name)}"></option>`).join('')}</datalist>
@@ -1081,37 +1238,85 @@
             <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="draft.date"/></div>
             <div class="field"><label>Time</label><input type="time" value="${esc(d.time)}" data-bind="draft.time"/></div>
           </div>
-          <div class="row-2">
-            <div class="field"><label>Deadline</label><input type="date" value="${esc(d.deadline)}" data-bind="draft.deadline"/></div>
-            <div class="field"><label>Booked / Contacted Date</label><input type="date" value="${esc(d.bookedDate)}" data-bind="draft.bookedDate"/></div>
-          </div>
-          <div class="field"><label>Shoot Type</label>
-            <select data-bind="draft.shootType" data-special="shootType">
-              ${SHOOT_TYPES.map(t => `<option value="${t}" ${d.shootType === t ? 'selected' : ''}>${t}</option>`).join('')}
-            </select>
+          <div class="field"><label>Status</label>
+            <select data-bind="draft.status">${statusOptions.map(sm => `<option value="${sm.value}" ${d.status === sm.value ? 'selected' : ''}>${sm.label}</option>`).join('')}</select>
           </div>
           <div class="row-2">
-            <div class="field"><label>Priority</label>
-              <select data-bind="draft.priority">${['High', 'Medium', 'Low'].map(v => `<option value="${v}" ${d.priority === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
-            </div>
-            <div class="field"><label>Status</label>
-              <select data-bind="draft.status">${STATUS_META.map(sm => `<option value="${sm.value}" ${d.status === sm.value ? 'selected' : ''}>${sm.label}</option>`).join('')}</select>
-            </div>
-          </div>
-          ${isPaidType ? `
-          <div class="row-2">
+            ${isRealEstate ? `
             <div class="field"><label>Package</label>
-              <select data-bind="draft.packageTier" data-special="packageTier">${PACKAGE_TIERS.map(t => `<option value="${t.value}" ${d.packageTier === t.value ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
-            </div>
-            <div class="field"><label>Paid so far (₱)</label><input type="text" inputmode="decimal" value="${esc(d.paid)}" data-bind="draft.paid" placeholder="0"/></div>
+              <select data-bind="draft.packageTier" data-special="packageTier">${liveTiers.map(t => `<option value="${t.value}" ${d.packageTier === t.value ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
+            </div>` : `
+            <div class="field"><label>Project Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.package)}" data-bind="draft.package" placeholder="0"/></div>`}
+            <div class="field"><label>Amount Received (₱)</label><input type="text" inputmode="decimal" value="${esc(d.paid)}" data-bind="draft.paid" placeholder="0"/></div>
           </div>
           ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.package)}" data-bind="draft.package" placeholder="0"/></div>` : ''}
-          ` : ''}
-          ${isScripted ? `
+          ${isRealEstate ? `
+          <div style="background:var(--card2);border:1px solid var(--border3);border-radius:12px;padding:14px 16px">
+            <button type="button" data-action="shoot-addons-toggle" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%">
+              <span style="font-size:12.5px;font-weight:700;color:oklch(0.25 0.02 150)">Add-ons ${(!state.shootAddonsOpen && hasAddons) ? `· ${addonsTotal.toLocaleString('en-US')} added` : '(optional)'}</span>
+              <span style="font-size:12px;color:oklch(0.5 0.015 150)">${state.shootAddonsOpen ? '▾' : '▸'}</span>
+            </button>
+            ${state.shootAddonsOpen ? `
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+              ${ADDON_DEFS.map(ad => {
+                const qty = draftAddons[ad.key] || 0;
+                const subtotalLabel = qty > 0 ? fmtMoney(qty * ad.price) : '—';
+                const subtotalColor = qty > 0 ? 'oklch(0.4 0.13 150)' : 'oklch(0.6 0.015 150)';
+                return `
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:600;color:oklch(0.25 0.02 150)">${esc(ad.label)}</div>
+                    <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">₱${ad.price.toLocaleString('en-US')} ${esc(ad.unitLabel)}</div>
+                  </div>
+                  <button type="button" data-action="shoot-addon-dec" data-key="${ad.key}" style="all:unset;cursor:pointer;width:26px;height:26px;border-radius:7px;background:oklch(0.91 0.012 150);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:oklch(0.35 0.02 150)">−</button>
+                  <div style="width:22px;text-align:center;font-weight:700;font-size:13.5px">${qty}</div>
+                  <button type="button" data-action="shoot-addon-inc" data-key="${ad.key}" style="all:unset;cursor:pointer;width:26px;height:26px;border-radius:7px;background:oklch(0.92 0.06 150);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:oklch(0.4 0.13 150)">+</button>
+                  <div style="width:70px;text-align:right;font-size:13px;font-weight:700;color:${subtotalColor}">${subtotalLabel}</div>
+                </div>`;
+              }).join('')}
+            </div>
+            ${hasAddons ? `
+            <div style="display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--border3)">
+              <div style="font-size:12.5px;color:oklch(0.5 0.015 150)">Add-ons Subtotal</div>
+              <div style="font-size:13px;font-weight:700;color:oklch(0.4 0.13 150)">${fmtMoney(addonsTotal)}</div>
+            </div>` : ''}
+            ` : ''}
+          </div>` : ''}
+          ${showPaymentTerms ? `
+          <div style="background:var(--card2);border:1px solid var(--border3);border-radius:12px;padding:16px">
+            <div style="font-size:12.5px;font-weight:700;color:oklch(0.25 0.02 150);margin-bottom:12px">Payment Terms</div>
+            <div style="display:flex;gap:3px;height:8px;border-radius:5px;overflow:hidden;margin-bottom:12px">
+              ${paymentMilestones.map(pm => `<div style="flex:${pm.weight};background:${pm.barColor};border-radius:5px"></div>`).join('')}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              ${paymentMilestones.map(pm => `
+              <div data-action="shoot-milestone-pick" data-amount="${Math.round(pm.target)}" style="text-align:center;cursor:pointer;background:${pm.chipBg};border:1px solid ${pm.chipBorder};border-radius:9px;padding:8px 4px">
+                <div style="font-size:10.5px;font-weight:700;color:${pm.labelColor};margin-bottom:2px">${pm.shortLabel} ${pm.mark}</div>
+                <div style="font-size:12.5px;font-weight:700;color:oklch(0.25 0.02 150)">${pm.amountLabel}</div>
+              </div>`).join('')}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border3)">
+              <div style="font-size:12.5px;color:oklch(0.5 0.015 150)">Total (${draftGrandTotalLabel}) · Remaining Balance</div>
+              <div style="font-size:15px;font-weight:800;color:oklch(0.62 0.17 45)">${draftBalanceLabel}</div>
+            </div>
+          </div>` : ''}
+          ${showSimpleTotal ? `
+          <div style="background:var(--card2);border:1px solid var(--border3);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Total Project Amount</div>
+              <div style="font-size:15px;font-weight:800;color:oklch(0.25 0.02 150)">${draftGrandTotalLabel}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Remaining Balance</div>
+              <div style="font-size:15px;font-weight:800;color:oklch(0.62 0.17 45)">${draftBalanceLabel}</div>
+            </div>
+          </div>` : ''}
+          ${isRealEstate && isScriptedShootType ? `
           <div class="field"><label>Script Status</label>
             <select data-bind="draft.scriptStatus">${Object.keys(SCRIPT_STATUS_META).map(v => `<option value="${v}" ${d.scriptStatus === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
           </div>` : ''}
-          <div class="field"><label>Notes / Deck / Script link</label><input type="text" value="${esc(d.notes)}" data-bind="draft.notes" placeholder="Optional link or note"/></div>
+          ${isRealEstate && !isScriptedShootType ? `<div style="background:oklch(0.92 0.06 150 / 0.4);border-radius:9px;padding:10px 12px;font-size:12.5px;color:oklch(0.4 0.13 150)">📝 Script is provided by the client for this package tier.</div>` : ''}
+          <div class="field"><input type="text" value="${esc(d.notes)}" data-bind="draft.notes" placeholder="Notes (optional)"/></div>
         </div>
         <div class="modal-actions">
           ${isEdit ? `<button type="button" class="btn-danger" data-action="shoot-delete">Delete</button>` : ''}
@@ -1130,7 +1335,7 @@
         <div class="modal-head"><div class="modal-title">Log via Telegram</div><button type="button" class="modal-close" data-action="modal-close" data-which="telegram">✕</button></div>
         <div style="background:oklch(0.14 0.03 235);border-radius:12px;padding:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;justify-content:flex-end"><div style="background:oklch(0.35 0.1 235);border-radius:12px 12px 2px 12px;padding:9px 13px;font-size:13px;color:oklch(0.95 0.01 235);display:flex;align-items:center;gap:8px">🎤 <span>0:14 voice note</span></div></div>
-          <div style="display:flex;justify-content:flex-start"><div style="background:var(--card);border-radius:12px 12px 12px 2px;padding:9px 13px;font-size:13px;color:oklch(0.85 0.01 280);max-width:280px">Logged: "${esc(ctx.lastExp.description)}" — ${fmtMoney(ctx.lastExp.amount)}. ${esc(ctx.analysisText)}</div></div>
+          <div style="display:flex;justify-content:flex-start"><div style="background:var(--card);border-radius:12px 12px 12px 2px;padding:9px 13px;font-size:13px;color:oklch(0.3 0.015 150);max-width:280px">Logged: "${esc(ctx.lastExp.description)}" — ${fmtMoney(ctx.lastExp.amount)}. ${esc(ctx.analysisText)}</div></div>
         </div>
         <form data-action="save-telegram-expense" style="display:flex;flex-direction:column;gap:12px">
           <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot"/></div>
@@ -1181,15 +1386,27 @@
     if (!state.goalModal) return '';
     const d = state.goalDraft;
     const isEdit = state.goalModal.mode === 'edit';
+    const isUSD = d.currency === 'USD';
+    const currencySymbol = isUSD ? '$' : '₱';
+    const targetPhpPreview = fmtMoney((Number(d.target) || 0) * USD_TO_PHP);
+    const currentPhpPreview = fmtMoney((Number(d.current) || 0) * USD_TO_PHP);
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="goal">
       <form class="modal-box" style="width:400px" data-stop data-action="save-goal">
         <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Goal' : 'Add Goal'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="goal">✕</button></div>
         <div class="modal-fields">
           <div class="field"><label>Goal Name</label><input type="text" value="${esc(d.name)}" data-bind="goalDraft.name" placeholder="e.g. Car Fund"/></div>
+          <div style="display:flex;gap:8px">
+            <button type="button" data-action="goal-currency-pick" data-currency="PHP" style="all:unset;cursor:pointer;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:700;background:${!isUSD ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${!isUSD ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">₱ PHP</button>
+            <button type="button" data-action="goal-currency-pick" data-currency="USD" style="all:unset;cursor:pointer;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:700;background:${isUSD ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${isUSD ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">$ USD</button>
+          </div>
           <div class="row-2">
-            <div class="field"><label>Target Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.target)}" data-bind="goalDraft.target"/></div>
-            <div class="field"><label>Current Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.current)}" data-bind="goalDraft.current"/></div>
+            <div class="field"><label>Target Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(d.target)}" data-bind="goalDraft.target"/>
+              ${isUSD ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">≈ ${targetPhpPreview}</div>` : ''}
+            </div>
+            <div class="field"><label>Current Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(d.current)}" data-bind="goalDraft.current"/>
+              ${isUSD ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">≈ ${currentPhpPreview}</div>` : ''}
+            </div>
           </div>
         </div>
         <div class="modal-actions">
@@ -1241,9 +1458,9 @@
           ${(data ? data.items : []).map(it => `
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid oklch(1 0 0 / 0.05)">
               <span style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.primary)}</span>
-              <span style="font-size:12px;color:oklch(0.6 0.02 280);flex:none">${esc(it.secondary)}</span>
+              <span style="font-size:12px;color:oklch(0.48 0.015 150);flex:none">${esc(it.secondary)}</span>
             </div>`).join('')}
-          ${(!data || data.items.length === 0) ? `<div style="color:oklch(0.5 0.02 280);font-size:13px;padding:6px 4px">Nothing here yet.</div>` : ''}
+          ${(!data || data.items.length === 0) ? `<div style="color:oklch(0.55 0.015 150);font-size:13px;padding:6px 4px">Nothing here yet.</div>` : ''}
         </div>
       </div>
     </div>`;
@@ -1303,12 +1520,12 @@
   /* ---------------- actions ---------------- */
 
   function openAddShoot() {
-    setState({ modal: { mode: 'add' }, draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', deadline: '', bookedDate: TODAY_STR, priority: 'Medium', status: 'idea', scriptStatus: 'Not Started', shootType: 'Vlog / Reel', notes: '', packageTier: 'none', package: '', paid: '' } });
+    setState({ modal: { mode: 'add' }, shootAddonsOpen: false, draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} } });
   }
   function openEditShoot(id) {
     const sh = state.shoots.find(s => s.id === id);
     if (!sh) return;
-    setState({ modal: { mode: 'edit', id }, draft: { packageTier: 'custom', shootType: 'Other', ...sh } });
+    setState({ modal: { mode: 'edit', id }, shootAddonsOpen: false, draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh } });
   }
   function openEditLoan(id) {
     const l = state.loans.find(x => x.id === id);
@@ -1318,7 +1535,10 @@
   function openEditGoal(id) {
     const g = state.goals.find(x => x.id === id);
     if (!g) return;
-    setState({ goalModal: { mode: 'edit', id }, goalDraft: { ...g } });
+    const currency = g.currency || 'PHP';
+    const target = currency === 'USD' ? (g.target ? +(Number(g.target) / USD_TO_PHP).toFixed(2) : '') : g.target;
+    const current = currency === 'USD' ? (g.current ? +(Number(g.current) / USD_TO_PHP).toFixed(2) : '') : g.current;
+    setState({ goalModal: { mode: 'edit', id }, goalDraft: { ...g, currency, target, current } });
   }
   function openEditClient(id) {
     const c = state.clients.find(x => x.id === id);
@@ -1334,14 +1554,17 @@
       case 'mobile-nav-close': setState({ mobileNavOpen: false }); break;
       case 'logout': clearUnlocked(); renderLockScreen(false); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
-      case 'dashboard-period-prev': setState(s => ({ dashboardMonthOffset: (s.dashboardMonthOffset || 0) + 1 })); break;
-      case 'dashboard-period-next': setState(s => ({ dashboardMonthOffset: Math.max(0, (s.dashboardMonthOffset || 0) - 1) })); break;
       case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
 
       case 'shoot-add-open': openAddShoot(); break;
       case 'shoot-edit': openEditShoot(id); break;
       case 'shoot-delete': setState(s => ({ shoots: s.shoots.filter(sh => sh.id !== s.draft.id), modal: null, draft: null })); break;
+      case 'shoot-type-pick': setState(s => ({ draft: { ...s.draft, shootType: el.dataset.type } })); break;
+      case 'shoot-addons-toggle': setState(s => ({ shootAddonsOpen: !s.shootAddonsOpen })); break;
+      case 'shoot-addon-inc': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) + 1 } } })); break;
+      case 'shoot-addon-dec': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: Math.max(0, ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) - 1) } } })); break;
+      case 'shoot-milestone-pick': setState(s => ({ draft: { ...s.draft, paid: Number(el.dataset.amount) || 0 } })); break;
       case 'shoots-mode': setState({ shootsMode: el.dataset.mode }); break;
       case 'cal-prev': setState(s => { let m = s.calendarMonth - 1, y = s.calendarYear; if (m < 0) { m = 11; y--; } return { calendarMonth: m, calendarYear: y }; }); break;
       case 'cal-next': setState(s => { let m = s.calendarMonth + 1, y = s.calendarYear; if (m > 11) { m = 0; y++; } return { calendarMonth: m, calendarYear: y }; }); break;
@@ -1358,7 +1581,15 @@
         setState(s => ({ loans: s.loans.filter(l => l.id !== s.loanDraft.id), loanModal: null, loanDraft: null }));
         break;
 
-      case 'goal-add-open': setState({ goalModal: { mode: 'add' }, goalDraft: { id: null, name: '', target: '', current: '' } }); break;
+      case 'goal-add-open': setState({ goalModal: { mode: 'add' }, goalDraft: { id: null, name: '', target: '', current: '', currency: 'PHP' } }); break;
+      case 'goal-currency-pick': setState(s => {
+        const newCurrency = el.dataset.currency;
+        if (newCurrency === (s.goalDraft.currency || 'PHP')) return {};
+        const factor = newCurrency === 'USD' ? (1 / USD_TO_PHP) : USD_TO_PHP;
+        const target = s.goalDraft.target ? +(Number(s.goalDraft.target) * factor).toFixed(2) : '';
+        const current = s.goalDraft.current ? +(Number(s.goalDraft.current) * factor).toFixed(2) : '';
+        return { goalDraft: { ...s.goalDraft, currency: newCurrency, target, current } };
+      }); break;
       case 'goal-edit': openEditGoal(id); break;
       case 'goal-delete':
         if (!confirm(`Are you sure you want to delete the goal "${state.goalDraft.name || 'this goal'}"? This cannot be undone.`)) break;
@@ -1438,16 +1669,8 @@
   }
 
   function applySpecialSideEffect(special, value) {
-    if (special === 'shootType') {
-      const nonPaid = value === 'Vlog / Reel' || value === 'Personal Project';
-      state = setPath(state, 'draft.shootType', value);
-      if (nonPaid) {
-        state = setPath(state, 'draft.packageTier', 'none');
-        state = setPath(state, 'draft.package', 0);
-        state = setPath(state, 'draft.paid', 0);
-      }
-    } else if (special === 'packageTier') {
-      const meta = PACKAGE_TIERS.find(t => t.value === value);
+    if (special === 'packageTier') {
+      const meta = getLiveTiers(state.packageRates).find(t => t.value === value);
       state = setPath(state, 'draft.packageTier', value);
       if (meta && meta.price !== null) state = setPath(state, 'draft.package', meta.price);
     }
@@ -1521,6 +1744,12 @@
         }
         return;
       }
+      if (el.dataset.special === 'packageRate') {
+        const key = el.dataset.key;
+        const v = Number(el.value) || 0;
+        setState(s => ({ packageRates: { ...s.packageRates, [key]: v } }));
+        return;
+      }
       const special = el.dataset.special;
       if (special) { applySpecialSideEffect(special, el.value); render(); return; }
       const bind = el.dataset.bind;
@@ -1534,10 +1763,25 @@
       const action = form.dataset.action;
       if (action === 'save-shoot') {
         const d = state.draft;
-        const cleaned = { ...d, package: Number(d.package) || 0, paid: Number(d.paid) || 0 };
-        setState(s => s.modal.mode === 'add'
-          ? { shoots: [...s.shoots, { ...cleaned, id: 'sh' + Date.now() }], modal: null, draft: null }
-          : { shoots: s.shoots.map(sh => sh.id === cleaned.id ? cleaned : sh), modal: null, draft: null });
+        const isRealEstate = d.shootType === 'Real Estate';
+        const liveTiers = getLiveTiers(state.packageRates);
+        const packageAmount = (!isRealEstate || d.packageTier === 'custom')
+          ? (Number(d.package) || 0)
+          : ((liveTiers.find(t => t.value === d.packageTier) || {}).price || 0);
+        const addons = d.addons || {};
+        const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
+        const cleaned = { ...d, package: packageAmount + addonsTotal, paid: Number(d.paid) || 0 };
+        setState(s => {
+          const name = (cleaned.client || '').trim();
+          const hasClient = name && s.clients.some(c => c.name.trim().toLowerCase() === name.toLowerCase());
+          const newClient = (name && !hasClient)
+            ? { clients: [...s.clients, { id: 'c' + Date.now(), name, phone: '', email: '', leadStatus: 'Booked', followUpDate: '', notes: '' }] }
+            : {};
+          const shoots = s.modal.mode === 'add'
+            ? [...s.shoots, { ...cleaned, id: 'sh' + Date.now() }]
+            : s.shoots.map(sh => sh.id === cleaned.id ? cleaned : sh);
+          return { shoots, modal: null, draft: null, ...newClient };
+        });
       } else if (action === 'save-telegram-expense') {
         const d = state.expenseDraft;
         if (!d.description || !d.amount) { setState({ telegramModalOpen: false }); return; }
@@ -1556,7 +1800,10 @@
           : { loans: s.loans.map(l => l.id === cleaned.id ? cleaned : l), loanModal: null, loanDraft: null });
       } else if (action === 'save-goal') {
         const d = state.goalDraft;
-        const cleaned = { ...d, target: Number(d.target) || 0, current: Number(d.current) || 0 };
+        const isUSD = d.currency === 'USD';
+        const target = isUSD ? Math.round((Number(d.target) || 0) * USD_TO_PHP) : (Number(d.target) || 0);
+        const current = isUSD ? Math.round((Number(d.current) || 0) * USD_TO_PHP) : (Number(d.current) || 0);
+        const cleaned = { ...d, target, current };
         setState(s => s.goalModal.mode === 'add'
           ? { goals: [...s.goals, { ...cleaned, id: 'g' + Date.now() }], goalModal: null, goalDraft: null }
           : { goals: s.goals.map(g => g.id === cleaned.id ? cleaned : g), goalModal: null, goalDraft: null });
@@ -1580,8 +1827,16 @@
     });
   }
 
+  let clockIntervalStarted = false;
+  function startClockInterval() {
+    if (clockIntervalStarted) return;
+    clockIntervalStarted = true;
+    setInterval(() => render(), 30000);
+  }
+
   async function init() {
     wireListeners();
+    startClockInterval();
     const app = document.getElementById('app');
     app.innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:14px">Loading your data…</div>`;
 
@@ -1591,8 +1846,19 @@
         // null/undefined = column never saved to yet (show empty); an actual [] means
         // someone intentionally emptied that list, which must be respected, not overwritten.
         PERSIST_KEYS.forEach(k => {
-          const val = remote[PERSIST_COLUMNS[k]];
-          if (val != null) state = { ...state, [k]: val };
+          let val = remote[PERSIST_COLUMNS[k]];
+          if (val == null) return;
+          if (k === 'shoots') {
+            val = val.map(sh => ({
+              ...sh,
+              status: normalizeShootStatus(sh.status),
+              scriptStatus: normalizeScriptStatus(sh.scriptStatus),
+              shootType: normalizeShootType(sh.shootType),
+            }));
+          } else if (k === 'goals') {
+            val = val.map(g => ({ currency: 'PHP', ...g }));
+          }
+          state = { ...state, [k]: val };
         });
       }
     } catch (e) {
