@@ -10,7 +10,6 @@
     { value: 'idea',      label: 'Booked',     color: 'oklch(0.48 0.015 150)', progress: 15 },
     { value: 'resched',   label: 'Resched',    color: 'oklch(0.62 0.17 45)',   progress: 15 },
     { value: 'shot',      label: 'Editing',    color: 'oklch(0.55 0.12 175)',  progress: 55 },
-    { value: 'edited',    label: 'Revision',   color: 'oklch(0.58 0.16 80)',   progress: 85 },
     { value: 'posted',    label: 'Completed',  color: 'oklch(0.45 0.14 150)',  progress: 100 },
   ];
   const SCRIPT_STATUS_META = {
@@ -164,16 +163,25 @@
     return cells;
   }
 
-  function monthlyTotals(items, dateKey, amountKey, monthsBack) {
-    const months = [];
-    for (let i = 0; i < monthsBack; i++) {
-      const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - i, 1);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      const total = items.filter(x => x[dateKey] && x[dateKey].slice(0, 7) === key).reduce((s, x) => s + (Number(x[amountKey]) || 0), 0);
-      months.push({ key, label, total });
+  function buildRangeCalendarCells(year, month, draftFrom, draftTo) {
+    const firstDay = new Date(year, month, 1);
+    const startWeekday = firstDay.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < startWeekday; i++) cells.push({ blank: true });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const mm = String(month + 1).padStart(2, '0');
+      const dd = String(d).padStart(2, '0');
+      const dateStr = `${year}-${mm}-${dd}`;
+      const isEndpoint = dateStr === draftFrom || dateStr === draftTo;
+      const inRange = draftFrom && draftTo && dateStr > draftFrom && dateStr < draftTo;
+      cells.push({
+        dayNum: d, dateStr,
+        bg: isEndpoint ? 'oklch(0.45 0.14 150)' : (inRange ? 'oklch(0.55 0.14 150 / 0.18)' : 'transparent'),
+        color: isEndpoint ? 'oklch(1 0 0)' : 'oklch(0.3 0.015 150)',
+      });
     }
-    return months;
+    return cells;
   }
 
   /* ---------------- access lock ---------------- */
@@ -248,6 +256,11 @@
       financeTab: 'sidehustle',
       dateRangeFrom: addDays(TODAY_STR, -30),
       dateRangeTo: TODAY_STR,
+      financeRangeCalOpen: false,
+      financeRangeCalYear: TODAY.getFullYear(),
+      financeRangeCalMonth: TODAY.getMonth(),
+      financeRangeDraftFrom: null,
+      financeRangeDraftTo: null,
       ftDraft: { source: '', amount: '', date: TODAY_STR },
       modal: null,
       draft: null,
@@ -325,6 +338,7 @@
   function normalizeShootStatus(status) {
     if (status === 'reschedule') return 'resched';
     if (status === 'planned') return 'shot';
+    if (status === 'edited') return 'shot';
     return status;
   }
   function normalizeScriptStatus(scriptStatus) {
@@ -334,6 +348,19 @@
   function normalizeShootType(shootType) {
     return SHOOT_TYPES.includes(shootType) ? shootType : 'General Project';
   }
+  function promoteClientToCompleted(clients, clientName) {
+    const name = (clientName || '').trim().toLowerCase();
+    if (!name) return clients;
+    let changed = false;
+    const updated = clients.map(c => {
+      if (c.name.trim().toLowerCase() === name && c.leadStatus !== 'Client' && c.leadStatus !== 'Lost') {
+        changed = true;
+        return { ...c, leadStatus: 'Client' };
+      }
+      return c;
+    });
+    return changed ? updated : clients;
+  }
 
   function decorate(sh) {
     const status = normalizeShootStatus(sh.status);
@@ -342,7 +369,7 @@
     const sm = statusMeta(status);
     const scm = SCRIPT_STATUS_META[scriptStatus] || SCRIPT_STATUS_META['Not Started'];
     const days = daysLeftOf(sh.date);
-    const dl = daysLeftLabelAndColor(days);
+    const dl = status === 'posted' ? { label: 'Delivered', color: 'oklch(0.45 0.14 150)' } : daysLeftLabelAndColor(days);
     const pkg = Number(sh.package) || 0;
     const paidAmt = Number(sh.paid) || 0;
     const balance = pkg - paidAmt;
@@ -850,12 +877,35 @@
   function viewFinances(ctx) {
     const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${state.financeTab === key ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${state.financeTab === key ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="finance-tab" data-tab="${key}">${label}</button>`;
 
+    const rangeCalLabel = new Date(state.financeRangeCalYear, state.financeRangeCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const rangeCells = buildRangeCalendarCells(state.financeRangeCalYear, state.financeRangeCalMonth, state.financeRangeDraftFrom, state.financeRangeDraftTo);
     const dateRangePicker = `
-      <div style="display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 14px">
-        <span style="font-size:13px;font-weight:600;color:oklch(0.4 0.02 150)">📅</span>
-        <div class="field" style="flex:none"><input type="date" value="${esc(ctx.dateRangeFrom)}" data-bind="dateRangeFrom" style="padding:6px 8px;font-size:13px"/></div>
-        <span style="font-size:13px;color:oklch(0.5 0.015 150)">to</span>
-        <div class="field" style="flex:none"><input type="date" value="${esc(ctx.dateRangeTo)}" data-bind="dateRangeTo" style="padding:6px 8px;font-size:13px"/></div>
+      <div style="position:relative">
+        <button type="button" data-action="finance-range-toggle" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;color:oklch(0.4 0.02 150)">
+          <span>📅 ${ctx.dateRangeLabel}</span>
+          <span style="font-size:11px;color:oklch(0.55 0.015 150)">▾</span>
+        </button>
+        ${state.financeRangeCalOpen ? `
+        <div data-picker-popover style="position:absolute;right:0;top:calc(100% + 8px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div class="sg" style="font-weight:700;font-size:15px">${rangeCalLabel}</div>
+            <div style="display:flex;gap:6px">
+              <button type="button" data-action="finance-range-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+              <button type="button" data-action="finance-range-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+            ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px">
+            ${rangeCells.map(c => c.blank ? `<div></div>` : `<div data-action="finance-range-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};color:${c.color}">${c.dayNum}</div>`).join('')}
+          </div>
+          <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:12px">${state.financeRangeDraftFrom ? fmtDate(state.financeRangeDraftFrom) : 'Select start'} – ${state.financeRangeDraftTo ? fmtDate(state.financeRangeDraftTo) : 'Select end'}</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button type="button" data-action="finance-range-cancel" style="all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Cancel</button>
+            <button type="button" data-action="finance-range-ok" style="all:unset;cursor:pointer;padding:8px 16px;border-radius:8px;font-size:12.5px;font-weight:700;background:oklch(0.45 0.14 150);color:oklch(1 0 0)">OK</button>
+          </div>
+        </div>` : ''}
       </div>`;
 
     const sideHustle = `
@@ -1306,7 +1356,7 @@
             </div>
           </div>
           <div class="field"><label>Status</label>
-            <select data-bind="draft.status">${statusOptions.map(sm => `<option value="${sm.value}" ${d.status === sm.value ? 'selected' : ''}>${sm.label}</option>`).join('')}</select>
+            <select data-bind="draft.status" data-special="shootStatus">${statusOptions.map(sm => `<option value="${sm.value}" ${d.status === sm.value ? 'selected' : ''}>${sm.label}</option>`).join('')}</select>
           </div>
           <div class="row-2">
             ${isRealEstate ? `
@@ -1677,6 +1727,35 @@
       case 'cal-select': setState({ selectedDate: el.dataset.date }); break;
 
       case 'finance-tab': setState({ financeTab: el.dataset.tab }); break;
+      case 'finance-range-toggle': setState(s => {
+        if (s.financeRangeCalOpen) return { financeRangeCalOpen: false };
+        const base = new Date((s.dateRangeFrom || TODAY_STR) + 'T00:00:00');
+        return {
+          financeRangeCalOpen: true,
+          financeRangeCalYear: base.getFullYear(),
+          financeRangeCalMonth: base.getMonth(),
+          financeRangeDraftFrom: s.dateRangeFrom,
+          financeRangeDraftTo: s.dateRangeTo,
+        };
+      }); break;
+      case 'finance-range-cal-prev': setState(s => { let m = s.financeRangeCalMonth - 1, y = s.financeRangeCalYear; if (m < 0) { m = 11; y--; } return { financeRangeCalMonth: m, financeRangeCalYear: y }; }); break;
+      case 'finance-range-cal-next': setState(s => { let m = s.financeRangeCalMonth + 1, y = s.financeRangeCalYear; if (m > 11) { m = 0; y++; } return { financeRangeCalMonth: m, financeRangeCalYear: y }; }); break;
+      case 'finance-range-pick': setState(s => {
+        const date = el.dataset.date;
+        if (!s.financeRangeDraftFrom || s.financeRangeDraftTo) {
+          return { financeRangeDraftFrom: date, financeRangeDraftTo: null };
+        }
+        if (date < s.financeRangeDraftFrom) {
+          return { financeRangeDraftFrom: date, financeRangeDraftTo: s.financeRangeDraftFrom };
+        }
+        return { financeRangeDraftTo: date };
+      }); break;
+      case 'finance-range-cancel': setState({ financeRangeCalOpen: false }); break;
+      case 'finance-range-ok': setState(s => ({
+        dateRangeFrom: s.financeRangeDraftFrom || s.dateRangeFrom,
+        dateRangeTo: s.financeRangeDraftTo || s.financeRangeDraftFrom || s.dateRangeTo,
+        financeRangeCalOpen: false,
+      })); break;
       case 'fulltime-delete': setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) })); break;
       case 'expense-delete': setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) })); break;
 
@@ -1782,6 +1861,9 @@
       const meta = getLiveTiers(state.packageRates).find(t => t.value === value);
       state = setPath(state, 'draft.packageTier', value);
       if (meta && meta.price !== null) state = setPath(state, 'draft.package', meta.price);
+    } else if (special === 'shootStatus') {
+      state = setPath(state, 'draft.status', value);
+      if (value === 'tentative') state = setPath(state, 'draft.date', '');
     }
   }
 
@@ -1796,10 +1878,10 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
-      if ((state.shootDatePickerOpen || state.timePickerOpen) && !e.target.closest('[data-picker-popover]')) {
+      if ((state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen) && !e.target.closest('[data-picker-popover]')) {
         const action = actionEl ? actionEl.dataset.action : null;
-        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle') {
-          setState({ shootDatePickerOpen: false, timePickerOpen: false });
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'finance-range-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false });
         }
       }
       if (!actionEl) return;
@@ -1831,7 +1913,13 @@
       e.preventDefault();
       const status = zone.dataset.status;
       if (draggingId) {
-        setState(s => ({ shoots: s.shoots.map(sh => sh.id === draggingId ? { ...sh, status } : sh) }));
+        setState(s => {
+          const shoots = s.shoots.map(sh => sh.id === draggingId ? { ...sh, status } : sh);
+          const clients = status === 'posted'
+            ? promoteClientToCompleted(s.clients, (s.shoots.find(sh => sh.id === draggingId) || {}).client)
+            : s.clients;
+          return clients !== s.clients ? { shoots, clients } : { shoots };
+        });
         draggingId = null;
       }
     });
@@ -1871,6 +1959,23 @@
       if (bind) { applyBind(bind, el.value); render(); }
     });
 
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (state.shootConfirmCloseOpen) {
+        e.preventDefault(); e.stopPropagation();
+        setState({ shootConfirmCloseOpen: false });
+      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen) {
+        e.preventDefault(); e.stopPropagation();
+        setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false });
+      } else if (state.modal) {
+        e.preventDefault(); e.stopPropagation();
+        setState({ shootConfirmCloseOpen: true });
+      } else if (state.loanModal || state.goalModal || state.clientModal || state.telegramModalOpen || state.chipModal) {
+        e.preventDefault(); e.stopPropagation();
+        closeModalOf(state.loanModal ? 'loan' : state.goalModal ? 'goal' : state.clientModal ? 'client' : state.telegramModalOpen ? 'telegram' : 'chip');
+      }
+    });
+
     app.addEventListener('submit', (e) => {
       const form = e.target.closest('form[data-action]');
       if (!form) return;
@@ -1889,13 +1994,14 @@
         setState(s => {
           const name = (cleaned.client || '').trim();
           const hasClient = name && s.clients.some(c => c.name.trim().toLowerCase() === name.toLowerCase());
-          const newClient = (name && !hasClient)
-            ? { clients: [...s.clients, { id: 'c' + Date.now(), name, phone: '', email: '', leadStatus: 'Booked', followUpDate: '', notes: '' }] }
-            : {};
+          let clients = (name && !hasClient)
+            ? [...s.clients, { id: 'c' + Date.now(), name, phone: '', email: '', leadStatus: 'Booked', followUpDate: '', notes: '' }]
+            : s.clients;
+          if (cleaned.status === 'posted') clients = promoteClientToCompleted(clients, name);
           const shoots = s.modal.mode === 'add'
             ? [...s.shoots, { ...cleaned, id: 'sh' + Date.now() }]
             : s.shoots.map(sh => sh.id === cleaned.id ? cleaned : sh);
-          return { shoots, modal: null, draft: null, shootConfirmCloseOpen: false, ...newClient };
+          return { shoots, modal: null, draft: null, shootConfirmCloseOpen: false, ...(clients !== s.clients ? { clients } : {}) };
         });
       } else if (action === 'save-telegram-expense') {
         const d = state.expenseDraft;
@@ -1930,16 +2036,6 @@
       }
     });
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (state.modal) setState({ modal: null, draft: null });
-        else if (state.telegramModalOpen) setState({ telegramModalOpen: false });
-        else if (state.loanModal) setState({ loanModal: null, loanDraft: null });
-        else if (state.goalModal) setState({ goalModal: null, goalDraft: null });
-        else if (state.clientModal) setState({ clientModal: null, clientDraft: null });
-        else if (state.chipModal) setState({ chipModal: null });
-      }
-    });
   }
 
   let clockIntervalStarted = false;
@@ -1975,6 +2071,26 @@
           }
           state = { ...state, [k]: val };
         });
+        // Self-heal: clients whose linked shoot(s) are already Completed but who are
+        // still stuck in an earlier leads-pipeline status (e.g. "Booked") get bumped
+        // to "Client" once, and the correction is persisted so it doesn't recur.
+        if (state.shoots.length && state.clients.length) {
+          const completedClientNames = new Set(
+            state.shoots.filter(sh => sh.status === 'posted').map(sh => sh.client.trim().toLowerCase())
+          );
+          let clientsChanged = false;
+          const correctedClients = state.clients.map(c => {
+            if (completedClientNames.has(c.name.trim().toLowerCase()) && c.leadStatus !== 'Client' && c.leadStatus !== 'Lost') {
+              clientsChanged = true;
+              return { ...c, leadStatus: 'Client' };
+            }
+            return c;
+          });
+          if (clientsChanged) {
+            state = { ...state, clients: correctedClients };
+            persist(['clients']);
+          }
+        }
       }
     } catch (e) {
       console.error('Failed to load shared data, showing local defaults', e);
