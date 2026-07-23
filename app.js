@@ -369,7 +369,9 @@
     const sm = statusMeta(status);
     const scm = SCRIPT_STATUS_META[scriptStatus] || SCRIPT_STATUS_META['Not Started'];
     const days = daysLeftOf(sh.date);
-    const dl = status === 'posted' ? { label: 'Delivered', color: 'oklch(0.45 0.14 150)' } : daysLeftLabelAndColor(days);
+    const dl = status === 'posted' ? { label: 'Delivered', color: 'oklch(0.45 0.14 150)' }
+      : status === 'tentative' ? { label: 'Not confirmed', color: 'oklch(0.5 0.015 150)' }
+      : daysLeftLabelAndColor(days);
     const pkg = Number(sh.package) || 0;
     const paidAmt = Number(sh.paid) || 0;
     const balance = pkg - paidAmt;
@@ -1925,6 +1927,11 @@
     });
 
     app.addEventListener('input', (e) => {
+      // <select> elements fire both 'input' and 'change' on the same user action. Handling
+      // 'input' here would re-render (replacing the DOM) before 'change' has a chance to
+      // bubble, silently dropping any data-special side effect wired to 'change'. Selects
+      // are atomic choices anyway, so let 'change' alone handle them.
+      if (e.target.tagName === 'SELECT') return;
       const bind = e.target.dataset.bind;
       if (bind) {
         applyBind(bind, e.target.value);
