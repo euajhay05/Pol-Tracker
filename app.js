@@ -242,6 +242,7 @@
       modal: null,
       draft: null,
       shootAddonsOpen: false,
+      shootConfirmCloseOpen: false,
       shootsMode: 'board',
       calendarYear: TODAY.getFullYear(),
       calendarMonth: TODAY.getMonth(),
@@ -1326,6 +1327,21 @@
     </div>`;
   }
 
+  function modalShootConfirmClose() {
+    if (!state.shootConfirmCloseOpen) return '';
+    return `
+    <div class="modal-backdrop chip" style="z-index:70">
+      <div class="modal-box" style="width:340px;padding:24px">
+        <div class="modal-title" style="margin-bottom:8px">Discard this shoot?</div>
+        <div style="font-size:13.5px;color:oklch(0.48 0.015 150);margin-bottom:20px;line-height:1.5">Are you sure you want to close this? Any details you've entered will be lost.</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" style="all:unset;cursor:pointer;padding:9px 16px;border-radius:9px;background:var(--card2);color:oklch(0.35 0.02 150);font-weight:600;font-size:13px" data-action="shoot-confirm-close-cancel">Cancel</button>
+          <button type="button" style="all:unset;cursor:pointer;padding:9px 16px;border-radius:9px;background:oklch(0.58 0.19 25);color:oklch(1 0 0);font-weight:700;font-size:13px" data-action="shoot-confirm-close-confirm">Yes, close</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function modalTelegram(ctx) {
     if (!state.telegramModalOpen) return '';
     const d = state.expenseDraft;
@@ -1456,7 +1472,7 @@
         <div class="modal-head"><div class="modal-title">${esc(data ? data.title : '')}</div><button type="button" class="modal-close" data-action="modal-close" data-which="chip">✕</button></div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${(data ? data.items : []).map(it => `
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid oklch(1 0 0 / 0.05)">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid oklch(0 0 0 / 0.06)">
               <span style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.primary)}</span>
               <span style="font-size:12px;color:oklch(0.48 0.015 150);flex:none">${esc(it.secondary)}</span>
             </div>`).join('')}
@@ -1476,6 +1492,7 @@
     const selStart = active && 'selectionStart' in active ? active.selectionStart : null;
     const selEnd = active && 'selectionEnd' in active ? active.selectionEnd : null;
     const scrollTop = document.querySelector('.main') ? document.querySelector('.main').scrollTop : 0;
+    const modalBoxScrollTop = document.querySelector('.modal-box') ? document.querySelector('.modal-box').scrollTop : null;
 
     const ctx = buildCtx();
     ctxGlobal = ctx;
@@ -1494,6 +1511,7 @@
       </div>
       ${modalChip(ctx)}
       ${modalShoot()}
+      ${modalShootConfirmClose()}
       ${modalTelegram(ctx)}
       ${modalLoan()}
       ${modalGoal()}
@@ -1505,6 +1523,8 @@
 
     const mainEl = app.querySelector('.main');
     if (mainEl) mainEl.scrollTop = scrollTop;
+    const modalBoxEl = app.querySelector('.modal-box');
+    if (modalBoxEl && modalBoxScrollTop != null) modalBoxEl.scrollTop = modalBoxScrollTop;
 
     if (activeBind) {
       const el = app.querySelector(`[data-bind="${activeBind}"]`);
@@ -1608,14 +1628,17 @@
 
       case 'modal-close':
       case 'modal-backdrop-close':
+        if (el.dataset.which === 'shoot') { setState({ shootConfirmCloseOpen: true }); break; }
         closeModalOf(el.dataset.which);
         break;
+      case 'shoot-confirm-close-cancel': setState({ shootConfirmCloseOpen: false }); break;
+      case 'shoot-confirm-close-confirm': setState({ modal: null, draft: null, shootConfirmCloseOpen: false }); break;
       default: break;
     }
   }
 
   function closeModalOf(which) {
-    if (which === 'shoot') setState({ modal: null, draft: null });
+    if (which === 'shoot') setState({ modal: null, draft: null, shootConfirmCloseOpen: false });
     else if (which === 'telegram') setState({ telegramModalOpen: false });
     else if (which === 'loan') setState({ loanModal: null, loanDraft: null });
     else if (which === 'goal') setState({ goalModal: null, goalDraft: null });
@@ -1780,7 +1803,7 @@
           const shoots = s.modal.mode === 'add'
             ? [...s.shoots, { ...cleaned, id: 'sh' + Date.now() }]
             : s.shoots.map(sh => sh.id === cleaned.id ? cleaned : sh);
-          return { shoots, modal: null, draft: null, ...newClient };
+          return { shoots, modal: null, draft: null, shootConfirmCloseOpen: false, ...newClient };
         });
       } else if (action === 'save-telegram-expense') {
         const d = state.expenseDraft;
