@@ -586,12 +586,17 @@
     const weekCounts = WEEK_LABELS.map((label, i) => {
       const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
       const dStr = d.toISOString().slice(0, 10);
-      return { day: label, count: shoots.filter(s => s.date === dStr).length, isToday: dStr === todayISO };
+      const dayShoots = shoots.filter(s => s.date === dStr);
+      return { day: label, dateStr: dStr, count: dayShoots.length, isToday: dStr === todayISO, dayShoots };
     });
     const maxWeekCount = Math.max(...weekCounts.map(w => w.count), 1);
     const peakCount = Math.max(...weekCounts.map(w => w.count));
     const weekBars = weekCounts.map(w => ({
       day: w.day, count: w.count,
+      dateLabel: fmtDate(w.dateStr),
+      tooltip: w.count > 0
+        ? `${fmtDate(w.dateStr)}: ${w.dayShoots.map(s => s.client).join(', ')}`
+        : `${fmtDate(w.dateStr)}: No shoots`,
       isPeak: w.count > 0 && w.count === peakCount,
       heightPx: w.count > 0 ? Math.max(24, Math.round((w.count / maxWeekCount) * 130)) : 130,
       fill: w.count > 0
@@ -732,10 +737,11 @@
         </div>
         <div style="flex:1;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:0 2px">
           ${ctx.weekBars.map(wb => `
-            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative">
+            <div title="${esc(wb.tooltip)}" style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative;cursor:default">
               ${wb.isPeak ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.4 0.13 150);color:oklch(1 0 0);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap">${wb.count}</div>` : ''}
               <div style="width:24px;height:${wb.heightPx}px;border-radius:12px;background:${wb.fill};flex:none"></div>
               <div style="font-size:11px;font-weight:600;color:${wb.labelColor}">${wb.day}</div>
+              <div style="font-size:9px;color:oklch(0.55 0.015 150)">${wb.dateLabel.split(' ')[1] || ''}</div>
             </div>`).join('')}
         </div>
       </div>
