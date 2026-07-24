@@ -73,6 +73,9 @@
     d.setDate(d.getDate() + n);
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
+  function formatInvoiceNumber(n) {
+    return `INV-${TODAY_STR.slice(0, 4)}-${String(n).padStart(3, '0')}`;
+  }
   function fmtMoney(n) {
     n = Number(n) || 0;
     return '₱' + n.toLocaleString('en-PH');
@@ -301,7 +304,10 @@
       clientModal: null,
       clientDraft: null,
       docType: 'contract',
-      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: 'INV-2026-001', dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid' },
+      invoiceCounter: Number(localStorage.getItem('shoottracker_invoice_counter')) || 1,
+      docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
+      docDuePickerOpen: false, docDueCalYear: TODAY.getFullYear(), docDueCalMonth: TODAY.getMonth(),
+      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid' },
       insightsPeriod: 'weekly',
       chipModal: null,
       shootsSearch: '', clientsSearch: '', expensesSearch: '', loansSearch: '', goalsSearch: '',
@@ -1240,6 +1246,63 @@
     ];
     const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${docType === key ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${docType === key ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="doc-type" data-doctype="${key}">${label}</button>`;
 
+    const docDateLabel = d.date ? fmtDate(d.date) : 'Select date';
+    const docDateMonthLabel = new Date(state.docDateCalYear, state.docDateCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const docDateCells = buildCalendarCells(state.docDateCalYear, state.docDateCalMonth, [], d.date);
+    const docDatePicker = `
+      <div class="field" style="position:relative">
+        <label>Date</label>
+        <button type="button" data-action="doc-date-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
+          <span>${docDateLabel}</span>
+        </button>
+        ${state.docDatePickerOpen ? `
+        <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div class="sg" style="font-weight:700;font-size:15px">${docDateMonthLabel}</div>
+            <div style="display:flex;gap:6px">
+              <button type="button" data-action="doc-date-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+              <button type="button" data-action="doc-date-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+            ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+            ${docDateCells.map(c => c.blank ? `<div></div>` : `
+              <div data-action="doc-date-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>`;
+
+    const docDueLabel = d.dueDate ? fmtDate(d.dueDate) : 'Select date';
+    const docDueMonthLabel = new Date(state.docDueCalYear, state.docDueCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const docDueCells = buildCalendarCells(state.docDueCalYear, state.docDueCalMonth, [], d.dueDate);
+    const docDuePicker = `
+      <div class="field" style="position:relative">
+        <label>Due Date</label>
+        <button type="button" data-action="doc-due-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
+          <span>${docDueLabel}</span>
+        </button>
+        ${state.docDuePickerOpen ? `
+        <div data-picker-popover style="position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div class="sg" style="font-weight:700;font-size:15px">${docDueMonthLabel}</div>
+            <div style="display:flex;gap:6px">
+              <button type="button" data-action="doc-due-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+              <button type="button" data-action="doc-due-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+            ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+            ${docDueCells.map(c => c.blank ? `<div></div>` : `
+              <div data-action="doc-due-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
+          </div>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:10px">Auto-set to 10 days after the invoice date — click a date here to override.</div>
+        </div>` : ''}
+      </div>`;
+
     return `
     <div class="page-head"><div><div class="page-title sg">Documents</div><div class="page-sub">Generate contracts, quotations, and invoices</div></div></div>
     <div class="tabbar" style="margin-bottom:24px">${tab('contract', 'Contract')}${tab('quotation', 'Quotation')}${tab('invoice', 'Invoice')}</div>
@@ -1256,14 +1319,14 @@
         <div class="field"><label>Project / Service</label><input type="text" value="${esc(d.description)}" data-bind="docDraft.description" placeholder="e.g. Vlog Collab - Tagaytay"/></div>
         <div class="row-2">
           <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="docDraft.amount"/></div>
-          <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="docDraft.date"/></div>
+          ${docDatePicker}
         </div>
         <div class="field"><label>Terms / Notes</label><input type="text" value="${esc(d.notes)}" data-bind="docDraft.notes" placeholder="e.g. 50% downpayment, balance on delivery"/></div>
         ${isInvoice ? `
         <div style="border-top:1px solid oklch(0 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
           <div class="row-2">
-            <div class="field"><label>Invoice Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/></div>
-            <div class="field"><label>Due Date</label><input type="date" value="${esc(d.dueDate)}" data-bind="docDraft.dueDate"/></div>
+            <div class="field"><label>Invoice Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
+            ${docDuePicker}
           </div>
           <div class="field"><label>Line Items Breakdown</label><input type="text" value="${esc(d.lineItems)}" data-bind="docDraft.lineItems" placeholder="e.g. Package fee ₱10,000, Transport ₱1,000"/></div>
           <div class="field"><label>Payment Details</label><input type="text" value="${esc(d.paymentDetails)}" data-bind="docDraft.paymentDetails" placeholder="e.g. GCash 09XX XXX XXXX - Your Name"/></div>
@@ -2117,8 +2180,34 @@
       case 'client-delete': setState(s => ({ clients: s.clients.filter(c => c.id !== s.clientDraft.id), clientModal: null, clientDraft: null })); break;
       case 'client-view-shoots': ev.stopPropagation(); setState({ chipModal: 'clientshoots:' + id }); break;
 
-      case 'doc-type': setState({ docType: el.dataset.doctype }); break;
-      case 'doc-generate': generateDocPdf(); break;
+      case 'doc-type': setState(s => {
+        const doctype = el.dataset.doctype;
+        if (doctype === 'invoice') {
+          return { docType: doctype, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(s.invoiceCounter) } };
+        }
+        return { docType: doctype };
+      }); break;
+      case 'doc-generate':
+        generateDocPdf();
+        if (state.docType === 'invoice') {
+          setState(s => {
+            const nextCounter = s.invoiceCounter + 1;
+            localStorage.setItem('shoottracker_invoice_counter', String(nextCounter));
+            return { invoiceCounter: nextCounter, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(nextCounter) } };
+          });
+        }
+        break;
+      case 'doc-date-toggle': setState(s => ({ docDatePickerOpen: !s.docDatePickerOpen, docDuePickerOpen: false })); break;
+      case 'doc-date-cal-prev': setState(s => { let m = s.docDateCalMonth - 1, y = s.docDateCalYear; if (m < 0) { m = 11; y--; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
+      case 'doc-date-cal-next': setState(s => { let m = s.docDateCalMonth + 1, y = s.docDateCalYear; if (m > 11) { m = 0; y++; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
+      case 'doc-date-pick': setState(s => ({
+        docDraft: { ...s.docDraft, date: el.dataset.date, dueDate: addDays(el.dataset.date, 10) },
+        docDatePickerOpen: false,
+      })); break;
+      case 'doc-due-toggle': setState(s => ({ docDuePickerOpen: !s.docDuePickerOpen, docDatePickerOpen: false })); break;
+      case 'doc-due-cal-prev': setState(s => { let m = s.docDueCalMonth - 1, y = s.docDueCalYear; if (m < 0) { m = 11; y--; } return { docDueCalMonth: m, docDueCalYear: y }; }); break;
+      case 'doc-due-cal-next': setState(s => { let m = s.docDueCalMonth + 1, y = s.docDueCalYear; if (m > 11) { m = 0; y++; } return { docDueCalMonth: m, docDueCalYear: y }; }); break;
+      case 'doc-due-pick': setState(s => ({ docDraft: { ...s.docDraft, dueDate: el.dataset.date }, docDuePickerOpen: false })); break;
 
       case 'insights-period': setState({ insightsPeriod: el.dataset.period }); break;
 
@@ -2351,10 +2440,10 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
-      if ((state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.expensesRangeCalOpen || state.shootDeadlinePickerOpen) && !e.target.closest('[data-picker-popover]')) {
+      if ((state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.expensesRangeCalOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen) && !e.target.closest('[data-picker-popover]')) {
         const action = actionEl ? actionEl.dataset.action : null;
-        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'finance-range-toggle' && action !== 'expenses-range-toggle' && action !== 'deadline-picker-toggle') {
-          setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, expensesRangeCalOpen: false, shootDeadlinePickerOpen: false });
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'finance-range-toggle' && action !== 'expenses-range-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, expensesRangeCalOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false });
         }
       }
       if (!actionEl) return;
@@ -2442,9 +2531,9 @@
       if (state.shootConfirmCloseOpen) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: false });
-      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.shootDeadlinePickerOpen) {
+      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen) {
         e.preventDefault(); e.stopPropagation();
-        setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, shootDeadlinePickerOpen: false });
+        setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false });
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
