@@ -2282,14 +2282,55 @@
       return x + pW + fontSize * 0.1 + doc.getTextWidth(amtStr);
     };
 
+    // Hand-drawn "pol." mark (ring-style p/o, solid l, dot, red rec-dot) — recreated as
+    // vector shapes so it doesn't depend on any external logo image file. bgColor is the
+    // color drawn "through" the ring letters' holes, so it must match whatever this sits on.
+    const drawPolMark = (x, yTop, H, markColor, bgColor) => {
+      const xTop = yTop + H * 0.30;
+      const baseline = yTop + H * 0.82;
+      const descBottom = yTop + H * 1.05;
+      const bowlR = (baseline - xTop) / 2;
+      const ringT = bowlR * 0.55;
+      const stemW = ringT * 0.95;
+
+      doc.setFillColor(...markColor);
+      doc.rect(x, xTop, stemW, descBottom - xTop, 'F');
+      const pCx = x + stemW + bowlR - ringT * 0.15, pCy = xTop + bowlR;
+      doc.circle(pCx, pCy, bowlR, 'F');
+      doc.setFillColor(...bgColor);
+      doc.circle(pCx, pCy, bowlR - ringT, 'F');
+
+      doc.setFillColor(...markColor);
+      const oCx = pCx + bowlR * 2 + ringT * 0.3 - ringT * 0.15;
+      doc.circle(oCx, pCy, bowlR, 'F');
+      doc.setFillColor(...bgColor);
+      doc.circle(oCx, pCy, bowlR - ringT, 'F');
+
+      doc.setFillColor(...markColor);
+      const lX = oCx + bowlR + ringT * 0.5;
+      doc.rect(lX, yTop, stemW, baseline - yTop, 'F');
+
+      const dotR = stemW * 0.65;
+      const dotX = lX + stemW + ringT * 0.7 + dotR;
+      doc.circle(dotX, baseline - dotR, dotR, 'F');
+
+      const recCx = dotX + dotR + bowlR * 0.95;
+      const recCy = yTop + H * 0.5;
+      const recOuterR = bowlR * 0.62;
+      doc.setDrawColor(200, 40, 35);
+      doc.setLineWidth(recOuterR * 0.3);
+      doc.circle(recCx, recCy, recOuterR, 'S');
+      doc.setFillColor(200, 40, 35);
+      doc.circle(recCx, recCy, recOuterR * 0.48, 'F');
+
+      return recCx + recOuterR;
+    };
+
     // ---- header band ----
     doc.setFillColor(...BRAND);
     doc.rect(0, 0, PAGE_W, 92, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
-    doc.text('pol.', marginX, 40);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    doc.text('POL FILM PRODUCTIONS', marginX, 54);
+    drawPolMark(marginX, 20, 34, [255, 255, 255], BRAND);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
     doc.text(meta.title.toUpperCase(), rightX, 38, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
