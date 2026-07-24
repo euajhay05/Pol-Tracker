@@ -10,6 +10,7 @@
     { value: 'idea',      label: 'Booked',     color: 'oklch(0.48 0.015 150)', progress: 15 },
     { value: 'resched',   label: 'Resched',    color: 'oklch(0.62 0.17 45)',   progress: 15 },
     { value: 'shot',      label: 'Editing',    color: 'oklch(0.55 0.12 175)',  progress: 55 },
+    { value: 'approval',  label: 'For Approval', color: 'oklch(0.62 0.16 70)', progress: 80 },
     { value: 'posted',    label: 'Completed',  color: 'oklch(0.45 0.14 150)',  progress: 100 },
   ];
   const SCRIPT_STATUS_META = {
