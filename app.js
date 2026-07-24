@@ -461,6 +461,12 @@
       };
     });
 
+    const dashMonthKey = state.dashMonthKey || THIS_MONTH_KEY;
+    const dashMonthLabel = new Date(dashMonthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    // "thisMonth"/shootsMom* stay pinned to the REAL current month — used by the Insights
+    // page's "This Month vs Last Month" comparison, which must not shift when browsing
+    // past months on the Dashboard card.
     const thisMonth = shoots.filter(s => s.date && s.date.slice(0, 7) === THIS_MONTH_KEY);
     const completed = shoots.filter(s => s.status === 'posted');
     const outstanding = shoots.reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
@@ -478,6 +484,9 @@
     const shootsMaxCount = Math.max(shootsThisMonthCount, shootsLastMonthCount, 1);
     const shootsThisMonthBarPct = Math.max(8, Math.round((shootsThisMonthCount / shootsMaxCount) * 100));
     const shootsLastMonthBarPct = Math.max(8, Math.round((shootsLastMonthCount / shootsMaxCount) * 100));
+
+    // Dashboard-card-specific: follows the dashMonthKey month switcher.
+    const dashMonthShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashMonthKey);
 
     const upcomingList = shoots.filter(s => s.status !== 'posted' && s.daysLeft !== null)
       .sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 5);
@@ -589,8 +598,6 @@
     const monthlyRevenue = monthPaidFromShoots + monthFullTime;
     const netProfit = monthlyRevenue - monthTotal;
 
-    const dashMonthKey = state.dashMonthKey || THIS_MONTH_KEY;
-    const dashMonthLabel = new Date(dashMonthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const dashMonthPaidFromShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashMonthKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
     const dashMonthFullTime = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === dashMonthKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const dashMonthlyRevenue = dashMonthPaidFromShoots + dashMonthFullTime;
@@ -632,14 +639,14 @@
     }));
 
     const statCards = [
-      { key: 'thisMonth', label: 'Shoots This Month', value: String(thisMonth.length), sub: 'Booked for this month', hero: true },
+      { key: 'thisMonth', label: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, value: String(dashMonthShoots.length), sub: dashMonthKey === THIS_MONTH_KEY ? 'Booked for this month' : `Booked for ${dashMonthLabel}`, hero: true },
       { key: 'completed', label: 'Completed', value: String(completed.length), sub: 'Delivered to clients', hero: false },
       { key: 'activeClients', label: 'Active Clients', value: String(activeClients), sub: 'Booked or ongoing', hero: false },
     ];
 
     const chipModalKey = state.chipModal;
     const CHIP_MODAL_META = {
-      thisMonth: { title: 'Shoots This Month', items: thisMonth.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
+      thisMonth: { title: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, items: dashMonthShoots.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
       completed: { title: 'Completed Shoots', items: completed.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
       activeClients: { title: 'Active Clients', items: state.clients.filter(c => c.leadStatus === 'Booked' || c.leadStatus === 'Client').map(c => ({ primary: c.name, secondary: c.leadStatus })) },
     };
