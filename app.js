@@ -1252,6 +1252,7 @@
           </select>
         </div>
         <div class="field"><label>Client Name</label><input type="text" value="${esc(d.clientName)}" data-bind="docDraft.clientName" placeholder="e.g. Nadine Reyes"/></div>
+        <div class="field"><label>Client Address / Contact</label><input type="text" value="${esc(d.clientContact)}" data-bind="docDraft.clientContact" placeholder="Address, phone, or email"/></div>
         <div class="field"><label>Project / Service</label><input type="text" value="${esc(d.description)}" data-bind="docDraft.description" placeholder="e.g. Vlog Collab - Tagaytay"/></div>
         <div class="row-2">
           <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="docDraft.amount"/></div>
@@ -1264,7 +1265,6 @@
             <div class="field"><label>Invoice Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/></div>
             <div class="field"><label>Due Date</label><input type="date" value="${esc(d.dueDate)}" data-bind="docDraft.dueDate"/></div>
           </div>
-          <div class="field"><label>Client Address / Contact</label><input type="text" value="${esc(d.clientContact)}" data-bind="docDraft.clientContact" placeholder="Address, phone, or email"/></div>
           <div class="field"><label>Line Items Breakdown</label><input type="text" value="${esc(d.lineItems)}" data-bind="docDraft.lineItems" placeholder="e.g. Package fee ₱10,000, Transport ₱1,000"/></div>
           <div class="field"><label>Payment Details</label><input type="text" value="${esc(d.paymentDetails)}" data-bind="docDraft.paymentDetails" placeholder="e.g. GCash 09XX XXX XXXX - Your Name"/></div>
           <div class="field"><label>Payment Status</label>
@@ -1281,9 +1281,8 @@
         <div class="sg" style="font-weight:700;font-size:20px;letter-spacing:-0.02em;margin-bottom:16px">pol.</div>
         <div class="sg" style="font-weight:700;font-size:18px;margin-bottom:4px">${meta.title}</div>
         <div style="font-size:12px;color:oklch(0.4 0.02 150);margin-bottom:20px">Pol Film Productions · ${esc(d.date)}</div>
-        ${isInvoice ? `
-          <div style="font-size:12.5px;color:oklch(0.55 0.015 150);margin-bottom:14px">Invoice #${esc(d.invoiceNumber)} · Due ${esc(d.dueDate)}</div>
-          <div style="font-size:13px;color:oklch(0.5 0.02 150);margin-bottom:14px">${esc(d.clientContact)}</div>` : ''}
+        ${isInvoice ? `<div style="font-size:12.5px;color:oklch(0.55 0.015 150);margin-bottom:14px">Invoice #${esc(d.invoiceNumber)} · Due ${esc(d.dueDate)}</div>` : ''}
+        ${d.clientContact ? `<div style="font-size:13px;color:oklch(0.5 0.02 150);margin-bottom:14px">${esc(d.clientContact)}</div>` : ''}
         <div style="font-size:13.5px;line-height:1.7">${esc(meta.body(d))}</div>
         ${isInvoice ? `
           <div style="margin-top:16px;font-size:13px;line-height:1.7;color:oklch(0.55 0.02 150)"><div style="font-weight:700;margin-bottom:4px">Breakdown</div><div>${esc(d.lineItems)}</div></div>
@@ -2151,36 +2150,153 @@
     const { jsPDF } = jspdf;
     const d = state.docDraft;
     const docType = state.docType;
+    const isInvoice = docType === 'invoice';
     const meta = DOC_TYPE_META[docType];
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-    const marginX = 56, maxW = 500;
-    let y = 64;
-    const writeLines = (lines, lh) => { lines.forEach(line => { doc.text(line, marginX, y); y += lh; }); };
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
-    doc.text('pol. FILM PRODUCTIONS', marginX, y); y += 30;
-    doc.setFontSize(16);
-    doc.text(meta.title, marginX, y); y += 18;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90);
-    doc.text(`Pol Film Productions - ${d.date || ''}`, marginX, y); y += 24;
-    if (docType === 'invoice') {
-      doc.text(`Invoice #${d.invoiceNumber || ''}   Due ${d.dueDate || ''}`, marginX, y); y += 16;
-      doc.text(d.clientContact || '', marginX, y); y += 20;
+
+    const PAGE_W = 612, PAGE_H = 792;
+    const marginX = 56, contentW = PAGE_W - marginX * 2, rightX = PAGE_W - marginX;
+    const BRAND = [31, 107, 64];
+    const BRAND_LIGHT = [232, 244, 236];
+    const INK = [30, 32, 30];
+    const GRAY = [110, 115, 110];
+    const LINE = [222, 228, 222];
+    let y = 0;
+
+    const fmtDateLong = (dstr) => {
+      if (!dstr) return '—';
+      const dt = new Date(dstr + 'T00:00:00');
+      return isNaN(dt) ? dstr : dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    };
+    const ensureSpace = (needed) => {
+      if (y + needed > PAGE_H - 70) { doc.addPage(); y = 56; }
+    };
+
+    // ---- header band ----
+    doc.setFillColor(...BRAND);
+    doc.rect(0, 0, PAGE_W, 92, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
+    doc.text('pol.', marginX, 40);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    doc.text('POL FILM PRODUCTIONS', marginX, 54);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+    doc.text(meta.title.toUpperCase(), rightX, 38, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text(`Date: ${fmtDateLong(d.date)}`, rightX, 54, { align: 'right' });
+    if (isInvoice) {
+      doc.text(`Invoice #${d.invoiceNumber || '—'}`, rightX, 67, { align: 'right' });
+      doc.text(`Due: ${fmtDateLong(d.dueDate)}`, rightX, 80, { align: 'right' });
     }
-    doc.setTextColor(20); doc.setFontSize(11);
-    writeLines(doc.splitTextToSize(meta.body(d), maxW), 15);
-    y += 12;
-    if (docType === 'invoice') {
-      doc.setFont('helvetica', 'bold'); doc.text('Breakdown', marginX, y); y += 16;
-      doc.setFont('helvetica', 'normal');
-      writeLines(doc.splitTextToSize(d.lineItems || '(none)', maxW), 15);
+
+    y = 128;
+
+    // ---- bill to / project details two-column block ----
+    const colW = contentW / 2 - 12;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+    doc.text('BILLED TO', marginX, y);
+    doc.text('PROJECT DETAILS', marginX + colW + 24, y);
+    y += 16;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...INK);
+    doc.text(d.clientName || '[Client Name]', marginX, y);
+    doc.text(d.description || '[Project / Service]', marginX + colW + 24, y);
+    y += 15;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+    const contactLines = doc.splitTextToSize(d.clientContact || 'No contact details provided', colW);
+    const projMetaLines = [`Date: ${fmtDateLong(d.date)}`, `Amount: ${fmtMoney(d.amount)}`];
+    contactLines.forEach((line, i) => doc.text(line, marginX, y + i * 12));
+    projMetaLines.forEach((line, i) => doc.text(line, marginX + colW + 24, y + i * 12));
+    y += Math.max(contactLines.length, projMetaLines.length) * 12 + 20;
+
+    doc.setDrawColor(...LINE); doc.setLineWidth(1);
+    doc.line(marginX, y, rightX, y);
+    y += 26;
+
+    // ---- body paragraph ----
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
+    const bodyLines = doc.splitTextToSize(meta.body(d), contentW);
+    ensureSpace(bodyLines.length * 15 + 10);
+    bodyLines.forEach(line => { doc.text(line, marginX, y); y += 15; });
+    y += 14;
+
+    // ---- invoice: breakdown box ----
+    if (isInvoice) {
+      ensureSpace(70);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...BRAND);
+      doc.text('BREAKDOWN', marginX, y);
+      y += 14;
+      const breakdownLines = doc.splitTextToSize(d.lineItems || 'No breakdown provided.', contentW - 24);
+      const boxH = breakdownLines.length * 14 + 20;
+      doc.setDrawColor(...LINE); doc.setFillColor(250, 250, 249);
+      doc.roundedRect(marginX, y, contentW, boxH, 6, 6, 'FD');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK);
+      breakdownLines.forEach((line, i) => doc.text(line, marginX + 12, y + 18 + i * 14));
+      y += boxH + 22;
+    }
+
+    // ---- total amount highlight ----
+    ensureSpace(60);
+    const totalLabel = isInvoice ? 'TOTAL AMOUNT DUE' : docType === 'quotation' ? 'PROPOSED RATE' : 'TOTAL CONTRACT VALUE';
+    doc.setFillColor(...BRAND_LIGHT);
+    doc.roundedRect(marginX, y, contentW, 46, 8, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...BRAND);
+    doc.text(totalLabel, marginX + 16, y + 18);
+    doc.setFontSize(19); doc.setTextColor(...INK);
+    doc.text(fmtMoney(d.amount), marginX + 16, y + 37);
+    if (isInvoice) {
+      const statusColor = d.paymentStatus === 'Paid' ? [31, 107, 64] : d.paymentStatus === 'Partial' ? [180, 130, 20] : [180, 45, 40];
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...statusColor);
+      doc.text((d.paymentStatus || 'Unpaid').toUpperCase(), rightX - 16, y + 27, { align: 'right' });
+    }
+    y += 62;
+
+    // ---- invoice: payment details ----
+    if (isInvoice && d.paymentDetails) {
+      ensureSpace(40);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...BRAND);
+      doc.text('PAYMENT DETAILS', marginX, y);
+      y += 14;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK);
+      const payLines = doc.splitTextToSize(d.paymentDetails, contentW);
+      payLines.forEach(line => { doc.text(line, marginX, y); y += 14; });
+      y += 12;
+    }
+
+    // ---- terms / notes ----
+    if (d.notes) {
+      ensureSpace(40);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...BRAND);
+      doc.text('TERMS / NOTES', marginX, y);
+      y += 14;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+      const noteLines = doc.splitTextToSize(d.notes, contentW);
+      noteLines.forEach(line => { doc.text(line, marginX, y); y += 13; });
       y += 10;
-      doc.setFont('helvetica', 'bold'); doc.text('Payment Details', marginX, y); y += 16;
-      doc.setFont('helvetica', 'normal');
-      writeLines(doc.splitTextToSize(d.paymentDetails || '(none)', maxW), 15);
-      y += 6;
-      doc.text(`Status: ${d.paymentStatus || ''}`, marginX, y); y += 20;
     }
-    if (d.notes) { doc.setFontSize(10); doc.setTextColor(90); writeLines(doc.splitTextToSize(d.notes, maxW), 13); }
+
+    // ---- signature block (contract only) ----
+    if (docType === 'contract') {
+      ensureSpace(90);
+      y += 20;
+      const sigW = colW;
+      doc.setDrawColor(...INK); doc.setLineWidth(0.75);
+      doc.line(marginX, y, marginX + sigW, y);
+      doc.line(marginX + sigW + 24, y, marginX + sigW + 24 + sigW, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY);
+      doc.text('Client Signature', marginX, y + 14);
+      doc.text('Pol Film Productions', marginX + sigW + 24, y + 14);
+      doc.text(`Printed Name: ${d.clientName || '_______________'}`, marginX, y + 28);
+      doc.text('Printed Name: _______________', marginX + sigW + 24, y + 28);
+      y += 44;
+    }
+
+    // ---- footer ----
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.75);
+    doc.line(marginX, PAGE_H - 50, rightX, PAGE_H - 50);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.text('Pol Film Productions · Generated via Pol Tracker', marginX, PAGE_H - 36);
+    doc.text(fmtDateLong(TODAY_STR), rightX, PAGE_H - 36, { align: 'right' });
+
     doc.save(`${docType}-${(d.clientName || 'document').replace(/\s+/g, '-')}.pdf`);
   }
 
