@@ -400,11 +400,12 @@
     const sm = statusMeta(status);
     const scm = SCRIPT_STATUS_META[scriptStatus] || SCRIPT_STATUS_META['Not Started'];
     const days = daysLeftOf(sh.deadline || sh.date);
-    const dl = status === 'posted' ? { label: 'Delivered', color: 'oklch(0.45 0.14 150)' }
-      : status === 'tentative' ? { label: 'Not confirmed', color: 'oklch(0.5 0.015 150)' }
-      : daysLeftLabelAndColor(days);
     const pkg = Number(sh.package) || 0;
     const paidAmt = Number(sh.paid) || 0;
+    const dl = status === 'posted'
+      ? (paidAmt < pkg ? { label: 'Delivered, unpaid', color: 'oklch(0.62 0.17 45)' } : { label: 'Delivered', color: 'oklch(0.45 0.14 150)' })
+      : status === 'tentative' ? { label: 'Not confirmed', color: 'oklch(0.5 0.015 150)' }
+      : daysLeftLabelAndColor(days);
     const balance = pkg - paidAmt;
     const dpAmt = pkg * 0.2;
     const liveTiers = getLiveTiers(state.packageRates);
