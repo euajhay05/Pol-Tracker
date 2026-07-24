@@ -291,6 +291,8 @@
       expensesRangeDraftTo: null,
       loanModal: null,
       loanDraft: null,
+      loanPaymentModal: null,
+      loanPaymentDraft: null,
       goalModal: null,
       goalDraft: null,
       goalFundModal: null,
@@ -1162,6 +1164,7 @@
             <div style="font-size:13.5px;color:oklch(0.45 0.015 150)">Monthly due: <span style="color:oklch(0.2 0.02 150);font-weight:700">${l.monthlyDueLabel}</span></div>
             ${l.showDueBadge ? `<div style="font-size:12px;font-weight:700;color:${l.dueBadgeColor}">${l.dueBadgeLabel}</div>` : ''}
           </div>
+          ${l.remainingBalance > 0 ? `<button type="button" data-action="loan-payment-open" data-id="${esc(l.id)}" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:14px;padding:8px;border-radius:8px;background:oklch(0.92 0.06 150);color:oklch(0.45 0.14 150);font-size:12.5px;font-weight:700">Log Payment</button>` : ''}
         </div>`).join('')}
     </div>`;
   }
@@ -1622,6 +1625,34 @@
     </div>`;
   }
 
+  function modalLoanPayment() {
+    if (!state.loanPaymentModal) return '';
+    const l = state.loans.find(x => x.id === state.loanPaymentModal.id);
+    if (!l) return '';
+    const d = state.loanPaymentDraft;
+    const remaining = Number(l.remainingBalance) || 0;
+    const amt = Number(d.amount) || 0;
+    const previewRemaining = Math.max(0, remaining - amt);
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="loanpayment">
+      <form class="modal-box" style="width:360px" data-stop data-action="save-loan-payment">
+        <div class="modal-head"><div class="modal-title">${esc(l.lender)}</div><button type="button" class="modal-close" data-action="modal-close" data-which="loanpayment">✕</button></div>
+        <div class="modal-fields">
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">Remaining balance: <strong>${fmtMoney(remaining)}</strong></div>
+          <div class="field"><label>Payment Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="loanPaymentDraft.amount" placeholder="0" autofocus/></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" data-action="loan-payment-quick" data-amount="${l.monthlyDue}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Monthly Due (${fmtMoney(l.monthlyDue)})</button>
+            <button type="button" data-action="loan-payment-quick" data-amount="${remaining}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Pay Off Full (${fmtMoney(remaining)})</button>
+          </div>
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New balance: <strong>${fmtMoney(previewRemaining)}</strong>${previewRemaining === 0 && amt > 0 ? ' — will be marked Paid Off ✓' : ''}</div>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary" style="flex:1;text-align:center">Log Payment</button>
+        </div>
+      </form>
+    </div>`;
+  }
+
   function modalLoan() {
     if (!state.loanModal) return '';
     const d = state.loanDraft;
@@ -1802,6 +1833,7 @@
       ${modalShootConfirmClose()}
       ${modalTelegram(ctx)}
       ${modalLoan()}
+      ${modalLoanPayment()}
       ${modalGoal()}
       ${modalGoalFund()}
       ${modalClient()}
@@ -2025,6 +2057,8 @@
         if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
         setState(s => ({ loans: s.loans.filter(l => l.id !== s.loanDraft.id), loanModal: null, loanDraft: null }));
         break;
+      case 'loan-payment-open': setState({ loanPaymentModal: { id }, loanPaymentDraft: { amount: '' } }); break;
+      case 'loan-payment-quick': setState(s => ({ loanPaymentDraft: { ...s.loanPaymentDraft, amount: el.dataset.amount } })); break;
 
       case 'goal-add-open': setState({ goalModal: { mode: 'add' }, goalDraft: { id: null, name: '', target: '', current: '', currency: 'PHP' } }); break;
       case 'goal-currency-pick': setState(s => {
@@ -2068,6 +2102,7 @@
     if (which === 'shoot') setState({ modal: null, draft: null, shootConfirmCloseOpen: false });
     else if (which === 'telegram') setState({ telegramModalOpen: false });
     else if (which === 'loan') setState({ loanModal: null, loanDraft: null });
+    else if (which === 'loanpayment') setState({ loanPaymentModal: null, loanPaymentDraft: null });
     else if (which === 'goal') setState({ goalModal: null, goalDraft: null });
     else if (which === 'goalfund') setState({ goalFundModal: null, goalFundDraft: null });
     else if (which === 'client') setState({ clientModal: null, clientDraft: null });
@@ -2238,9 +2273,9 @@
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
-      } else if (state.loanModal || state.goalModal || state.goalFundModal || state.clientModal || state.telegramModalOpen || state.chipModal) {
+      } else if (state.loanModal || state.loanPaymentModal || state.goalModal || state.goalFundModal || state.clientModal || state.telegramModalOpen || state.chipModal) {
         e.preventDefault(); e.stopPropagation();
-        closeModalOf(state.loanModal ? 'loan' : state.goalModal ? 'goal' : state.goalFundModal ? 'goalfund' : state.clientModal ? 'client' : state.telegramModalOpen ? 'telegram' : 'chip');
+        closeModalOf(state.loanModal ? 'loan' : state.loanPaymentModal ? 'loanpayment' : state.goalModal ? 'goal' : state.goalFundModal ? 'goalfund' : state.clientModal ? 'client' : state.telegramModalOpen ? 'telegram' : 'chip');
       }
     });
 
@@ -2288,6 +2323,22 @@
         setState(s => s.loanModal.mode === 'add'
           ? { loans: [...s.loans, { ...cleaned, id: 'ln' + Date.now() }], loanModal: null, loanDraft: null }
           : { loans: s.loans.map(l => l.id === cleaned.id ? cleaned : l), loanModal: null, loanDraft: null });
+      } else if (action === 'save-loan-payment') {
+        const pd = state.loanPaymentDraft;
+        const amt = Number(pd.amount) || 0;
+        if (amt > 0 && state.loanPaymentModal) {
+          const targetId = state.loanPaymentModal.id;
+          setState(s => ({
+            loans: s.loans.map(l => {
+              if (l.id !== targetId) return l;
+              const newRemaining = Math.max(0, (Number(l.remainingBalance) || 0) - amt);
+              return { ...l, remainingBalance: newRemaining, status: newRemaining === 0 ? 'paid' : l.status };
+            }),
+            loanPaymentModal: null, loanPaymentDraft: null,
+          }));
+        } else {
+          setState({ loanPaymentModal: null, loanPaymentDraft: null });
+        }
       } else if (action === 'save-goal') {
         const d = state.goalDraft;
         const isUSD = d.currency === 'USD';
