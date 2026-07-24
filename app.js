@@ -175,10 +175,11 @@
       const dateStr = `${year}-${mm}-${dd}`;
       const isEndpoint = dateStr === draftFrom || dateStr === draftTo;
       const inRange = draftFrom && draftTo && dateStr > draftFrom && dateStr < draftTo;
+      const disabled = dateStr > TODAY_STR;
       cells.push({
-        dayNum: d, dateStr,
-        bg: isEndpoint ? 'oklch(0.45 0.14 150)' : (inRange ? 'oklch(0.55 0.14 150 / 0.18)' : 'transparent'),
-        color: isEndpoint ? 'oklch(1 0 0)' : 'oklch(0.3 0.015 150)',
+        dayNum: d, dateStr, disabled,
+        bg: disabled ? 'transparent' : (isEndpoint ? 'oklch(0.45 0.14 150)' : (inRange ? 'oklch(0.55 0.14 150 / 0.18)' : 'transparent')),
+        color: disabled ? 'oklch(0.8 0.01 150)' : (isEndpoint ? 'oklch(1 0 0)' : 'oklch(0.3 0.015 150)'),
       });
     }
     return cells;
@@ -903,6 +904,11 @@
         </button>
         ${state.financeRangeCalOpen ? `
         <div data-picker-popover style="position:absolute;right:0;top:calc(100% + 8px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+            <button type="button" data-action="finance-range-today" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Today</button>
+            <button type="button" data-action="finance-range-this-month" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">This Month</button>
+            <button type="button" data-action="finance-range-last-month" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Last Month</button>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div class="sg" style="font-weight:700;font-size:15px">${rangeCalLabel}</div>
             <div style="display:flex;gap:6px">
@@ -914,7 +920,7 @@
             ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
           </div>
           <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px">
-            ${rangeCells.map(c => c.blank ? `<div></div>` : `<div data-action="finance-range-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};color:${c.color}">${c.dayNum}</div>`).join('')}
+            ${rangeCells.map(c => c.blank ? `<div></div>` : `<div ${c.disabled ? '' : 'data-action="finance-range-pick"'} data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:${c.disabled ? 'default' : 'pointer'};font-size:12.5px;font-weight:600;background:${c.bg};color:${c.color}">${c.dayNum}</div>`).join('')}
           </div>
           <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:12px">${state.financeRangeDraftFrom ? fmtDate(state.financeRangeDraftFrom) : 'Select start'} – ${state.financeRangeDraftTo ? fmtDate(state.financeRangeDraftTo) : 'Select end'}</div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1030,7 +1036,7 @@
             ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
           </div>
           <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px">
-            ${rangeCells.map(c => c.blank ? `<div></div>` : `<div data-action="expenses-range-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};color:${c.color}">${c.dayNum}</div>`).join('')}
+            ${rangeCells.map(c => c.blank ? `<div></div>` : `<div ${c.disabled ? '' : 'data-action="expenses-range-pick"'} data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:${c.disabled ? 'default' : 'pointer'};font-size:12.5px;font-weight:600;background:${c.bg};color:${c.color}">${c.dayNum}</div>`).join('')}
           </div>
           <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:12px">${state.expensesRangeDraftFrom ? fmtDate(state.expensesRangeDraftFrom) : 'Select start'} – ${state.expensesRangeDraftTo ? fmtDate(state.expensesRangeDraftTo) : 'Select end'}</div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1811,6 +1817,19 @@
         dateRangeTo: s.financeRangeDraftTo || s.financeRangeDraftFrom || s.dateRangeTo,
         financeRangeCalOpen: false,
       })); break;
+      case 'finance-range-today': setState({ dateRangeFrom: TODAY_STR, dateRangeTo: TODAY_STR, financeRangeCalOpen: false }); break;
+      case 'finance-range-this-month': setState({ dateRangeFrom: THIS_MONTH_KEY + '-01', dateRangeTo: TODAY_STR, financeRangeCalOpen: false }); break;
+      case 'finance-range-last-month': setState(() => {
+        const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - 1, 1);
+        const y = d.getFullYear(), m = d.getMonth();
+        const lastDay = new Date(y, m + 1, 0).getDate();
+        const mm = String(m + 1).padStart(2, '0');
+        return {
+          dateRangeFrom: `${y}-${mm}-01`,
+          dateRangeTo: `${y}-${mm}-${String(lastDay).padStart(2, '0')}`,
+          financeRangeCalOpen: false,
+        };
+      }); break;
       case 'fulltime-delete': setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) })); break;
       case 'expense-delete': setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) })); break;
 
