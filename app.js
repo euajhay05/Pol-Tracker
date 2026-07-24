@@ -271,6 +271,9 @@
       timePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(),
       shootDateCalMonth: TODAY.getMonth(),
+      shootDeadlinePickerOpen: false,
+      shootDeadlineCalYear: TODAY.getFullYear(),
+      shootDeadlineCalMonth: TODAY.getMonth(),
       shootsMode: 'board',
       calendarYear: TODAY.getFullYear(),
       calendarMonth: TODAY.getMonth(),
@@ -1379,6 +1382,9 @@
     const shootDateDisplayLabel = d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select date';
     const pickerMonthLabel = new Date(state.shootDateCalYear, state.shootDateCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const pickerCells = buildCalendarCells(state.shootDateCalYear, state.shootDateCalMonth, state.shoots, d.date);
+    const deadlineDisplayLabel = d.deadline ? new Date(d.deadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No deadline set';
+    const deadlinePickerMonthLabel = new Date(state.shootDeadlineCalYear, state.shootDeadlineCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const deadlinePickerCells = buildCalendarCells(state.shootDeadlineCalYear, state.shootDeadlineCalMonth, [], d.deadline);
     const timeDisplayLabel = fmtTime(d.time || '09:00');
     const [curHH, curMM] = (d.time || '09:00').split(':').map(Number);
     const curHour12 = curHH % 12 === 0 ? 12 : curHH % 12;
@@ -1445,9 +1451,29 @@
           <div class="field"><label>Status</label>
             <select data-bind="draft.status" data-special="shootStatus">${statusOptions.map(sm => `<option value="${sm.value}" ${d.status === sm.value ? 'selected' : ''}>${sm.label}</option>`).join('')}</select>
           </div>
-          <div class="field"><label>Deadline (edit / delivery)</label>
-            <input type="date" value="${esc(d.deadline || '')}" data-bind="draft.deadline"/>
-            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Optional — if set, "overdue" is based on this instead of the shoot date.</div>
+          <div class="field" style="position:relative">
+            <label>Deadline (edit / delivery)</label>
+            <button type="button" data-action="deadline-picker-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
+              <span>${deadlineDisplayLabel}</span>
+            </button>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Optional — if set, "overdue" is based on this instead of the shoot date. ${d.deadline ? `<span data-action="deadline-clear" style="cursor:pointer;color:oklch(0.55 0.14 150);text-decoration:underline">Clear</span>` : ''}</div>
+            ${state.shootDeadlinePickerOpen ? `
+            <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                <div class="sg" style="font-weight:700;font-size:15px">${deadlinePickerMonthLabel}</div>
+                <div style="display:flex;gap:6px">
+                  <button type="button" data-action="shoot-deadline-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+                  <button type="button" data-action="shoot-deadline-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+                ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+                ${deadlinePickerCells.map(c => c.blank ? `<div></div>` : `
+                  <div data-action="deadline-picker-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
+              </div>
+            </div>` : ''}
           </div>
           <div class="row-2">
             ${isRealEstate ? `
@@ -1753,8 +1779,9 @@
 
   function openAddShoot() {
     setState({
-      modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false,
+      modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(), shootDateCalMonth: TODAY.getMonth(),
+      shootDeadlineCalYear: TODAY.getFullYear(), shootDeadlineCalMonth: TODAY.getMonth(),
       draft: { id: null, client: '', location: '', date: TODAY_STR, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
     });
   }
@@ -1762,9 +1789,11 @@
     const sh = state.shoots.find(s => s.id === id);
     if (!sh) return;
     const calBase = new Date((sh.date || TODAY_STR) + 'T00:00:00');
+    const deadlineCalBase = new Date((sh.deadline || sh.date || TODAY_STR) + 'T00:00:00');
     setState({
-      modal: { mode: 'edit', id }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false,
+      modal: { mode: 'edit', id }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
+      shootDeadlineCalYear: deadlineCalBase.getFullYear(), shootDeadlineCalMonth: deadlineCalBase.getMonth(),
       draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh },
     });
   }
@@ -1814,6 +1843,11 @@
       case 'shoot-date-cal-prev': setState(s => { let m = s.shootDateCalMonth - 1, y = s.shootDateCalYear; if (m < 0) { m = 11; y--; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
       case 'shoot-date-cal-next': setState(s => { let m = s.shootDateCalMonth + 1, y = s.shootDateCalYear; if (m > 11) { m = 0; y++; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
       case 'date-picker-pick': setState(s => ({ draft: { ...s.draft, date: el.dataset.date }, shootDatePickerOpen: false })); break;
+      case 'deadline-picker-toggle': setState(s => ({ shootDeadlinePickerOpen: !s.shootDeadlinePickerOpen, shootDatePickerOpen: false, timePickerOpen: false })); break;
+      case 'shoot-deadline-cal-prev': setState(s => { let m = s.shootDeadlineCalMonth - 1, y = s.shootDeadlineCalYear; if (m < 0) { m = 11; y--; } return { shootDeadlineCalMonth: m, shootDeadlineCalYear: y }; }); break;
+      case 'shoot-deadline-cal-next': setState(s => { let m = s.shootDeadlineCalMonth + 1, y = s.shootDeadlineCalYear; if (m > 11) { m = 0; y++; } return { shootDeadlineCalMonth: m, shootDeadlineCalYear: y }; }); break;
+      case 'deadline-picker-pick': setState(s => ({ draft: { ...s.draft, deadline: el.dataset.date }, shootDeadlinePickerOpen: false })); break;
+      case 'deadline-clear': setState(s => ({ draft: { ...s.draft, deadline: '' } })); break;
       case 'time-part-pick': {
         const part = el.dataset.part;
         const value = part === 'meridiem' ? el.dataset.value : Number(el.dataset.value);
@@ -2033,10 +2067,10 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
-      if ((state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.expensesRangeCalOpen) && !e.target.closest('[data-picker-popover]')) {
+      if ((state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.expensesRangeCalOpen || state.shootDeadlinePickerOpen) && !e.target.closest('[data-picker-popover]')) {
         const action = actionEl ? actionEl.dataset.action : null;
-        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'finance-range-toggle' && action !== 'expenses-range-toggle') {
-          setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, expensesRangeCalOpen: false });
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'finance-range-toggle' && action !== 'expenses-range-toggle' && action !== 'deadline-picker-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, expensesRangeCalOpen: false, shootDeadlinePickerOpen: false });
         }
       }
       if (!actionEl) return;
@@ -2124,9 +2158,9 @@
       if (state.shootConfirmCloseOpen) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: false });
-      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen) {
+      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.shootDeadlinePickerOpen) {
         e.preventDefault(); e.stopPropagation();
-        setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false });
+        setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, shootDeadlinePickerOpen: false });
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
