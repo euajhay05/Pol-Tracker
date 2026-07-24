@@ -265,6 +265,7 @@
       financeRangeDraftTo: null,
       ftDraft: { source: '', amount: '', date: TODAY_STR },
       ftMonthKey: THIS_MONTH_KEY,
+      dashMonthKey: THIS_MONTH_KEY,
       modal: null,
       draft: null,
       shootAddonsOpen: false,
@@ -340,6 +341,7 @@
   let state = defaultState();
   let draggingId = null;
   let dashboardCountUpDone = false;
+  let dashboardCountUpMonthKey = null;
 
   function animateCountUps(root) {
     const els = root.querySelectorAll('[data-count-up]');
@@ -586,6 +588,15 @@
     const monthPaidFromShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === THIS_MONTH_KEY).reduce((s, x) => s + (Number(x.paid) || 0), 0);
     const monthlyRevenue = monthPaidFromShoots + monthFullTime;
     const netProfit = monthlyRevenue - monthTotal;
+
+    const dashMonthKey = state.dashMonthKey || THIS_MONTH_KEY;
+    const dashMonthLabel = new Date(dashMonthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const dashMonthPaidFromShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashMonthKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
+    const dashMonthFullTime = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === dashMonthKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
+    const dashMonthlyRevenue = dashMonthPaidFromShoots + dashMonthFullTime;
+    const dashMonthExpenses = expenses.filter(e => e.date && e.date.slice(0, 7) === dashMonthKey).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const dashNetProfit = dashMonthlyRevenue - dashMonthExpenses;
+
     const yearlyGoalIncome = 1200000;
     const yearlyProgressPercent = Math.min(100, Math.round((combinedTotal / yearlyGoalIncome) * 100));
 
@@ -664,6 +675,7 @@
       dateRangeFrom, dateRangeTo, dateRangeLabel, rangeShoots, rangeSideHustleCollected, rangeTotalFullTime,
       rangeCombinedTotal, rangeFullTimeSharePercent, rangeSideHustleSharePercent, rangeFullTimeRows,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
+      dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
       userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
       chipModalKey, chipModalData, insightsPeriod, insightCards, chartMax,
       shootsThisMonthCount, shootsLastMonthCount, shootsMomLabel, shootsMomColor, shootsMomBg,
@@ -736,21 +748,26 @@
     <div class="dash-hero-grid" style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:16px;align-items:stretch">
       <div style="background:linear-gradient(160deg, oklch(0.42 0.14 150), oklch(0.28 0.1 155));border-radius:18px;padding:26px;display:flex;flex-direction:column;justify-content:space-between;color:oklch(1 0 0);min-height:150px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:oklch(0.9 0.05 150)">This Month</div>
-          <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:oklch(1 0 0 / 0.18)">${THIS_MONTH_KEY}</div>
+          <div style="font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:oklch(0.9 0.05 150)">${ctx.dashMonthKey === THIS_MONTH_KEY ? 'This Month' : 'Viewing Month'}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button type="button" data-action="dash-month-prev" style="all:unset;cursor:pointer;width:22px;height:22px;border-radius:7px;background:oklch(1 0 0 / 0.18);display:flex;align-items:center;justify-content:center;font-size:12px;color:oklch(1 0 0)">‹</button>
+            <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:oklch(1 0 0 / 0.18);min-width:70px;text-align:center">${ctx.dashMonthLabel}</div>
+            <button type="button" data-action="dash-month-next" style="all:unset;cursor:pointer;width:22px;height:22px;border-radius:7px;background:oklch(1 0 0 / 0.18);display:flex;align-items:center;justify-content:center;font-size:12px;color:oklch(1 0 0)">›</button>
+            ${ctx.dashMonthKey !== THIS_MONTH_KEY ? `<button type="button" data-action="dash-month-today" style="all:unset;cursor:pointer;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;background:oklch(1 0 0 / 0.28);color:oklch(1 0 0)">Today</button>` : ''}
+          </div>
         </div>
         <div style="display:flex;gap:36px;margin-top:8px;flex-wrap:wrap">
           <div>
             <div style="font-size:11.5px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Income</div>
-            <div class="sg" data-count-up="${Math.round(ctx.monthlyRevenue)}" data-count-prefix="₱" style="font-size:36px;font-weight:700;margin-top:4px">₱0</div>
+            <div class="sg" data-count-up="${Math.round(ctx.dashMonthlyRevenue)}" data-count-prefix="₱" style="font-size:36px;font-weight:700;margin-top:4px">₱0</div>
           </div>
           <div>
             <div style="font-size:11.5px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Expenses</div>
-            <div class="sg" data-count-up="${Math.round(ctx.monthTotal)}" data-count-prefix="₱" style="font-size:36px;font-weight:700;margin-top:4px">₱0</div>
+            <div class="sg" data-count-up="${Math.round(ctx.dashMonthExpenses)}" data-count-prefix="₱" style="font-size:36px;font-weight:700;margin-top:4px">₱0</div>
           </div>
         </div>
         <div style="display:flex;gap:26px;margin-top:14px;flex-wrap:wrap">
-          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Net Profit</div><div data-count-up="${Math.round(ctx.netProfit)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Net Profit</div><div data-count-up="${Math.round(ctx.dashNetProfit)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
           <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Pending</div><div data-count-up="${Math.round(ctx.outstanding)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
         </div>
       </div>
@@ -1843,8 +1860,9 @@
     app.innerHTML = html;
 
     if (state.view === 'dashboard') {
-      if (!dashboardCountUpDone) {
+      if (!dashboardCountUpDone || dashboardCountUpMonthKey !== ctx.dashMonthKey) {
         dashboardCountUpDone = true;
+        dashboardCountUpMonthKey = ctx.dashMonthKey;
         animateCountUps(app);
       }
     } else {
@@ -2006,6 +2024,17 @@
         return { ftMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
       }); break;
       case 'ft-month-today': setState({ ftMonthKey: THIS_MONTH_KEY }); break;
+      case 'dash-month-prev': setState(s => {
+        const [y, m] = (s.dashMonthKey || THIS_MONTH_KEY).split('-').map(Number);
+        const d = new Date(y, m - 2, 1);
+        return { dashMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
+      }); break;
+      case 'dash-month-next': setState(s => {
+        const [y, m] = (s.dashMonthKey || THIS_MONTH_KEY).split('-').map(Number);
+        const d = new Date(y, m, 1);
+        return { dashMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
+      }); break;
+      case 'dash-month-today': setState({ dashMonthKey: THIS_MONTH_KEY }); break;
       case 'expense-delete': setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) })); break;
 
       case 'expenses-range-toggle': setState(s => {
