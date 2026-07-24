@@ -2320,6 +2320,20 @@
     // a plain "PHP" prefix (safe, correctly measured). For standalone amount displays we
     // hand-draw an actual peso sign (a bold "P" with two strike bars) so it still reads as ₱.
     const pdfFmtMoney = (n) => 'PHP ' + (Number(n) || 0).toLocaleString('en-PH');
+    // Any free-text field (line items, payment details, notes) can contain a real ₱ character
+    // typed by the user or embedded by the app's own fmtMoney() helper — same font problem as
+    // above, so strip it before it ever reaches doc.text()/splitTextToSize().
+    const sanitizePeso = (s) => String(s || '').replace(/₱/g, 'PHP ');
+    // splitTextToSize doesn't respect embedded "\n" as real line breaks — it treats the whole
+    // string as one paragraph and only wraps at the given width, collapsing intentional line
+    // breaks (e.g. between breakdown items) into a single run-on line. Split on "\n" ourselves
+    // first, then wrap each resulting line individually so breaks are preserved.
+    const wrapMultiline = (str, maxWidth) => {
+      const lines = sanitizePeso(str).split('\n').map(s => s.trim()).filter(Boolean);
+      let out = [];
+      lines.forEach(line => { out = out.concat(doc.splitTextToSize(line, maxWidth)); });
+      return out;
+    };
     const drawPeso = (amount, x, yPos, fontSize, color, bold) => {
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       doc.setFontSize(fontSize);
@@ -2403,11 +2417,11 @@
     doc.text('PROJECT DETAILS', marginX + colW + 24, y);
     y += 16;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...INK);
-    doc.text(d.clientName || '[Client Name]', marginX, y);
-    doc.text(d.description || '[Project / Service]', marginX + colW + 24, y);
+    doc.text(sanitizePeso(d.clientName) || '[Client Name]', marginX, y);
+    doc.text(sanitizePeso(d.description) || '[Project / Service]', marginX + colW + 24, y);
     y += 15;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
-    const contactLines = doc.splitTextToSize(d.clientContact || 'No contact details provided', colW);
+    const contactLines = wrapMultiline(d.clientContact || 'No contact details provided', colW);
     const projX = marginX + colW + 24;
     contactLines.forEach((line, i) => doc.text(line, marginX, y + i * 12));
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
@@ -2422,7 +2436,7 @@
 
     // ---- body paragraph ----
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
-    const bodyLines = doc.splitTextToSize(meta.body(d, pdfFmtMoney), contentW);
+    const bodyLines = doc.splitTextToSize(sanitizePeso(meta.body(d, pdfFmtMoney)), contentW);
     ensureSpace(bodyLines.length * 15 + 10);
     bodyLines.forEach(line => { doc.text(line, marginX, y); y += 15; });
     y += 14;
@@ -2433,12 +2447,31 @@
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...BRAND);
       doc.text('BREAKDOWN', marginX, y);
       y += 14;
-      const breakdownLines = doc.splitTextToSize(d.lineItems || 'No breakdown provided.', contentW - 24);
-      const boxH = breakdownLines.length * 14 + 20;
+      // Each line item (separated by "\n" in the input) gets its own bullet and its own row,
+      // with a bit of extra gap between items, instead of being wrapped as one run-on paragraph.
+      const rawItems = sanitizePeso(d.lineItems || 'No breakdown provided.').split('\n').map(s => s.trim()).filter(Boolean);
+      const items = rawItems.length ? rawItems : ['No breakdown provided.'];
+      const itemLineH = 15, itemGap = 6;
+      const wrappedItems = items.map(item => doc.splitTextToSize(item, contentW - 46));
+      const totalLines = wrappedItems.reduce((sum, arr) => sum + arr.length, 0);
+      const boxH = totalLines * itemLineH + (items.length - 1) * itemGap + 28;
       doc.setDrawColor(...LINE); doc.setFillColor(250, 250, 249);
       doc.roundedRect(marginX, y, contentW, boxH, 6, 6, 'FD');
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK);
-      breakdownLines.forEach((line, i) => doc.text(line, marginX + 12, y + 18 + i * 14));
+      let iy = y + 20;
+      wrappedItems.forEach(lines => {
+        lines.forEach((ln, li) => {
+          if (li === 0) {
+            doc.setFillColor(...BRAND);
+            doc.circle(marginX + 16, iy - 3.5, 2, 'F');
+            doc.text(ln, marginX + 26, iy);
+          } else {
+            doc.text(ln, marginX + 26, iy);
+          }
+          iy += itemLineH;
+        });
+        iy += itemGap;
+      });
       y += boxH + 22;
     }
 
@@ -2464,7 +2497,7 @@
       doc.text('PAYMENT DETAILS', marginX, y);
       y += 14;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK);
-      const payLines = doc.splitTextToSize(d.paymentDetails, contentW);
+      const payLines = wrapMultiline(d.paymentDetails, contentW);
       payLines.forEach(line => { doc.text(line, marginX, y); y += 14; });
       y += 12;
     }
@@ -2476,7 +2509,7 @@
       doc.text('TERMS / NOTES', marginX, y);
       y += 14;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
-      const noteLines = doc.splitTextToSize(d.notes, contentW);
+      const noteLines = wrapMultiline(d.notes, contentW);
       noteLines.forEach(line => { doc.text(line, marginX, y); y += 13; });
       y += 10;
     }
