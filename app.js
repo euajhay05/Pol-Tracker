@@ -926,9 +926,9 @@
 
     const sideHustle = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Package Value</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalPackage)}</div></div>
         <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Collected</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.5 0.15 150)">${fmtMoney(ctx.rangeSideHustleCollected)}</div></div>
         <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.outstanding)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Package Value</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalPackage)}</div></div>
       </div>
       <div class="table-wrap">
         <div class="t-head" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1fr"><div>Client / Project</div><div>Status</div><div>Package</div><div>Paid</div><div>Remaining Balance</div></div>
@@ -1045,7 +1045,7 @@
       <div><div class="page-title sg">Expenses</div><div class="page-sub">Everything you've spent, logged via Telegram or manually</div></div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         ${expensesRangePicker}
-        <button type="button" class="btn-telegram" data-action="telegram-open">✈ Log via Telegram</button>
+        <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
@@ -1520,11 +1520,7 @@
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="telegram">
       <div class="modal-box" style="width:420px" data-stop>
-        <div class="modal-head"><div class="modal-title">Log via Telegram</div><button type="button" class="modal-close" data-action="modal-close" data-which="telegram">✕</button></div>
-        <div style="background:oklch(0.14 0.03 235);border-radius:12px;padding:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;justify-content:flex-end"><div style="background:oklch(0.35 0.1 235);border-radius:12px 12px 2px 12px;padding:9px 13px;font-size:13px;color:oklch(0.95 0.01 235);display:flex;align-items:center;gap:8px">🎤 <span>0:14 voice note</span></div></div>
-          <div style="display:flex;justify-content:flex-start"><div style="background:var(--card);border-radius:12px 12px 12px 2px;padding:9px 13px;font-size:13px;color:oklch(0.3 0.015 150);max-width:280px">Logged: "${esc(ctx.lastExp.description)}" — ${fmtMoney(ctx.lastExp.amount)}. ${esc(ctx.analysisText)}</div></div>
-        </div>
+        <div class="modal-head"><div class="modal-title">Add Expense</div><button type="button" class="modal-close" data-action="modal-close" data-which="telegram">✕</button></div>
         <form data-action="save-telegram-expense" style="display:flex;flex-direction:column;gap:12px">
           <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot"/></div>
           <div class="row-2">
