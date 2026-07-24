@@ -1388,7 +1388,7 @@
             <div class="field"><label>Invoice Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
             ${docDuePicker}
           </div>
-          <div class="field"><label>Line Items Breakdown</label><input type="text" value="${esc(d.lineItems)}" data-bind="docDraft.lineItems" placeholder="e.g. Package fee ₱10,000, Transport ₱1,000"/></div>
+          <div class="field"><label>Line Items Breakdown</label><textarea rows="3" data-bind="docDraft.lineItems" placeholder="One item per line, e.g.&#10;Package fee - ₱10,000&#10;Transport - ₱1,000">${esc(d.lineItems)}</textarea><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Press Enter for a new item — each line becomes its own row in the invoice table.</div></div>
           <div class="field"><label>Payment Details</label><input type="text" value="${esc(d.paymentDetails)}" data-bind="docDraft.paymentDetails" placeholder="e.g. GCash 09XX XXX XXXX - Your Name"/></div>
           <div class="field"><label>Payment Status</label>
             <select data-bind="docDraft.paymentStatus">

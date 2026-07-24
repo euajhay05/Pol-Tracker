@@ -72,7 +72,8 @@
   .btn-telegram{all:unset;cursor:pointer;display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:9px;background:oklch(0.55 0.14 235 / 0.14);color:oklch(0.5 0.15 235);font-weight:600;font-size:13px}
 
   .field label{font-size:12px;color:var(--text-dim2);font-weight:600;display:block;margin-bottom:6px}
-  .field input, .field select{width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit}
+  .field input, .field select, .field textarea{width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit}
+  .field textarea{resize:vertical;line-height:1.5;min-height:64px}
   .field{flex:1}
 
   .search-wrap{position:relative;margin-bottom:16px}
@@ -133,6 +134,6 @@
 </head>
 <body>
 <div id="app"></div>
-<script src="app.js?v=54"></script>
+<script src="app.js?v=55"></script>
 </body>
 </html>
