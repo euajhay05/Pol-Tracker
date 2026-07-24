@@ -264,6 +264,7 @@
       financeRangeDraftFrom: null,
       financeRangeDraftTo: null,
       ftDraft: { source: '', amount: '', date: TODAY_STR },
+      ftMonthKey: THIS_MONTH_KEY,
       modal: null,
       draft: null,
       shootAddonsOpen: false,
@@ -544,6 +545,11 @@
     const totalFullTime = fullTimeIncome.reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const monthFullTime = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === THIS_MONTH_KEY).reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const fullTimeRows = fullTimeIncome.slice().sort((a, b) => b.date.localeCompare(a.date)).map(f => ({ ...f, dateLabel: fmtDate(f.date), amountLabel: fmtMoney(f.amount) }));
+    const ftMonthKey = state.ftMonthKey || THIS_MONTH_KEY;
+    const ftMonthLabel = new Date(ftMonthKey + '-01' + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const ftMonthIncome = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === ftMonthKey);
+    const ftMonthTotal = ftMonthIncome.reduce((s, f) => s + (Number(f.amount) || 0), 0);
+    const ftMonthRows = ftMonthIncome.slice().sort((a, b) => b.date.localeCompare(a.date)).map(f => ({ ...f, dateLabel: fmtDate(f.date), amountLabel: fmtMoney(f.amount) }));
     const combinedTotal = totalFullTime + totalPaid;
     const fullTimeSharePercent = combinedTotal > 0 ? Math.round((totalFullTime / combinedTotal) * 100) : 0;
     const sideHustleSharePercent = combinedTotal > 0 ? 100 - fullTimeSharePercent : 0;
@@ -650,6 +656,7 @@
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
       expensesRangeFrom, expensesRangeTo, expensesRangeLabel, rangeExpensesTotal,
       totalFullTime, monthFullTime, fullTimeRows, combinedTotal, fullTimeSharePercent, sideHustleSharePercent,
+      ftMonthKey, ftMonthLabel, ftMonthTotal, ftMonthRows,
       dateRangeFrom, dateRangeTo, dateRangeLabel, rangeShoots, rangeSideHustleCollected, rangeTotalFullTime,
       rangeCombinedTotal, rangeFullTimeSharePercent, rangeSideHustleSharePercent, rangeFullTimeRows,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
@@ -979,10 +986,18 @@
         ${ctx.rangeShoots.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No shoots in this date range.</div>` : ''}
       </div>`;
 
+    const ftMonthPicker = `
+      <div style="display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 14px">
+        <button type="button" data-action="ft-month-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+        <div class="sg" style="font-weight:700;font-size:13.5px;min-width:120px;text-align:center">${ctx.ftMonthLabel}</div>
+        <button type="button" data-action="ft-month-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+        ${ctx.ftMonthKey !== THIS_MONTH_KEY ? `<button type="button" data-action="ft-month-today" style="all:unset;cursor:pointer;margin-left:6px;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">This Month</button>` : ''}
+      </div>`;
+
     const fullTime = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.rangeTotalFullTime)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">This Month</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthFullTime)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div></div>
+        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${esc(ctx.ftMonthLabel)}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div></div>
       </div>
       <div class="card" style="margin-bottom:24px">
         <div class="card-title">Add Income</div>
@@ -995,14 +1010,14 @@
       </div>
       <div class="table-wrap">
         <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 32px"><div>Source</div><div>Date</div><div>Amount</div><div></div></div>
-        ${ctx.rangeFullTimeRows.map(f => `
+        ${ctx.ftMonthRows.map(f => `
           <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 32px">
             <div style="font-weight:600;font-size:14px">${esc(f.source)}</div>
             <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${f.dateLabel}</div>
             <div style="font-size:13.5px;font-weight:600;color:oklch(0.5 0.15 150)">${f.amountLabel}</div>
             <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="fulltime-delete" data-id="${esc(f.id)}" title="Delete">✕</button>
           </div>`).join('')}
-        ${ctx.rangeFullTimeRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No income entries in this date range.</div>` : ''}
+        ${ctx.ftMonthRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No income entries for ${esc(ctx.ftMonthLabel)}.</div>` : ''}
       </div>`;
 
     const combined = `
@@ -1027,7 +1042,7 @@
     return `
     <div class="page-head">
       <div><div class="page-title sg">Finances</div><div class="page-sub">Package value vs. what's been collected</div></div>
-      ${dateRangePicker}
+      ${state.financeTab === 'fulltime' ? ftMonthPicker : dateRangePicker}
     </div>
     <div class="tabbar" style="margin-bottom:24px">
       ${tab('sidehustle', 'Side Hustle')}${tab('fulltime', 'Full-Time')}${tab('combined', 'Combined')}
@@ -1905,6 +1920,17 @@
         };
       }); break;
       case 'fulltime-delete': setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) })); break;
+      case 'ft-month-prev': setState(s => {
+        const [y, m] = (s.ftMonthKey || THIS_MONTH_KEY).split('-').map(Number);
+        const d = new Date(y, m - 2, 1);
+        return { ftMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
+      }); break;
+      case 'ft-month-next': setState(s => {
+        const [y, m] = (s.ftMonthKey || THIS_MONTH_KEY).split('-').map(Number);
+        const d = new Date(y, m, 1);
+        return { ftMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
+      }); break;
+      case 'ft-month-today': setState({ ftMonthKey: THIS_MONTH_KEY }); break;
       case 'expense-delete': setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) })); break;
 
       case 'expenses-range-toggle': setState(s => {
@@ -2207,8 +2233,9 @@
       } else if (action === 'save-fulltime') {
         const d = state.ftDraft;
         if (!d.source || !d.amount) return;
-        const entry = { id: 'ft' + Date.now(), source: d.source, amount: Number(d.amount) || 0, date: d.date || TODAY_STR };
-        setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { source: '', amount: '', date: TODAY_STR } }));
+        const entryDate = d.date || TODAY_STR;
+        const entry = { id: 'ft' + Date.now(), source: d.source, amount: Number(d.amount) || 0, date: entryDate };
+        setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { source: '', amount: '', date: TODAY_STR }, ftMonthKey: entryDate.slice(0, 7) }));
       } else if (action === 'save-loan') {
         const d = state.loanDraft;
         const cleaned = { ...d, amount: Number(d.amount) || 0, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: Number(d.remainingBalance) || 0 };
