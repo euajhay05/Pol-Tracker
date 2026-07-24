@@ -35,8 +35,8 @@
     });
   }
   const ADDON_DEFS = [
+    { key: 'rawFootage',  label: 'Raw Footage + Color Grading', price: 3000, unitLabel: 'flat rate', flat: true },
     { key: 'walkthrough', label: 'Walkthrough Video', price: 3000, unitLabel: 'per video' },
-    { key: 'rawFootage',  label: 'Raw Footage + Color Grading', price: 3000, unitLabel: 'flat rate' },
     { key: 'aiScene',     label: 'AI Scene', price: 1000, unitLabel: 'per scene' },
   ];
   const USD_TO_PHP = 58;
@@ -1725,15 +1725,20 @@
                 const qty = draftAddons[ad.key] || 0;
                 const subtotalLabel = qty > 0 ? fmtMoney(qty * ad.price) : '—';
                 const subtotalColor = qty > 0 ? 'oklch(0.4 0.13 150)' : 'oklch(0.6 0.015 150)';
+                const counterControls = ad.flat ? `
+                  <button type="button" data-action="shoot-addon-toggle" data-key="${ad.key}" style="all:unset;cursor:pointer;padding:6px 14px;border-radius:7px;font-weight:700;font-size:12.5px;background:${qty > 0 ? 'oklch(0.92 0.06 150)' : 'oklch(0.91 0.012 150)'};color:${qty > 0 ? 'oklch(0.4 0.13 150)' : 'oklch(0.4 0.02 150)'}">${qty > 0 ? 'Added ✓' : 'Add'}</button>
+                ` : `
+                  <button type="button" data-action="shoot-addon-dec" data-key="${ad.key}" style="all:unset;cursor:pointer;width:26px;height:26px;border-radius:7px;background:oklch(0.91 0.012 150);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:oklch(0.35 0.02 150)">−</button>
+                  <div style="width:22px;text-align:center;font-weight:700;font-size:13.5px">${qty}</div>
+                  <button type="button" data-action="shoot-addon-inc" data-key="${ad.key}" style="all:unset;cursor:pointer;width:26px;height:26px;border-radius:7px;background:oklch(0.92 0.06 150);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:oklch(0.4 0.13 150)">+</button>
+                `;
                 return `
                 <div style="display:flex;align-items:center;gap:10px">
                   <div style="flex:1;min-width:0">
                     <div style="font-size:13px;font-weight:600;color:oklch(0.25 0.02 150)">${esc(ad.label)}</div>
                     <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">₱${ad.price.toLocaleString('en-US')} ${esc(ad.unitLabel)}</div>
                   </div>
-                  <button type="button" data-action="shoot-addon-dec" data-key="${ad.key}" style="all:unset;cursor:pointer;width:26px;height:26px;border-radius:7px;background:oklch(0.91 0.012 150);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:oklch(0.35 0.02 150)">−</button>
-                  <div style="width:22px;text-align:center;font-weight:700;font-size:13.5px">${qty}</div>
-                  <button type="button" data-action="shoot-addon-inc" data-key="${ad.key}" style="all:unset;cursor:pointer;width:26px;height:26px;border-radius:7px;background:oklch(0.92 0.06 150);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:oklch(0.4 0.13 150)">+</button>
+                  ${counterControls}
                   <div style="width:70px;text-align:right;font-size:13px;font-weight:700;color:${subtotalColor}">${subtotalLabel}</div>
                 </div>`;
               }).join('')}
@@ -2128,6 +2133,7 @@
       case 'shoot-addons-toggle': setState(s => ({ shootAddonsOpen: !s.shootAddonsOpen })); break;
       case 'shoot-addon-inc': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) + 1 } } })); break;
       case 'shoot-addon-dec': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: Math.max(0, ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) - 1) } } })); break;
+      case 'shoot-addon-toggle': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) > 0 ? 0 : 1 } } })); break;
       case 'shoot-milestone-pick': setState(s => ({ draft: { ...s.draft, paid: Number(el.dataset.amount) || 0 } })); break;
       case 'date-picker-toggle': setState(s => ({ shootDatePickerOpen: !s.shootDatePickerOpen, timePickerOpen: false })); break;
       case 'time-picker-toggle': setState(s => ({ timePickerOpen: !s.timePickerOpen, shootDatePickerOpen: false })); break;
@@ -2766,7 +2772,7 @@
             const baseAmt = grandTotal - addonsTotal;
             const baseLabel = (dec.packageTierLabel.split(' - ')[1] || dec.packageTierLabel).split(' (')[0];
             const addonLines = ADDON_DEFS.filter(ad => (addons[ad.key] || 0) > 0)
-              .map(ad => `${ad.label} x${addons[ad.key]} - ${fmtMoney(ad.price * addons[ad.key])}`);
+              .map(ad => `${ad.label}${ad.flat ? '' : ' x' + addons[ad.key]} - ${fmtMoney(ad.price * addons[ad.key])}`);
             // Same 20% DP / 30% Shoot / 50% Final milestone schedule used in the shoot's own
             // "Payment Terms" section — find the first milestone not yet covered by sh.paid,
             // and bill exactly what's still needed to reach it (not the full remaining balance).
