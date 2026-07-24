@@ -1453,7 +1453,7 @@
           </div>
           <div class="field" style="position:relative">
             <label>Deadline (edit / delivery)</label>
-            <button type="button" data-action="deadline-picker-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
+            <button type="button" data-action="deadline-picker-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid oklch(0.58 0.19 25 / 0.45);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
               <span>${deadlineDisplayLabel}</span>
             </button>
             <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Optional — if set, "overdue" is based on this instead of the shoot date. ${d.deadline ? `<span data-action="deadline-clear" style="cursor:pointer;color:oklch(0.55 0.14 150);text-decoration:underline">Clear</span>` : ''}</div>
