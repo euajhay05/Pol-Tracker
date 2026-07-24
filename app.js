@@ -395,7 +395,7 @@
     const shootType = normalizeShootType(sh.shootType);
     const sm = statusMeta(status);
     const scm = SCRIPT_STATUS_META[scriptStatus] || SCRIPT_STATUS_META['Not Started'];
-    const days = daysLeftOf(sh.date);
+    const days = daysLeftOf(sh.deadline || sh.date);
     const dl = status === 'posted' ? { label: 'Delivered', color: 'oklch(0.45 0.14 150)' }
       : status === 'tentative' ? { label: 'Not confirmed', color: 'oklch(0.5 0.015 150)' }
       : daysLeftLabelAndColor(days);
@@ -1445,6 +1445,10 @@
           <div class="field"><label>Status</label>
             <select data-bind="draft.status" data-special="shootStatus">${statusOptions.map(sm => `<option value="${sm.value}" ${d.status === sm.value ? 'selected' : ''}>${sm.label}</option>`).join('')}</select>
           </div>
+          <div class="field"><label>Deadline (edit / delivery)</label>
+            <input type="date" value="${esc(d.deadline || '')}" data-bind="draft.deadline"/>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Optional — if set, "overdue" is based on this instead of the shoot date.</div>
+          </div>
           <div class="row-2">
             ${isRealEstate ? `
             <div class="field"><label>Package</label>
@@ -1751,7 +1755,7 @@
     setState({
       modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(), shootDateCalMonth: TODAY.getMonth(),
-      draft: { id: null, client: '', location: '', date: TODAY_STR, time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
+      draft: { id: null, client: '', location: '', date: TODAY_STR, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
     });
   }
   function openEditShoot(id) {
