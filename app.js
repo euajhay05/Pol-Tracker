@@ -734,13 +734,21 @@
     <div class="dash-hero-grid" style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:16px;align-items:stretch">
       <div style="background:linear-gradient(160deg, oklch(0.42 0.14 150), oklch(0.28 0.1 155));border-radius:18px;padding:26px;display:flex;flex-direction:column;justify-content:space-between;color:oklch(1 0 0);min-height:150px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:oklch(0.9 0.05 150)">Net Profit This Month</div>
+          <div style="font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:oklch(0.9 0.05 150)">This Month</div>
           <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:oklch(1 0 0 / 0.18)">${THIS_MONTH_KEY}</div>
         </div>
-        <div class="sg" data-count-up="${Math.round(ctx.netProfit)}" data-count-prefix="₱" style="font-size:42px;font-weight:700;margin-top:8px">₱0</div>
+        <div style="display:flex;gap:36px;margin-top:8px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11.5px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Income</div>
+            <div class="sg" data-count-up="${Math.round(ctx.monthlyRevenue)}" data-count-prefix="₱" style="font-size:36px;font-weight:700;margin-top:4px">₱0</div>
+          </div>
+          <div>
+            <div style="font-size:11.5px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Expenses</div>
+            <div class="sg" data-count-up="${Math.round(ctx.monthTotal)}" data-count-prefix="₱" style="font-size:36px;font-weight:700;margin-top:4px">₱0</div>
+          </div>
+        </div>
         <div style="display:flex;gap:26px;margin-top:14px;flex-wrap:wrap">
-          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Revenue</div><div data-count-up="${Math.round(ctx.monthlyRevenue)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
-          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Expenses</div><div data-count-up="${Math.round(ctx.monthTotal)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Net Profit</div><div data-count-up="${Math.round(ctx.netProfit)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
           <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Pending</div><div data-count-up="${Math.round(ctx.outstanding)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
         </div>
       </div>
