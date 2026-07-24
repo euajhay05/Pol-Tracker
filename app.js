@@ -1348,7 +1348,7 @@
             <option value="">— Choose from Shoots —</option>
             ${[...state.shoots].sort((a, b) => new Date(b.date) - new Date(a.date)).map(sh => `<option value="${esc(sh.id)}">${esc(sh.client)} — ${esc(sh.shootType)} (${fmtDate(sh.date)})</option>`).join('')}
           </select>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Pulls in client, project, and package details from that shoot — the remaining balance is pre-filled into Amount, still editable.</div>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Pulls in client, project, and package details from that shoot — Amount is pre-filled with the next unpaid milestone (20% DP / 30% Shoot / 50% Final), still editable.</div>
         </div>
         <div class="field"><label>Select Existing Client (optional)</label>
           <select data-action-change="doc-client-pick">
@@ -2606,18 +2606,33 @@
             const contact = client ? [client.phone, client.email].filter(Boolean).join(' · ') : '';
             const addons = sh.addons || {};
             const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
-            const baseAmt = (Number(sh.package) || 0) - addonsTotal;
+            const grandTotal = Number(sh.package) || 0;
+            const paidAmt = Number(sh.paid) || 0;
+            const baseAmt = grandTotal - addonsTotal;
             const baseLabel = (dec.packageTierLabel.split(' - ')[1] || dec.packageTierLabel).split(' (')[0];
             const addonLines = ADDON_DEFS.filter(ad => (addons[ad.key] || 0) > 0)
               .map(ad => `${ad.label} x${addons[ad.key]} - ${fmtMoney(ad.price * addons[ad.key])}`);
-            const balance = Math.max((Number(sh.package) || 0) - (Number(sh.paid) || 0), 0);
+            // Same 20% DP / 30% Shoot / 50% Final milestone schedule used in the shoot's own
+            // "Payment Terms" section — find the first milestone not yet covered by sh.paid,
+            // and bill exactly what's still needed to reach it (not the full remaining balance).
+            const milestoneDefs = [
+              { shortLabel: '20% DP', label: '20% Down Payment', target: grandTotal * 0.2 },
+              { shortLabel: '30% Shoot', label: '30% After Shoot', target: grandTotal * 0.5 },
+              { shortLabel: '50% Final', label: '50% Final Delivery', target: grandTotal },
+            ];
+            const fullBalance = Math.max(grandTotal - paidAmt, 0);
+            const nextMilestone = milestoneDefs.find(m => paidAmt < m.target);
+            const dueAmount = nextMilestone ? Math.max(Math.min(nextMilestone.target - paidAmt, fullBalance), 0) : 0;
             const lineItems = [
               `${baseLabel} - ${fmtMoney(baseAmt)}`,
               ...addonLines,
-              `Paid to date - ${fmtMoney(sh.paid)}`,
-              `Balance due - ${fmtMoney(balance)}`,
+              `Total package - ${fmtMoney(grandTotal)}`,
+              nextMilestone ? `Billing this invoice: ${nextMilestone.label} - ${fmtMoney(dueAmount)}` : 'Fully paid - no balance remaining',
+              `Paid to date - ${fmtMoney(paidAmt)}`,
+              `Remaining after this payment - ${fmtMoney(Math.max(fullBalance - dueAmount, 0))}`,
             ].join('\n');
-            const paymentStatus = balance <= 0 ? 'Paid' : (Number(sh.paid) || 0) > 0 ? 'Partial' : 'Unpaid';
+            const balance = dueAmount;
+            const paymentStatus = dueAmount > 0 ? 'Unpaid' : 'Paid';
             state = {
               ...state,
               docDraft: {
