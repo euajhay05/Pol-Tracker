@@ -330,6 +330,25 @@
 
   let state = defaultState();
   let draggingId = null;
+  let dashboardCountUpDone = false;
+
+  function animateCountUps(root) {
+    const els = root.querySelectorAll('[data-count-up]');
+    els.forEach(el => {
+      const target = Number(el.dataset.countUp) || 0;
+      const prefix = el.dataset.countPrefix || '';
+      const duration = 900;
+      const start = performance.now();
+      function tick(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const current = Math.round(target * eased);
+        el.textContent = prefix + current.toLocaleString('en-PH');
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }
 
   function setState(patch) {
     const partial = typeof patch === 'function' ? patch(state) : patch;
@@ -699,11 +718,11 @@
           <div style="font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:oklch(0.9 0.05 150)">Net Profit This Month</div>
           <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:oklch(1 0 0 / 0.18)">${THIS_MONTH_KEY}</div>
         </div>
-        <div class="sg" style="font-size:42px;font-weight:700;margin-top:8px">${fmtMoney(ctx.netProfit)}</div>
+        <div class="sg" data-count-up="${Math.round(ctx.netProfit)}" data-count-prefix="₱" style="font-size:42px;font-weight:700;margin-top:8px">₱0</div>
         <div style="display:flex;gap:26px;margin-top:14px;flex-wrap:wrap">
-          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Revenue</div><div style="font-size:16px;font-weight:700;margin-top:2px">${fmtMoney(ctx.monthlyRevenue)}</div></div>
-          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Expenses</div><div style="font-size:16px;font-weight:700;margin-top:2px">${fmtMoney(ctx.monthTotal)}</div></div>
-          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Pending</div><div style="font-size:16px;font-weight:700;margin-top:2px">${fmtMoney(ctx.outstanding)}</div></div>
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Revenue</div><div data-count-up="${Math.round(ctx.monthlyRevenue)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Expenses</div><div data-count-up="${Math.round(ctx.monthTotal)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
+          <div><div style="font-size:11px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Pending</div><div data-count-up="${Math.round(ctx.outstanding)}" data-count-prefix="₱" style="font-size:16px;font-weight:700;margin-top:2px">₱0</div></div>
         </div>
       </div>
       <div class="card" style="display:flex;flex-direction:column">
@@ -731,7 +750,7 @@
             <div style="font-size:13px;font-weight:600;color:${sc.hero ? 'oklch(0.95 0.03 150)' : 'oklch(0.4 0.02 150)'}">${esc(sc.label)}</div>
             <div style="width:26px;height:26px;border-radius:50%;background:${sc.hero ? 'oklch(1 0 0 / 0.15)' : 'oklch(0.92 0.06 150)'};display:flex;align-items:center;justify-content:center;font-size:12px;color:${sc.hero ? 'oklch(1 0 0)' : 'oklch(0.4 0.13 150)'};flex:none">↗</div>
           </div>
-          <div class="sg" style="font-size:30px;font-weight:700">${esc(sc.value)}</div>
+          <div class="sg" data-count-up="${Number(sc.value) || 0}" style="font-size:30px;font-weight:700">0</div>
           <div style="font-size:11.5px;color:${sc.hero ? 'oklch(0.85 0.06 150)' : 'oklch(0.5 0.015 150)'}">${esc(sc.sub)}</div>
         </button>`).join('')}
     </div>
@@ -1694,6 +1713,15 @@
 
     const app = document.getElementById('app');
     app.innerHTML = html;
+
+    if (state.view === 'dashboard') {
+      if (!dashboardCountUpDone) {
+        dashboardCountUpDone = true;
+        animateCountUps(app);
+      }
+    } else {
+      dashboardCountUpDone = false;
+    }
 
     const mainEl = app.querySelector('.main');
     if (mainEl) mainEl.scrollTop = scrollTop;
