@@ -1343,6 +1343,13 @@
     ${docsHistorySection}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
       <div class="card" style="display:flex;flex-direction:column;gap:14px">
+        <div class="field"><label>Fill from Existing Project (optional)</label>
+          <select data-action-change="doc-shoot-pick">
+            <option value="">— Choose from Shoots —</option>
+            ${[...state.shoots].sort((a, b) => new Date(b.date) - new Date(a.date)).map(sh => `<option value="${esc(sh.id)}">${esc(sh.client)} — ${esc(sh.shootType)} (${fmtDate(sh.date)})</option>`).join('')}
+          </select>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Pulls in client, project, and package details from that shoot — the remaining balance is pre-filled into Amount, still editable.</div>
+        </div>
         <div class="field"><label>Select Existing Client (optional)</label>
           <select data-action-change="doc-client-pick">
             <option value="">— Choose from Clients —</option>
@@ -2589,6 +2596,45 @@
 
     app.addEventListener('change', (e) => {
       const el = e.target;
+      if (el.dataset.actionChange === 'doc-shoot-pick') {
+        const shootId = el.value;
+        if (shootId) {
+          const sh = state.shoots.find(s => s.id === shootId);
+          if (sh) {
+            const dec = decorate(sh);
+            const client = state.clients.find(c => c.name.trim().toLowerCase() === sh.client.trim().toLowerCase());
+            const contact = client ? [client.phone, client.email].filter(Boolean).join(' · ') : '';
+            const addons = sh.addons || {};
+            const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
+            const baseAmt = (Number(sh.package) || 0) - addonsTotal;
+            const baseLabel = (dec.packageTierLabel.split(' - ')[1] || dec.packageTierLabel).split(' (')[0];
+            const addonLines = ADDON_DEFS.filter(ad => (addons[ad.key] || 0) > 0)
+              .map(ad => `${ad.label} x${addons[ad.key]} - ${fmtMoney(ad.price * addons[ad.key])}`);
+            const balance = Math.max((Number(sh.package) || 0) - (Number(sh.paid) || 0), 0);
+            const lineItems = [
+              `${baseLabel} - ${fmtMoney(baseAmt)}`,
+              ...addonLines,
+              `Paid to date - ${fmtMoney(sh.paid)}`,
+              `Balance due - ${fmtMoney(balance)}`,
+            ].join('\n');
+            const paymentStatus = balance <= 0 ? 'Paid' : (Number(sh.paid) || 0) > 0 ? 'Partial' : 'Unpaid';
+            state = {
+              ...state,
+              docDraft: {
+                ...state.docDraft,
+                clientName: sh.client,
+                clientContact: contact || state.docDraft.clientContact,
+                description: `${sh.shootType}${sh.location ? ' - ' + sh.location : ''}`,
+                amount: String(balance),
+                lineItems,
+                paymentStatus,
+              },
+            };
+            render();
+          }
+        }
+        return;
+      }
       if (el.dataset.actionChange === 'doc-client-pick') {
         const id = el.value;
         if (id) {
