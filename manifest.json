@@ -1,0 +1,13 @@
+{
+  "name": "Pol Tracker",
+  "short_name": "Pol Tracker",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f1f5ee",
+  "theme_color": "#1f6b40",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
