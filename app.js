@@ -1750,7 +1750,10 @@
   function handleAction(action, el, ev) {
     const id = el.dataset.id;
     switch (action) {
-      case 'nav': setState({ view: el.dataset.view, mobileNavOpen: false }); break;
+      case 'nav':
+        try { localStorage.setItem('shoottracker_last_view', el.dataset.view); } catch (e) { /* storage unavailable */ }
+        setState({ view: el.dataset.view, mobileNavOpen: false });
+        break;
       case 'mobile-nav-toggle': setState(s => ({ mobileNavOpen: !s.mobileNavOpen })); break;
       case 'mobile-nav-close': setState({ mobileNavOpen: false }); break;
       case 'logout': clearUnlocked(); renderLockScreen(false); break;
@@ -2199,6 +2202,15 @@
     } catch (e) {
       console.error('Failed to load shared data, showing local defaults', e);
     }
+
+    // Restore last-viewed page (per-device) so a refresh doesn't bounce you back to Dashboard.
+    try {
+      const savedView = localStorage.getItem('shoottracker_last_view');
+      const VALID_VIEWS = ['dashboard', 'shoots', 'clients', 'finances', 'expenses', 'loans', 'goals', 'docs', 'insights'];
+      if (savedView && VALID_VIEWS.includes(savedView)) {
+        state = { ...state, view: savedView };
+      }
+    } catch (e) { /* storage unavailable */ }
 
     render();
   }
