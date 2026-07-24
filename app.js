@@ -308,14 +308,16 @@
       docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
       docDuePickerOpen: false, docDueCalYear: TODAY.getFullYear(), docDueCalMonth: TODAY.getMonth(),
       docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid' },
+      documents: [],
+      docsHistoryOpen: false,
       insightsPeriod: 'weekly',
       chipModal: null,
       shootsSearch: '', clientsSearch: '', expensesSearch: '', loansSearch: '', goalsSearch: '',
     };
   }
 
-  const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients', 'packageRates'];
-  const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', goals: 'goals', clients: 'clients', packageRates: 'package_rates' };
+  const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients', 'packageRates', 'documents'];
+  const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', goals: 'goals', clients: 'clients', packageRates: 'package_rates', documents: 'documents' };
 
   async function fetchRemoteState() {
     const cols = Object.values(PERSIST_COLUMNS).join(',');
@@ -1303,9 +1305,42 @@
         </div>` : ''}
       </div>`;
 
+    const sortedDocs = [...state.documents].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const docsHistorySection = state.docsHistoryOpen ? `
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title" style="margin-bottom:4px">History (${sortedDocs.length})</div>
+        ${sortedDocs.length === 0 ? `<div style="color:oklch(0.5 0.015 150);font-size:13px">No documents generated yet.</div>` : `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          ${sortedDocs.map(r => {
+            const rd = r.draft;
+            const rMeta = DOC_TYPE_META[r.type];
+            const rIsInvoice = r.type === 'invoice';
+            return `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--card);border-radius:11px;border:1px solid oklch(0 0 0 / 0.06);flex-wrap:wrap">
+            <div style="min-width:0;flex:1">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span class="badge" style="background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150)">${esc(rMeta.title)}</span>
+                <span style="font-weight:700;font-size:13.5px">${esc(rd.clientName || 'Untitled')}</span>
+                ${rIsInvoice ? `<span style="font-size:12px;color:oklch(0.5 0.015 150)">#${esc(rd.invoiceNumber)}</span>` : ''}
+              </div>
+              <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-top:3px">${esc(rd.description || '')} · ${fmtDate(rd.date)} · ${fmtMoney(rd.amount)}${rIsInvoice ? ' · ' + esc(rd.paymentStatus) : ''}</div>
+            </div>
+            <div style="display:flex;gap:8px;flex:none">
+              <button type="button" data-action="doc-history-download" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150);font-size:12.5px;font-weight:700">Download</button>
+              <button type="button" data-action="doc-history-delete" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.92 0.08 25);color:oklch(0.5 0.19 25);font-size:12.5px;font-weight:700">Delete</button>
+            </div>
+          </div>`;
+          }).join('')}
+        </div>`}
+      </div>` : '';
+
     return `
-    <div class="page-head"><div><div class="page-title sg">Documents</div><div class="page-sub">Generate contracts, quotations, and invoices</div></div></div>
+    <div class="page-head">
+      <div><div class="page-title sg">Documents</div><div class="page-sub">Generate contracts, quotations, and invoices</div></div>
+      <button type="button" class="btn-ghost" style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px" data-action="doc-history-toggle">${state.docsHistoryOpen ? 'Hide History' : `View History (${state.documents.length})`}</button>
+    </div>
     <div class="tabbar" style="margin-bottom:24px">${tab('contract', 'Contract')}${tab('quotation', 'Quotation')}${tab('invoice', 'Invoice')}</div>
+    ${docsHistorySection}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
       <div class="card" style="display:flex;flex-direction:column;gap:14px">
         <div class="field"><label>Select Existing Client (optional)</label>
@@ -2189,6 +2224,9 @@
       }); break;
       case 'doc-generate':
         generateDocPdf();
+        setState(s => ({
+          documents: [...s.documents, { id: 'doc' + Date.now(), type: s.docType, createdAt: new Date().toISOString(), draft: { ...s.docDraft } }],
+        }));
         if (state.docType === 'invoice') {
           setState(s => {
             const nextCounter = s.invoiceCounter + 1;
@@ -2196,6 +2234,15 @@
             return { invoiceCounter: nextCounter, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(nextCounter) } };
           });
         }
+        break;
+      case 'doc-history-toggle': setState(s => ({ docsHistoryOpen: !s.docsHistoryOpen })); break;
+      case 'doc-history-download': {
+        const rec = state.documents.find(r => r.id === id);
+        if (rec) generateDocPdf(rec.type, rec.draft);
+        break;
+      }
+      case 'doc-history-delete':
+        setState(s => ({ documents: s.documents.filter(r => r.id !== id) }));
         break;
       case 'doc-date-toggle': setState(s => ({ docDatePickerOpen: !s.docDatePickerOpen, docDuePickerOpen: false })); break;
       case 'doc-date-cal-prev': setState(s => { let m = s.docDateCalMonth - 1, y = s.docDateCalYear; if (m < 0) { m = 11; y--; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
@@ -2233,12 +2280,12 @@
     else if (which === 'chip') setState({ chipModal: null });
   }
 
-  function generateDocPdf() {
+  function generateDocPdf(overrideType, overrideDraft) {
     const jspdf = window.jspdf;
     if (!jspdf || !jspdf.jsPDF) { window.print(); return; }
     const { jsPDF } = jspdf;
-    const d = state.docDraft;
-    const docType = state.docType;
+    const d = overrideDraft || state.docDraft;
+    const docType = overrideType || state.docType;
     const isInvoice = docType === 'invoice';
     const meta = DOC_TYPE_META[docType];
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
