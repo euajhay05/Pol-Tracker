@@ -293,6 +293,8 @@
       loanDraft: null,
       goalModal: null,
       goalDraft: null,
+      goalFundModal: null,
+      goalFundDraft: null,
       clientModal: null,
       clientDraft: null,
       docType: 'contract',
@@ -1340,6 +1342,7 @@
           </div>
           ${progressBar(g.percent)}
           <div style="display:flex;justify-content:space-between;font-size:12.5px;color:oklch(0.45 0.015 150);margin-top:10px"><span>${g.currentLabel} saved</span><span>${g.targetLabel} goal</span></div>
+          <button type="button" data-action="goal-fund-open" data-id="${esc(g.id)}" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:12px;padding:8px;border-radius:8px;background:oklch(0.92 0.06 150);color:oklch(0.45 0.14 150);font-size:12.5px;font-weight:700">+ Add / Withdraw Fund</button>
         </div>`).join('')}
     </div>`;
   }
@@ -1679,6 +1682,37 @@
     </div>`;
   }
 
+  function modalGoalFund() {
+    if (!state.goalFundModal) return '';
+    const g = state.goals.find(x => x.id === state.goalFundModal.id);
+    if (!g) return '';
+    const d = state.goalFundDraft;
+    const isUSD = g.currency === 'USD';
+    const currencySymbol = isUSD ? '$' : '₱';
+    const mode = d.mode || 'deposit';
+    const amt = Number(d.amount) || 0;
+    const displayCurrent = isUSD ? (Number(g.current) || 0) / USD_TO_PHP : (Number(g.current) || 0);
+    const previewCurrent = mode === 'deposit' ? displayCurrent + amt : Math.max(0, displayCurrent - amt);
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="goalfund">
+      <form class="modal-box" style="width:360px" data-stop data-action="save-goal-fund">
+        <div class="modal-head"><div class="modal-title">${esc(g.name)}</div><button type="button" class="modal-close" data-action="modal-close" data-which="goalfund">✕</button></div>
+        <div class="modal-fields">
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">Currently saved: <strong>${currencySymbol}${displayCurrent.toLocaleString('en-US')}</strong></div>
+          <div style="display:flex;gap:8px">
+            <button type="button" data-action="goal-fund-mode" data-mode="deposit" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;background:${mode === 'deposit' ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${mode === 'deposit' ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">Deposit</button>
+            <button type="button" data-action="goal-fund-mode" data-mode="withdraw" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;background:${mode === 'withdraw' ? 'oklch(0.58 0.19 25)' : 'oklch(0.91 0.012 150)'};color:${mode === 'withdraw' ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">Withdraw</button>
+          </div>
+          <div class="field"><label>Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="goalFundDraft.amount" placeholder="0" autofocus/></div>
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New total: <strong>${currencySymbol}${previewCurrent.toLocaleString('en-US')}</strong></div>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary" style="flex:1;text-align:center">${mode === 'deposit' ? 'Add Fund' : 'Withdraw Fund'}</button>
+        </div>
+      </form>
+    </div>`;
+  }
+
   function modalClient() {
     if (!state.clientModal) return '';
     const d = state.clientDraft;
@@ -1761,6 +1795,7 @@
       ${modalTelegram(ctx)}
       ${modalLoan()}
       ${modalGoal()}
+      ${modalGoalFund()}
       ${modalClient()}
     `;
 
@@ -1997,6 +2032,8 @@
         if (!confirm(`Are you sure you want to delete the goal "${state.goalDraft.name || 'this goal'}"? This cannot be undone.`)) break;
         setState(s => ({ goals: s.goals.filter(g => g.id !== s.goalDraft.id), goalModal: null, goalDraft: null }));
         break;
+      case 'goal-fund-open': setState({ goalFundModal: { id }, goalFundDraft: { mode: 'deposit', amount: '' } }); break;
+      case 'goal-fund-mode': setState(s => ({ goalFundDraft: { ...s.goalFundDraft, mode: el.dataset.mode } })); break;
 
       case 'client-add-open': setState({ clientModal: { mode: 'add' }, clientDraft: { id: null, name: '', phone: '', email: '', leadStatus: 'New Lead', followUpDate: '', notes: '' } }); break;
       case 'client-edit': openEditClient(id); break;
@@ -2024,6 +2061,7 @@
     else if (which === 'telegram') setState({ telegramModalOpen: false });
     else if (which === 'loan') setState({ loanModal: null, loanDraft: null });
     else if (which === 'goal') setState({ goalModal: null, goalDraft: null });
+    else if (which === 'goalfund') setState({ goalFundModal: null, goalFundDraft: null });
     else if (which === 'client') setState({ clientModal: null, clientDraft: null });
     else if (which === 'chip') setState({ chipModal: null });
   }
@@ -2192,9 +2230,9 @@
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
-      } else if (state.loanModal || state.goalModal || state.clientModal || state.telegramModalOpen || state.chipModal) {
+      } else if (state.loanModal || state.goalModal || state.goalFundModal || state.clientModal || state.telegramModalOpen || state.chipModal) {
         e.preventDefault(); e.stopPropagation();
-        closeModalOf(state.loanModal ? 'loan' : state.goalModal ? 'goal' : state.clientModal ? 'client' : state.telegramModalOpen ? 'telegram' : 'chip');
+        closeModalOf(state.loanModal ? 'loan' : state.goalModal ? 'goal' : state.goalFundModal ? 'goalfund' : state.clientModal ? 'client' : state.telegramModalOpen ? 'telegram' : 'chip');
       }
     });
 
@@ -2251,6 +2289,25 @@
         setState(s => s.goalModal.mode === 'add'
           ? { goals: [...s.goals, { ...cleaned, id: 'g' + Date.now() }], goalModal: null, goalDraft: null }
           : { goals: s.goals.map(g => g.id === cleaned.id ? cleaned : g), goalModal: null, goalDraft: null });
+      } else if (action === 'save-goal-fund') {
+        const fd = state.goalFundDraft;
+        const amt = Number(fd.amount) || 0;
+        if (amt > 0 && state.goalFundModal) {
+          const targetId = state.goalFundModal.id;
+          setState(s => {
+            const g = s.goals.find(x => x.id === targetId);
+            if (!g) return { goalFundModal: null, goalFundDraft: null };
+            const phpAmt = g.currency === 'USD' ? amt * USD_TO_PHP : amt;
+            const delta = fd.mode === 'withdraw' ? -phpAmt : phpAmt;
+            const newCurrent = Math.max(0, (Number(g.current) || 0) + delta);
+            return {
+              goals: s.goals.map(x => x.id === targetId ? { ...x, current: newCurrent } : x),
+              goalFundModal: null, goalFundDraft: null,
+            };
+          });
+        } else {
+          setState({ goalFundModal: null, goalFundDraft: null });
+        }
       } else if (action === 'save-client') {
         const d = state.clientDraft;
         setState(s => s.clientModal.mode === 'add'
