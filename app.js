@@ -53,9 +53,9 @@
   };
 
   const DOC_TYPE_META = {
-    contract:  { title: 'Service Agreement / Contract', body: (d) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", to be delivered on ${d.date || '[Date]'} for a total contract value of ${fmtMoney(d.amount)}.` },
-    quotation: { title: 'Quotation / Proposal',          body: (d) => `Quotation prepared for ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}". Proposed rate: ${fmtMoney(d.amount)}. Valid until ${d.date || '[Date]'}.` },
-    invoice:   { title: 'Billing Invoice',                body: (d) => `Invoice billed to ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}. Amount due: ${fmtMoney(d.amount)}.` },
+    contract:  { title: 'Service Agreement / Contract', body: (d, mf = fmtMoney) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", to be delivered on ${d.date || '[Date]'} for a total contract value of ${mf(d.amount)}.` },
+    quotation: { title: 'Quotation / Proposal',          body: (d, mf = fmtMoney) => `Quotation prepared for ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}". Proposed rate: ${mf(d.amount)}. Valid until ${d.date || '[Date]'}.` },
+    invoice:   { title: 'Billing Invoice',                body: (d, mf = fmtMoney) => `Invoice billed to ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}. Amount due: ${mf(d.amount)}.` },
   };
 
   function todayStr() {
@@ -2171,6 +2171,27 @@
     const ensureSpace = (needed) => {
       if (y + needed > PAGE_H - 70) { doc.addPage(); y = 56; }
     };
+    // The standard PDF fonts (Helvetica etc.) don't include the ₱ glyph — jsPDF silently
+    // truncates it to the wrong character and mis-measures the string width, causing both
+    // a garbled symbol and text overflow. For amounts embedded in flowing sentences we use
+    // a plain "PHP" prefix (safe, correctly measured). For standalone amount displays we
+    // hand-draw an actual peso sign (a bold "P" with two strike bars) so it still reads as ₱.
+    const pdfFmtMoney = (n) => 'PHP ' + (Number(n) || 0).toLocaleString('en-PH');
+    const drawPeso = (amount, x, yPos, fontSize, color, bold) => {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(...color);
+      doc.text('P', x, yPos);
+      const pW = doc.getTextWidth('P');
+      doc.setDrawColor(...color);
+      doc.setLineWidth(Math.max(0.6, fontSize * 0.055));
+      const barX0 = x - fontSize * 0.03, barX1 = x + pW * 0.68;
+      doc.line(barX0, yPos - fontSize * 0.58, barX1, yPos - fontSize * 0.58);
+      doc.line(barX0, yPos - fontSize * 0.4, barX1, yPos - fontSize * 0.4);
+      const amtStr = (Number(amount) || 0).toLocaleString('en-PH');
+      doc.text(amtStr, x + pW + fontSize * 0.1, yPos);
+      return x + pW + fontSize * 0.1 + doc.getTextWidth(amtStr);
+    };
 
     // ---- header band ----
     doc.setFillColor(...BRAND);
@@ -2203,10 +2224,13 @@
     y += 15;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
     const contactLines = doc.splitTextToSize(d.clientContact || 'No contact details provided', colW);
-    const projMetaLines = [`Date: ${fmtDateLong(d.date)}`, `Amount: ${fmtMoney(d.amount)}`];
+    const projX = marginX + colW + 24;
     contactLines.forEach((line, i) => doc.text(line, marginX, y + i * 12));
-    projMetaLines.forEach((line, i) => doc.text(line, marginX + colW + 24, y + i * 12));
-    y += Math.max(contactLines.length, projMetaLines.length) * 12 + 20;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+    doc.text(`Date: ${fmtDateLong(d.date)}`, projX, y);
+    doc.text('Amount:', projX, y + 12);
+    drawPeso(d.amount, projX + doc.getTextWidth('Amount: '), y + 12, 9.5, GRAY, false);
+    y += Math.max(contactLines.length, 2) * 12 + 20;
 
     doc.setDrawColor(...LINE); doc.setLineWidth(1);
     doc.line(marginX, y, rightX, y);
@@ -2214,7 +2238,7 @@
 
     // ---- body paragraph ----
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
-    const bodyLines = doc.splitTextToSize(meta.body(d), contentW);
+    const bodyLines = doc.splitTextToSize(meta.body(d, pdfFmtMoney), contentW);
     ensureSpace(bodyLines.length * 15 + 10);
     bodyLines.forEach(line => { doc.text(line, marginX, y); y += 15; });
     y += 14;
@@ -2241,8 +2265,7 @@
     doc.roundedRect(marginX, y, contentW, 46, 8, 8, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...BRAND);
     doc.text(totalLabel, marginX + 16, y + 18);
-    doc.setFontSize(19); doc.setTextColor(...INK);
-    doc.text(fmtMoney(d.amount), marginX + 16, y + 37);
+    drawPeso(d.amount, marginX + 16, y + 37, 19, INK, true);
     if (isInvoice) {
       const statusColor = d.paymentStatus === 'Paid' ? [31, 107, 64] : d.paymentStatus === 'Partial' ? [180, 130, 20] : [180, 45, 40];
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...statusColor);
