@@ -325,7 +325,7 @@
       invoiceCounter: Number(localStorage.getItem('shoottracker_invoice_counter')) || 1,
       docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
       docDuePickerOpen: false, docDueCalYear: TODAY.getFullYear(), docDueCalMonth: TODAY.getMonth(),
-      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid' },
+      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '' },
       documents: [],
       docsHistoryOpen: false,
       insightsPeriod: 'weekly',
@@ -1445,6 +1445,12 @@
           </div>`).join('')}
         </div>` : `
         <div style="font-size:13px;line-height:1.7;margin-bottom:18px">${esc(meta.body(d))}</div>`}
+        ${isInvoice && d.packageTotal ? `
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;width:230px;font-size:12px;color:oklch(0.5 0.015 150)"><span>Total Package</span><span>${fmtMoney(d.packageTotal)}</span></div>
+          ${Number(d.paidToDate) > 0 ? `<div style="display:flex;justify-content:space-between;width:230px;font-size:12px;color:oklch(0.5 0.015 150)"><span>Less: Paid to Date</span><span>− ${fmtMoney(d.paidToDate)}</span></div>` : ''}
+          <div style="width:230px;border-top:1px solid oklch(0 0 0 / 0.1);margin-top:2px"></div>
+        </div>` : ''}
         <div style="display:flex;${isInvoice ? 'justify-content:space-between;align-items:flex-start' : 'justify-content:flex-end'};gap:20px;margin-bottom:18px">
           ${isInvoice && d.paymentDetails ? `
           <div style="flex:1;min-width:0">
@@ -1453,6 +1459,7 @@
           </div>` : (isInvoice ? '<div style="flex:1"></div>' : '')}
           <div style="background:oklch(0.97 0.015 150);border-radius:10px;padding:14px 16px;min-width:190px">
             <div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:6px">${isInvoice ? 'Total Amount Due' : (docType === 'quotation' ? 'Proposed Rate' : 'Total Contract Value')}</div>
+            ${isInvoice && d.milestoneLabel ? `<div style="font-size:10.5px;color:oklch(0.5 0.015 150);margin-bottom:4px">${esc(d.milestoneLabel)}</div>` : ''}
             <div class="sg" style="font-size:20px;font-weight:700">${fmtMoney(d.amount)}</div>
           </div>
         </div>
@@ -2555,6 +2562,27 @@
       y += 16;
     }
 
+    // ---- invoice: package summary (total package minus what's already paid) ----
+    // Only shown when the invoice was auto-filled from a shoot, so a milestone payment
+    // (e.g. "50% Final Delivery") doesn't look like an unexplained item in the table above —
+    // it's clearly a running total, not another charge.
+    if (isInvoice && d.packageTotal) {
+      ensureSpace(50);
+      const sumW = 230, sumX = rightX - sumW;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+      doc.text('Total Package', sumX, y);
+      doc.text(pdfFmtMoney(d.packageTotal), rightX, y, { align: 'right' });
+      y += 15;
+      if (Number(d.paidToDate) > 0) {
+        doc.text('Less: Paid to Date', sumX, y);
+        doc.text('- ' + pdfFmtMoney(d.paidToDate), rightX, y, { align: 'right' });
+        y += 15;
+      }
+      doc.setDrawColor(...LINE); doc.setLineWidth(0.75);
+      doc.line(sumX, y + 2, rightX, y + 2);
+      y += 22;
+    }
+
     // ---- bottom: payment details + total (invoice) or total only (contract/quotation) ----
     if (isInvoice) {
       ensureSpace(90);
@@ -2568,13 +2596,20 @@
         const payLines = wrapMultiline(d.paymentDetails, leftW);
         payLines.forEach(line => { doc.text(line, marginX, ly); ly += 13; });
       }
-      const boxH = 58;
+      const hasMilestone = !!d.milestoneLabel;
+      const boxH = hasMilestone ? 70 : 58;
       doc.setDrawColor(...LINE); doc.setFillColor(...BRAND_PALE);
       doc.roundedRect(boxX, startY - 8, boxW, boxH, 8, 8, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
       doc.text('TOTAL AMOUNT DUE', boxX + 14, startY + 10);
+      let pesoY = startY + 38;
+      if (hasMilestone) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+        doc.text(sanitizePeso(d.milestoneLabel), boxX + 14, startY + 22);
+        pesoY = startY + 50;
+      }
       const totW = measurePeso(d.amount, 18, true);
-      drawPeso(d.amount, boxX + boxW - 14 - totW, startY + 38, 18, INK, true);
+      drawPeso(d.amount, boxX + boxW - 14 - totW, pesoY, 18, INK, true);
       y = Math.max(ly, startY - 8 + boxH) + 26;
     } else {
       ensureSpace(70);
@@ -2743,13 +2778,13 @@
             const fullBalance = Math.max(grandTotal - paidAmt, 0);
             const nextMilestone = milestoneDefs.find(m => paidAmt < m.target);
             const dueAmount = nextMilestone ? Math.max(Math.min(nextMilestone.target - paidAmt, fullBalance), 0) : 0;
+            // Line Items holds only the actual package/add-on charges — the running totals
+            // (package total, what's already paid, what's due now) are kept as separate
+            // structured fields so the invoice can show them as a clearly-labeled summary
+            // instead of mixing them into the item table as if they were more line items.
             const lineItems = [
               `${baseLabel} - ${fmtMoney(baseAmt)}`,
               ...addonLines,
-              `Total package - ${fmtMoney(grandTotal)}`,
-              nextMilestone ? `Billing this invoice: ${nextMilestone.label} - ${fmtMoney(dueAmount)}` : 'Fully paid - no balance remaining',
-              `Paid to date - ${fmtMoney(paidAmt)}`,
-              `Remaining after this payment - ${fmtMoney(Math.max(fullBalance - dueAmount, 0))}`,
             ].join('\n');
             const balance = dueAmount;
             const paymentStatus = dueAmount > 0 ? 'Unpaid' : 'Paid';
@@ -2762,6 +2797,9 @@
                 description: `${sh.shootType}${sh.location ? ' - ' + sh.location : ''}`,
                 amount: String(balance),
                 lineItems,
+                packageTotal: String(grandTotal),
+                paidToDate: String(paidAmt),
+                milestoneLabel: nextMilestone ? nextMilestone.label : 'Fully Paid',
                 paymentStatus,
               },
             };
