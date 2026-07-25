@@ -739,6 +739,7 @@
 
   function renderSidebar() {
     const open = state.mobileNavOpen;
+    const collapsed = state.sidebarCollapsed;
     return `
     <div class="mobile-topbar">
       <button type="button" class="hamburger-btn" data-action="mobile-nav-toggle"><span></span><span></span><span></span></button>
@@ -746,8 +747,12 @@
       <div class="sg" style="font-weight:700;font-size:14px">Pol Tracker</div>
     </div>
     ${open ? `<div class="sidebar-backdrop" data-action="mobile-nav-close"></div>` : ''}
-    <aside class="sidebar${open ? ' open' : ''}">
-      <div class="logo-wrap"><div class="logo-badge">pol.</div></div>
+    ${collapsed ? `<button type="button" class="sidebar-expand-btn" data-action="sidebar-toggle" title="Expand sidebar"><span></span><span></span><span></span></button>` : ''}
+    <aside class="sidebar${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}">
+      <div class="logo-wrap">
+        <button type="button" class="logo-hamburger" data-action="sidebar-toggle" title="Collapse sidebar"><span></span><span></span><span></span></button>
+        <div class="logo-badge">pol.</div>
+      </div>
       <nav class="navlist">
         ${navBtn('dashboard', '▦', 'Dashboard')}
         <div class="nav-section">Production</div>
@@ -2151,6 +2156,11 @@
         break;
       case 'mobile-nav-toggle': setState(s => ({ mobileNavOpen: !s.mobileNavOpen })); break;
       case 'mobile-nav-close': setState({ mobileNavOpen: false }); break;
+      case 'sidebar-toggle': setState(s => {
+        const next = !s.sidebarCollapsed;
+        try { localStorage.setItem('shoottracker_sidebar_collapsed', next ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+        return { sidebarCollapsed: next };
+      }); break;
       case 'logout': clearUnlocked(); renderLockScreen(false); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
       case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
