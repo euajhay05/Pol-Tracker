@@ -2064,7 +2064,7 @@
     const html = `
       <div class="app-shell">
         ${renderSidebar()}
-        <main class="main">${pageFn(ctx)}</main>
+        <main class="main${state.sidebarCollapsed ? ' expanded-gutter' : ''}">${pageFn(ctx)}</main>
       </div>
       ${modalChip(ctx)}
       ${modalShoot()}
