@@ -269,6 +269,7 @@
     return {
       view: 'dashboard',
       mobileNavOpen: false,
+      sidebarCollapsed: localStorage.getItem('shoottracker_sidebar_collapsed') === '1',
       shoots: [],
       expenses: [],
       loans: [],
@@ -285,6 +286,7 @@
       financeRangeDraftFrom: null,
       financeRangeDraftTo: null,
       ftDraft: { source: '', amount: '', date: TODAY_STR },
+      ftDraftDatePickerOpen: false, ftDraftDateCalYear: TODAY.getFullYear(), ftDraftDateCalMonth: TODAY.getMonth(),
       ftMonthKey: THIS_MONTH_KEY,
       dashMonthKey: THIS_MONTH_KEY,
       modal: null,
@@ -1056,6 +1058,34 @@
         ${ctx.ftMonthKey !== THIS_MONTH_KEY ? `<button type="button" data-action="ft-month-today" style="all:unset;cursor:pointer;margin-left:6px;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">This Month</button>` : ''}
       </div>`;
 
+    const ftDraftDateLabel = state.ftDraft.date ? fmtDate(state.ftDraft.date) : 'Select date';
+    const ftDraftDateMonthLabel = new Date(state.ftDraftDateCalYear, state.ftDraftDateCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const ftDraftDateCells = buildCalendarCells(state.ftDraftDateCalYear, state.ftDraftDateCalMonth, [], state.ftDraft.date);
+    const ftDraftDatePicker = `
+      <div class="field" style="flex:1;min-width:130px;position:relative">
+        <label>Date</label>
+        <button type="button" data-action="ftdraft-date-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
+          <span>${ftDraftDateLabel}</span>
+        </button>
+        ${state.ftDraftDatePickerOpen ? `
+        <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div class="sg" style="font-weight:700;font-size:15px">${ftDraftDateMonthLabel}</div>
+            <div style="display:flex;gap:6px">
+              <button type="button" data-action="ftdraft-date-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+              <button type="button" data-action="ftdraft-date-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+            ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+            ${ftDraftDateCells.map(c => c.blank ? `<div></div>` : `
+              <div data-action="ftdraft-date-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>`;
+
     const fullTime = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
         <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div></div>
@@ -1066,7 +1096,7 @@
         <form data-action="save-fulltime" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
           <div class="field" style="flex:2;min-width:160px"><label>Source</label><input type="text" value="${esc(state.ftDraft.source)}" data-bind="ftDraft.source" placeholder="e.g. Salary - 1st Cutoff"/></div>
           <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(state.ftDraft.amount)}" data-bind="ftDraft.amount" placeholder="0"/></div>
-          <div class="field" style="flex:1;min-width:130px"><label>Date</label><input type="date" value="${esc(state.ftDraft.date)}" data-bind="ftDraft.date"/></div>
+          ${ftDraftDatePicker}
           <button type="submit" class="btn-primary">Add</button>
         </form>
       </div>
@@ -2339,6 +2369,11 @@
       case 'doc-due-cal-next': setState(s => { let m = s.docDueCalMonth + 1, y = s.docDueCalYear; if (m > 11) { m = 0; y++; } return { docDueCalMonth: m, docDueCalYear: y }; }); break;
       case 'doc-due-pick': setState(s => ({ docDraft: { ...s.docDraft, dueDate: el.dataset.date }, docDuePickerOpen: false })); break;
 
+      case 'ftdraft-date-toggle': setState(s => ({ ftDraftDatePickerOpen: !s.ftDraftDatePickerOpen })); break;
+      case 'ftdraft-date-cal-prev': setState(s => { let m = s.ftDraftDateCalMonth - 1, y = s.ftDraftDateCalYear; if (m < 0) { m = 11; y--; } return { ftDraftDateCalMonth: m, ftDraftDateCalYear: y }; }); break;
+      case 'ftdraft-date-cal-next': setState(s => { let m = s.ftDraftDateCalMonth + 1, y = s.ftDraftDateCalYear; if (m > 11) { m = 0; y++; } return { ftDraftDateCalMonth: m, ftDraftDateCalYear: y }; }); break;
+      case 'ftdraft-date-pick': setState(s => ({ ftDraft: { ...s.ftDraft, date: el.dataset.date }, ftDraftDatePickerOpen: false })); break;
+
       case 'insights-period': setState({ insightsPeriod: el.dataset.period }); break;
 
       case 'modal-close':
@@ -2696,10 +2731,10 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
-      if ((state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.expensesRangeCalOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen) && !e.target.closest('[data-picker-popover]')) {
+      if ((state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.expensesRangeCalOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) && !e.target.closest('[data-picker-popover]')) {
         const action = actionEl ? actionEl.dataset.action : null;
-        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'finance-range-toggle' && action !== 'expenses-range-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle') {
-          setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, expensesRangeCalOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false });
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'finance-range-toggle' && action !== 'expenses-range-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle' && action !== 'ftdraft-date-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, expensesRangeCalOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
         }
       }
       if (!actionEl) return;
@@ -2844,9 +2879,9 @@
       if (state.shootConfirmCloseOpen) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: false });
-      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen) {
+      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.financeRangeCalOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) {
         e.preventDefault(); e.stopPropagation();
-        setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false });
+        setState({ shootDatePickerOpen: false, timePickerOpen: false, financeRangeCalOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
