@@ -366,6 +366,7 @@
       documents: [],
       docsHistoryOpen: false,
       insightsPeriod: 'weekly',
+      insightsChartYear: TODAY.getFullYear(),
       chipModal: null,
       shootsSearch: '', clientsSearch: '', expensesSearch: '', loansSearch: '', goalsSearch: '',
     };
@@ -732,6 +733,28 @@
     ];
     const chartMax = Math.max(monthlyRevenue, monthTotal, 1);
 
+    // Overview chart: combined earnings (full-time + side hustle collected) per month,
+    // for the currently-selected year, shown as a 12-bar chart on the Insights page.
+    const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const overviewYear = state.insightsChartYear || TODAY.getFullYear();
+    const earningsByMonth = MONTH_SHORT_LABELS.map((label, i) => {
+      const mKey = `${overviewYear}-${String(i + 1).padStart(2, '0')}`;
+      const ftSum = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === mKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
+      const shSum = shoots.filter(s => s.date && s.date.slice(0, 7) === mKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
+      return { label, monthKey: mKey, total: ftSum + shSum, isCurrent: mKey === THIS_MONTH_KEY };
+    });
+    const maxEarningsMonth = Math.max(...earningsByMonth.map(m => m.total), 1);
+    const overviewBars = earningsByMonth.map(m => ({
+      label: m.label,
+      total: m.total,
+      totalLabel: fmtMoney(m.total),
+      isCurrent: m.isCurrent,
+      heightPx: m.total > 0 ? Math.max(6, Math.round((m.total / maxEarningsMonth) * 130)) : 4,
+      fill: m.isCurrent
+        ? 'linear-gradient(180deg, oklch(0.6 0.15 150), oklch(0.4 0.13 150))'
+        : (m.total > 0 ? 'oklch(0.86 0.05 150)' : 'oklch(0.93 0.01 150)'),
+    }));
+
     return {
       view, shoots, navColor, goalCards, thisMonth, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
@@ -742,6 +765,7 @@
       financeMonthKey, financeMonthLabel, ftMonthTotal, ftMonthRows,
       monthShoots, monthSideHustleCollected, monthCombinedTotal, monthFullTimeSharePercent, monthSideHustleSharePercent,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
+      overviewBars, overviewYear,
       dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
       userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
       chipModalKey, chipModalData, insightsPeriod, insightCards, chartMax,
@@ -1511,6 +1535,24 @@
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <div class="tabbar">${tab('weekly', 'Weekly')}${tab('monthly', 'Monthly')}</div>
         <button type="button" class="btn-telegram" data-action="export-data-csv" title="Download separate CSV files for Shoots, Expenses, Income, Clients, Loans, and Goals">⬇ Export Data</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+        <div class="card-title" style="margin-bottom:0">Overview — Earnings by Month</div>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:10px;padding:6px 10px">
+          <button type="button" data-action="insights-chart-year-prev" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px">‹</button>
+          <div class="sg" style="font-weight:700;font-size:12.5px;min-width:34px;text-align:center">${ctx.overviewYear}</div>
+          <button type="button" data-action="insights-chart-year-next" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px">›</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:150px;padding:0 2px">
+        ${ctx.overviewBars.map(b => `
+          <div title="${esc(b.label)} ${ctx.overviewYear}: ${b.totalLabel}" style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative;cursor:default">
+            ${b.isCurrent ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.4 0.13 150);color:oklch(1 0 0);font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap">${b.totalLabel}</div>` : ''}
+            <div style="width:60%;height:${b.heightPx}px;border-radius:6px 6px 0 0;background:${b.fill};flex:none"></div>
+            <div style="font-size:11px;font-weight:600;color:${b.isCurrent ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)'}">${b.label}</div>
+          </div>`).join('')}
       </div>
     </div>
     <div class="card" style="margin-bottom:16px">
@@ -2369,6 +2411,8 @@
       case 'ftdraft-date-pick': setState(s => ({ ftDraft: { ...s.ftDraft, date: el.dataset.date }, ftDraftDatePickerOpen: false })); break;
 
       case 'insights-period': setState({ insightsPeriod: el.dataset.period }); break;
+      case 'insights-chart-year-prev': setState(s => ({ insightsChartYear: (s.insightsChartYear || TODAY.getFullYear()) - 1 })); break;
+      case 'insights-chart-year-next': setState(s => ({ insightsChartYear: (s.insightsChartYear || TODAY.getFullYear()) + 1 })); break;
 
       case 'modal-close':
       case 'modal-backdrop-close':
