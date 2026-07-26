@@ -1559,24 +1559,6 @@
       </div>
     </div>
     <div class="card" style="margin-bottom:16px">
-      <div class="card-title" style="margin-bottom:14px">Shoots: This Month vs Last Month</div>
-      <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:14px">
-        <div class="sg" style="font-size:34px;font-weight:700">${ctx.shootsThisMonthCount}</div>
-        <div style="font-size:13px;font-weight:700;color:${ctx.shootsMomColor};background:${ctx.shootsMomBg};padding:4px 10px;border-radius:20px">${ctx.shootsMomLabel}</div>
-        <div style="font-size:12.5px;color:oklch(0.5 0.015 150)">vs ${ctx.shootsLastMonthCount} last month</div>
-      </div>
-      <div style="display:flex;align-items:flex-end;gap:16px;height:70px">
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
-          <div style="width:60%;background:oklch(0.85 0.02 150);border-radius:8px 8px 0 0;height:${ctx.shootsLastMonthBarPct}%"></div>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150)">Last Month</div>
-        </div>
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
-          <div style="width:60%;background:oklch(0.5 0.14 150);border-radius:8px 8px 0 0;height:${ctx.shootsThisMonthBarPct}%"></div>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150)">This Month</div>
-        </div>
-      </div>
-    </div>
-    <div class="card" style="margin-bottom:16px">
       <div class="card-title" style="margin-bottom:14px">Revenue vs Expenses</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div>
