@@ -367,6 +367,7 @@
       docsHistoryOpen: false,
       insightsPeriod: 'weekly',
       insightsChartYear: TODAY.getFullYear(),
+      insightsChartSelectedMonth: THIS_MONTH_KEY,
       chipModal: null,
       shootsSearch: '', clientsSearch: '', expensesSearch: '', loansSearch: '', goalsSearch: '',
     };
@@ -737,20 +738,22 @@
     // for the currently-selected year, shown as a 12-bar chart on the Insights page.
     const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const overviewYear = state.insightsChartYear || TODAY.getFullYear();
+    const selectedMonthKey = state.insightsChartSelectedMonth || THIS_MONTH_KEY;
     const earningsByMonth = MONTH_SHORT_LABELS.map((label, i) => {
       const mKey = `${overviewYear}-${String(i + 1).padStart(2, '0')}`;
       const ftSum = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === mKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
       const shSum = shoots.filter(s => s.date && s.date.slice(0, 7) === mKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
-      return { label, monthKey: mKey, total: ftSum + shSum, isCurrent: mKey === THIS_MONTH_KEY };
+      return { label, monthKey: mKey, total: ftSum + shSum, isSelected: mKey === selectedMonthKey };
     });
     const maxEarningsMonth = Math.max(...earningsByMonth.map(m => m.total), 1);
     const overviewBars = earningsByMonth.map(m => ({
       label: m.label,
+      monthKey: m.monthKey,
       total: m.total,
       totalLabel: fmtMoney(m.total),
-      isCurrent: m.isCurrent,
+      isSelected: m.isSelected,
       heightPx: m.total > 0 ? Math.max(6, Math.round((m.total / maxEarningsMonth) * 130)) : 4,
-      fill: m.isCurrent
+      fill: m.isSelected
         ? 'linear-gradient(180deg, oklch(0.6 0.15 150), oklch(0.4 0.13 150))'
         : (m.total > 0 ? 'oklch(0.86 0.05 150)' : 'oklch(0.93 0.01 150)'),
     }));
@@ -1548,11 +1551,11 @@
       </div>
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:150px;padding:0 2px">
         ${ctx.overviewBars.map(b => `
-          <div title="${esc(b.label)} ${ctx.overviewYear}: ${b.totalLabel}" style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative;cursor:default">
-            ${b.isCurrent ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.4 0.13 150);color:oklch(1 0 0);font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap">${b.totalLabel}</div>` : ''}
+          <button type="button" data-action="insights-chart-month-select" data-month="${b.monthKey}" title="${esc(b.label)} ${ctx.overviewYear}: ${b.totalLabel}" style="all:unset;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative;cursor:pointer">
+            ${b.isSelected ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.4 0.13 150);color:oklch(1 0 0);font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap">${b.totalLabel}</div>` : ''}
             <div style="width:60%;height:${b.heightPx}px;border-radius:6px 6px 0 0;background:${b.fill};flex:none"></div>
-            <div style="font-size:11px;font-weight:600;color:${b.isCurrent ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)'}">${b.label}</div>
-          </div>`).join('')}
+            <div style="font-size:11px;font-weight:600;color:${b.isSelected ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)'}">${b.label}</div>
+          </button>`).join('')}
       </div>
     </div>
     <div class="card" style="margin-bottom:16px">
@@ -2413,6 +2416,7 @@
       case 'insights-period': setState({ insightsPeriod: el.dataset.period }); break;
       case 'insights-chart-year-prev': setState(s => ({ insightsChartYear: (s.insightsChartYear || TODAY.getFullYear()) - 1 })); break;
       case 'insights-chart-year-next': setState(s => ({ insightsChartYear: (s.insightsChartYear || TODAY.getFullYear()) + 1 })); break;
+      case 'insights-chart-month-select': setState({ insightsChartSelectedMonth: el.dataset.month }); break;
 
       case 'modal-close':
       case 'modal-backdrop-close':
