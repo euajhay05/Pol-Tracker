@@ -1635,8 +1635,7 @@
           ${shootTypePills.map(tp => `<button type="button" data-action="shoot-type-pick" data-type="${esc(tp.value)}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${tp.bg};color:${tp.color};border:1px solid ${tp.border}">${tp.icon} ${esc(tp.label)}</button>`).join('')}
         </div>
         <div class="modal-fields">
-          <div class="field"><label>Client / Project</label><input type="text" list="clientNamesList" value="${esc(d.client)}" data-bind="draft.client" placeholder="e.g. Globe Telecom Anthem" required/>
-            <datalist id="clientNamesList">${state.clients.map(c => `<option value="${esc(c.name)}"></option>`).join('')}</datalist>
+          <div class="field"><label>Client / Project</label><input type="text" value="${esc(d.client)}" data-bind="draft.client" data-fmt="autocomplete" placeholder="e.g. Globe Telecom Anthem" required autocomplete="off"/>
           </div>
           <div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>
           <div class="row-2">
@@ -2768,6 +2767,34 @@
           const pos = moneyCursorAfterFormat(newEl.value, rawCharsBeforeCursor);
           newEl.focus();
           try { newEl.setSelectionRange(pos, pos); } catch (err) { /* not applicable for this input type */ }
+        }
+        return;
+      }
+      if (el.dataset.fmt === 'autocomplete') {
+        // Spreadsheet-style inline autocomplete: as the user types, if what they've typed is
+        // the start of an existing client/project name, silently fill in the rest and select
+        // (highlight) that suggested tail — typing more overwrites it, and it's otherwise
+        // just part of the value if they leave it. No dropdown list involved.
+        const typed = el.value;
+        const isDeleting = !!(e.inputType && e.inputType.indexOf('delete') === 0);
+        let finalValue = typed;
+        let match = null;
+        if (!isDeleting && typed.trim()) {
+          const candidates = state.clients.map(c => c.name)
+            .filter(n => n.length > typed.length && n.toLowerCase().startsWith(typed.toLowerCase()))
+            .sort((a, b) => a.length - b.length);
+          match = candidates[0] || null;
+          if (match) finalValue = typed + match.slice(typed.length);
+        }
+        applyBind(bind, finalValue);
+        render();
+        const newEl = app.querySelector(`[data-bind="${bind}"]`);
+        if (newEl) {
+          newEl.focus();
+          try {
+            if (match) newEl.setSelectionRange(typed.length, finalValue.length);
+            else newEl.setSelectionRange(finalValue.length, finalValue.length);
+          } catch (err) { /* not applicable for this input type */ }
         }
         return;
       }
