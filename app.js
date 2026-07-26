@@ -760,8 +760,8 @@
 
   function navBtn(view, icon, label, action) {
     const c = ctxGlobal.navColor(view);
-    return `<button type="button" class="nav-btn" style="color:${c.color};background:${c.bg}" data-action="nav" data-view="${action || view}">
-      <span class="ic">${icon}</span>${esc(label)}
+    return `<button type="button" class="nav-btn" style="color:${c.color};background:${c.bg}" data-action="nav" data-view="${action || view}" title="${esc(label)}">
+      <span class="ic">${icon}</span><span class="nav-label">${esc(label)}</span>
     </button>`;
   }
 
@@ -775,10 +775,9 @@
       <div class="sg" style="font-weight:700;font-size:14px">Pol Tracker</div>
     </div>
     ${open ? `<div class="sidebar-backdrop" data-action="mobile-nav-close"></div>` : ''}
-    ${collapsed ? `<button type="button" class="sidebar-expand-btn" data-action="sidebar-toggle" title="Expand sidebar">pol.</button>` : ''}
     <aside class="sidebar${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}">
       <div class="logo-wrap">
-        <button type="button" class="logo-hamburger" data-action="sidebar-toggle" title="Collapse sidebar"><span></span><span></span><span></span></button>
+        <button type="button" class="logo-hamburger" data-action="sidebar-toggle" title="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}"><span></span><span></span><span></span></button>
         <div class="logo-badge">pol.</div>
       </div>
       <nav class="navlist">
@@ -795,8 +794,8 @@
         ${navBtn('docs', '▧', 'Documents')}
         ${navBtn('insights', '✦', 'Insights')}
       </nav>
-      <button type="button" class="nav-btn" style="margin-top:auto;color:oklch(0.58 0.19 25)" data-action="logout">
-        <span class="ic">⏻</span>Log out
+      <button type="button" class="nav-btn" style="margin-top:auto;color:oklch(0.58 0.19 25)" data-action="logout" title="Log out">
+        <span class="ic">⏻</span><span class="nav-label">Log out</span>
       </button>
     </aside>`;
   }
@@ -2038,7 +2037,7 @@
     const html = `
       <div class="app-shell">
         ${renderSidebar()}
-        <main class="main${state.sidebarCollapsed ? ' expanded-gutter' : ''}">${pageFn(ctx)}</main>
+        <main class="main">${pageFn(ctx)}</main>
       </div>
       ${modalChip(ctx)}
       ${modalShoot()}
