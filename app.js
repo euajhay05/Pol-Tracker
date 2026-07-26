@@ -179,6 +179,19 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  function csvCell(v) {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+  function downloadCSV(filename, rows) {
+    const csvBody = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csvBody], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   function getPath(obj, path) { return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj); }
   function setPath(obj, path, value) {
     const keys = path.split('.');
@@ -330,13 +343,7 @@
       selectedDate: TODAY_STR,
       telegramModalOpen: false,
       expenseDraft: { description: '', amount: '', date: TODAY_STR },
-      expensesRangeFrom: TODAY_STR.slice(0, 7) + '-01',
-      expensesRangeTo: TODAY_STR,
-      expensesRangeCalOpen: false,
-      expensesRangeCalYear: TODAY.getFullYear(),
-      expensesRangeCalMonth: TODAY.getMonth(),
-      expensesRangeDraftFrom: null,
-      expensesRangeDraftTo: null,
+      expensesMonthKey: THIS_MONTH_KEY,
       loanModal: null,
       loanDraft: null,
       loanPaymentModal: null,
@@ -601,12 +608,11 @@
     const allExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).map(decorateExpense);
     const lastExp = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))[0] || { description: '—', amount: 0 };
 
-    const expensesRangeFrom = state.expensesRangeFrom || (THIS_MONTH_KEY + '-01');
-    const expensesRangeTo = state.expensesRangeTo || TODAY_STR;
-    const expensesRangeLabel = `${fmtDate(expensesRangeFrom)} - ${fmtDate(expensesRangeTo)}`;
-    const rangeExpenseRows = allExpenseRows.filter(e => e.date >= expensesRangeFrom && e.date <= expensesRangeTo);
-    const rangeExpensesTotal = rangeExpenseRows.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const filteredExpenseRows = rangeExpenseRows.filter(e => e.description.toLowerCase().includes(state.expensesSearch.toLowerCase()));
+    const expensesMonthKey = state.expensesMonthKey || THIS_MONTH_KEY;
+    const expensesMonthLabel = new Date(expensesMonthKey + '-01' + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const monthExpenseRows = allExpenseRows.filter(e => e.date && e.date.slice(0, 7) === expensesMonthKey);
+    const monthExpensesTotal = monthExpenseRows.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const filteredExpenseRows = monthExpenseRows.filter(e => e.description.toLowerCase().includes(state.expensesSearch.toLowerCase()));
 
     const monthLabel = new Date(state.calendarYear, state.calendarMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const calendarCells = buildCalendarCells(state.calendarYear, state.calendarMonth, shoots, state.selectedDate);
@@ -727,7 +733,7 @@
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
-      expensesRangeFrom, expensesRangeTo, expensesRangeLabel, rangeExpensesTotal,
+      expensesMonthKey, expensesMonthLabel, monthExpensesTotal,
       totalFullTime, monthFullTime, fullTimeRows, combinedTotal, fullTimeSharePercent, sideHustleSharePercent,
       financeMonthKey, financeMonthLabel, ftMonthTotal, ftMonthRows,
       monthShoots, monthSideHustleCollected, monthCombinedTotal, monthFullTimeSharePercent, monthSideHustleSharePercent,
@@ -1132,7 +1138,10 @@
     return `
     <div class="page-head">
       <div><div class="page-title sg">Finances</div><div class="page-sub">Package value vs. what's been collected</div></div>
-      ${financeMonthPicker}
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        ${financeMonthPicker}
+        <button type="button" class="btn-telegram" data-action="export-data-csv">⬇ Export CSV</button>
+      </div>
     </div>
     <div class="tabbar" style="margin-bottom:24px">
       ${tab('sidehustle', 'Side Hustle')}${tab('fulltime', 'Full-Time')}${tab('combined', 'Combined')}
@@ -1145,52 +1154,24 @@
   function viewExpenses(ctx) {
     const searchClear = state.expensesSearch ? `<button type="button" class="search-clear" data-action="search-clear" data-field="expensesSearch">✕</button>` : '';
 
-    const rangeCalLabel = new Date(state.expensesRangeCalYear, state.expensesRangeCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const rangeCells = buildRangeCalendarCells(state.expensesRangeCalYear, state.expensesRangeCalMonth, state.expensesRangeDraftFrom, state.expensesRangeDraftTo);
-    const expensesRangePicker = `
-      <div style="position:relative">
-        <button type="button" data-action="expenses-range-toggle" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;color:oklch(0.4 0.02 150)">
-          <span>📅 ${ctx.expensesRangeLabel}</span>
-          <span style="font-size:11px;color:oklch(0.55 0.015 150)">▾</span>
-        </button>
-        ${state.expensesRangeCalOpen ? `
-        <div data-picker-popover style="position:absolute;right:0;top:calc(100% + 8px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-            <button type="button" data-action="expenses-range-today" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Today</button>
-            <button type="button" data-action="expenses-range-this-month" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">This Month</button>
-            <button type="button" data-action="expenses-range-last-month" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Last Month</button>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-            <div class="sg" style="font-weight:700;font-size:15px">${rangeCalLabel}</div>
-            <div style="display:flex;gap:6px">
-              <button type="button" data-action="expenses-range-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
-              <button type="button" data-action="expenses-range-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
-            ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px">
-            ${rangeCells.map(c => c.blank ? `<div></div>` : `<div ${c.disabled ? '' : 'data-action="expenses-range-pick"'} data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:${c.disabled ? 'default' : 'pointer'};font-size:12.5px;font-weight:600;background:${c.bg};color:${c.color}">${c.dayNum}</div>`).join('')}
-          </div>
-          <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:12px">${state.expensesRangeDraftFrom ? fmtDate(state.expensesRangeDraftFrom) : 'Select start'} – ${state.expensesRangeDraftTo ? fmtDate(state.expensesRangeDraftTo) : 'Select end'}</div>
-          <div style="display:flex;gap:8px;justify-content:flex-end">
-            <button type="button" data-action="expenses-range-cancel" style="all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Cancel</button>
-            <button type="button" data-action="expenses-range-ok" style="all:unset;cursor:pointer;padding:8px 16px;border-radius:8px;font-size:12.5px;font-weight:700;background:oklch(0.45 0.14 150);color:oklch(1 0 0)">OK</button>
-          </div>
-        </div>` : ''}
+    const expensesMonthPicker = `
+      <div style="display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 14px">
+        <button type="button" data-action="expenses-month-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+        <div class="sg" style="font-weight:700;font-size:13.5px;min-width:120px;text-align:center">${ctx.expensesMonthLabel}</div>
+        <button type="button" data-action="expenses-month-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+        ${ctx.expensesMonthKey !== THIS_MONTH_KEY ? `<button type="button" data-action="expenses-month-today" style="all:unset;cursor:pointer;margin-left:6px;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">This Month</button>` : ''}
       </div>`;
 
     return `
     <div class="page-head">
       <div><div class="page-title sg">Expenses</div><div class="page-sub">Everything you've spent, logged via Telegram or manually</div></div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        ${expensesRangePicker}
+        ${expensesMonthPicker}
         <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-      <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${ctx.expensesRangeLabel}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.rangeExpensesTotal)}</div></div>
+      <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${ctx.expensesMonthLabel}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthExpensesTotal)}</div></div>
     </div>
     <div class="search-wrap">
       <input type="text" value="${esc(state.expensesSearch)}" data-bind="expensesSearch" placeholder="Search expenses..."/>
@@ -1205,7 +1186,7 @@
           <div style="font-size:13.5px;font-weight:600">${ex.amountLabel}</div>
           <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
         </div>`).join('')}
-      ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in this range.</div>` : ''}
+      ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in ${esc(ctx.expensesMonthLabel)}.</div>` : ''}
     </div>`;
   }
 
@@ -2161,7 +2142,10 @@
 
       case 'shoot-add-open': openAddShoot(); break;
       case 'shoot-edit': openEditShoot(id); break;
-      case 'shoot-delete': setState(s => ({ shoots: s.shoots.filter(sh => sh.id !== s.draft.id), modal: null, draft: null })); break;
+      case 'shoot-delete':
+        if (!confirm(`Are you sure you want to delete the shoot "${state.draft.client || 'this shoot'}"? This cannot be undone.`)) break;
+        setState(s => ({ shoots: s.shoots.filter(sh => sh.id !== s.draft.id), modal: null, draft: null }));
+        break;
       case 'shoot-type-pick': setState(s => ({ draft: { ...s.draft, shootType: el.dataset.type } })); break;
       case 'shoot-addons-toggle': setState(s => ({ shootAddonsOpen: !s.shootAddonsOpen })); break;
       case 'shoot-addon-inc': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) + 1 } } })); break;
@@ -2190,7 +2174,12 @@
       case 'cal-select': setState({ selectedDate: el.dataset.date }); break;
 
       case 'finance-tab': setState({ financeTab: el.dataset.tab }); break;
-      case 'fulltime-delete': setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) })); break;
+      case 'fulltime-delete': {
+        const rec = state.fullTimeIncome.find(f => f.id === id);
+        if (!confirm(`Are you sure you want to delete "${rec ? rec.source : 'this income entry'}"? This cannot be undone.`)) break;
+        setState(s => ({ fullTimeIncome: s.fullTimeIncome.filter(f => f.id !== id) }));
+        break;
+      }
       case 'ft-month-prev': setState(s => {
         const [y, m] = (s.financeMonthKey || THIS_MONTH_KEY).split('-').map(Number);
         const d = new Date(y, m - 2, 1);
@@ -2213,50 +2202,48 @@
         return { dashMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
       }); break;
       case 'dash-month-today': setState({ dashMonthKey: THIS_MONTH_KEY }); break;
-      case 'expense-delete': setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) })); break;
+      case 'expense-delete': {
+        const rec = state.expenses.find(e => e.id === id);
+        if (!confirm(`Are you sure you want to delete "${rec ? rec.description : 'this expense'}"? This cannot be undone.`)) break;
+        setState(s => ({ expenses: s.expenses.filter(e => e.id !== id) }));
+        break;
+      }
 
-      case 'expenses-range-toggle': setState(s => {
-        if (s.expensesRangeCalOpen) return { expensesRangeCalOpen: false };
-        const base = new Date((s.expensesRangeFrom || TODAY_STR) + 'T00:00:00');
-        return {
-          expensesRangeCalOpen: true,
-          expensesRangeCalYear: base.getFullYear(),
-          expensesRangeCalMonth: base.getMonth(),
-          expensesRangeDraftFrom: s.expensesRangeFrom,
-          expensesRangeDraftTo: s.expensesRangeTo,
-        };
+      case 'expenses-month-prev': setState(s => {
+        const [y, m] = (s.expensesMonthKey || THIS_MONTH_KEY).split('-').map(Number);
+        const d = new Date(y, m - 2, 1);
+        return { expensesMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
       }); break;
-      case 'expenses-range-cal-prev': setState(s => { let m = s.expensesRangeCalMonth - 1, y = s.expensesRangeCalYear; if (m < 0) { m = 11; y--; } return { expensesRangeCalMonth: m, expensesRangeCalYear: y }; }); break;
-      case 'expenses-range-cal-next': setState(s => { let m = s.expensesRangeCalMonth + 1, y = s.expensesRangeCalYear; if (m > 11) { m = 0; y++; } return { expensesRangeCalMonth: m, expensesRangeCalYear: y }; }); break;
-      case 'expenses-range-pick': setState(s => {
-        const date = el.dataset.date;
-        if (!s.expensesRangeDraftFrom || s.expensesRangeDraftTo) {
-          return { expensesRangeDraftFrom: date, expensesRangeDraftTo: null };
-        }
-        if (date < s.expensesRangeDraftFrom) {
-          return { expensesRangeDraftFrom: date, expensesRangeDraftTo: s.expensesRangeDraftFrom };
-        }
-        return { expensesRangeDraftTo: date };
+      case 'expenses-month-next': setState(s => {
+        const [y, m] = (s.expensesMonthKey || THIS_MONTH_KEY).split('-').map(Number);
+        const d = new Date(y, m, 1);
+        return { expensesMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
       }); break;
-      case 'expenses-range-cancel': setState({ expensesRangeCalOpen: false }); break;
-      case 'expenses-range-ok': setState(s => ({
-        expensesRangeFrom: s.expensesRangeDraftFrom || s.expensesRangeFrom,
-        expensesRangeTo: s.expensesRangeDraftTo || s.expensesRangeDraftFrom || s.expensesRangeTo,
-        expensesRangeCalOpen: false,
-      })); break;
-      case 'expenses-range-today': setState({ expensesRangeFrom: TODAY_STR, expensesRangeTo: TODAY_STR, expensesRangeCalOpen: false }); break;
-      case 'expenses-range-this-month': setState({ expensesRangeFrom: THIS_MONTH_KEY + '-01', expensesRangeTo: TODAY_STR, expensesRangeCalOpen: false }); break;
-      case 'expenses-range-last-month': setState(() => {
-        const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - 1, 1);
-        const y = d.getFullYear(), m = d.getMonth();
-        const lastDay = new Date(y, m + 1, 0).getDate();
-        const mm = String(m + 1).padStart(2, '0');
-        return {
-          expensesRangeFrom: `${y}-${mm}-01`,
-          expensesRangeTo: `${y}-${mm}-${String(lastDay).padStart(2, '0')}`,
-          expensesRangeCalOpen: false,
-        };
-      }); break;
+      case 'expenses-month-today': setState({ expensesMonthKey: THIS_MONTH_KEY }); break;
+
+      case 'export-data-csv': {
+        const lines = [];
+        lines.push(['SHOOTS']);
+        lines.push(['Client', 'Location', 'Date', 'Status', 'Package Total', 'Paid', 'Balance', 'Deadline']);
+        state.shoots.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(sh => {
+          const pkg = Number(sh.package) || 0, paid = Number(sh.paid) || 0;
+          lines.push([sh.client || '', sh.location || '', sh.date || '', normalizeShootStatus(sh.status), pkg, paid, pkg - paid, sh.deadline || '']);
+        });
+        lines.push([]);
+        lines.push(['EXPENSES']);
+        lines.push(['Description', 'Date', 'Amount']);
+        state.expenses.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(ex => {
+          lines.push([ex.description || '', ex.date || '', Number(ex.amount) || 0]);
+        });
+        lines.push([]);
+        lines.push(['FULL-TIME INCOME']);
+        lines.push(['Source', 'Date', 'Amount']);
+        state.fullTimeIncome.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(f => {
+          lines.push([f.source || '', f.date || '', Number(f.amount) || 0]);
+        });
+        downloadCSV(`pol-tracker-export-${TODAY_STR}.csv`, lines);
+        break;
+      }
 
       case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', remainingBalance: '', dueDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
@@ -2286,7 +2273,10 @@
 
       case 'client-add-open': setState({ clientModal: { mode: 'add' }, clientDraft: { id: null, name: '', phone: '', email: '', leadStatus: 'New Lead', followUpDate: '', notes: '' } }); break;
       case 'client-edit': openEditClient(id); break;
-      case 'client-delete': setState(s => ({ clients: s.clients.filter(c => c.id !== s.clientDraft.id), clientModal: null, clientDraft: null })); break;
+      case 'client-delete':
+        if (!confirm(`Are you sure you want to delete the client "${state.clientDraft.name || 'this client'}"? This cannot be undone.`)) break;
+        setState(s => ({ clients: s.clients.filter(c => c.id !== s.clientDraft.id), clientModal: null, clientDraft: null }));
+        break;
       case 'client-view-shoots': ev.stopPropagation(); setState({ chipModal: 'clientshoots:' + id }); break;
 
       case 'doc-type': setState(s => {
@@ -2692,10 +2682,10 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
-      if ((state.shootDatePickerOpen || state.timePickerOpen || state.expensesRangeCalOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) && !e.target.closest('[data-picker-popover]')) {
+      if ((state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) && !e.target.closest('[data-picker-popover]')) {
         const action = actionEl ? actionEl.dataset.action : null;
-        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'expenses-range-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle' && action !== 'ftdraft-date-toggle') {
-          setState({ shootDatePickerOpen: false, timePickerOpen: false, expensesRangeCalOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle' && action !== 'ftdraft-date-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
         }
       }
       if (!actionEl) return;
