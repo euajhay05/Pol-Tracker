@@ -1282,35 +1282,34 @@
 
     const expensesDayCalLabel = new Date(state.expensesDayCalYear, state.expensesDayCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const expensesDayCalCells = buildCalendarCells(state.expensesDayCalYear, state.expensesDayCalMonth, [], ctx.expensesSelectedDate);
-    const expensesDayCard = `
-      <div class="card" style="padding:20px;position:relative">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${esc(ctx.expensesSelectedDayLabel)}</div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <button type="button" data-action="expenses-day-prev" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px">‹</button>
-            <button type="button" data-action="expenses-day-toggle" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px" title="Pick a date">📅</button>
-            <button type="button" data-action="expenses-day-next" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px">›</button>
-          </div>
-        </div>
-        <div class="sg" style="font-size:26px;font-weight:700">${fmtMoney(ctx.expensesSelectedDayTotal)}</div>
-        ${ctx.expensesSelectedDate !== TODAY_STR ? `<button type="button" data-action="expenses-day-today" style="all:unset;cursor:pointer;margin-top:6px;display:inline-block;padding:4px 9px;border-radius:20px;font-size:11px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Back to Today</button>` : ''}
-        ${state.expensesDayPickerOpen ? `
-        <div data-picker-popover style="position:absolute;left:20px;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-            <div class="sg" style="font-weight:700;font-size:15px">${expensesDayCalLabel}</div>
-            <div style="display:flex;gap:6px">
-              <button type="button" data-action="expenses-day-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
-              <button type="button" data-action="expenses-day-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+    // A single control row for picking which day's total to view — kept separate from the
+    // stat cards below so those stay plain label+number, not cluttered with nav buttons.
+    const expensesDayPicker = `
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <div style="font-size:12.5px;font-weight:600;color:oklch(0.45 0.015 150)">Viewing daily total for:</div>
+        <div style="position:relative;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 12px">
+          <button type="button" data-action="expenses-day-prev" style="all:unset;cursor:pointer;width:22px;height:22px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+          <button type="button" data-action="expenses-day-toggle" style="all:unset;cursor:pointer;font-weight:700;font-size:13px;min-width:80px;text-align:center;padding:2px 6px;border-radius:7px" class="sg">${esc(ctx.expensesSelectedDayLabel)} 📅</button>
+          <button type="button" data-action="expenses-day-next" style="all:unset;cursor:pointer;width:22px;height:22px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+          ${ctx.expensesSelectedDate !== TODAY_STR ? `<button type="button" data-action="expenses-day-today" style="all:unset;cursor:pointer;margin-left:2px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Today</button>` : ''}
+          ${state.expensesDayPickerOpen ? `
+          <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div class="sg" style="font-weight:700;font-size:15px">${expensesDayCalLabel}</div>
+              <div style="display:flex;gap:6px">
+                <button type="button" data-action="expenses-day-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+                <button type="button" data-action="expenses-day-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+              </div>
             </div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
-            ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
-            ${expensesDayCalCells.map(c => c.blank ? `<div></div>` : `
-              <div data-action="expenses-day-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
-          </div>
-        </div>` : ''}
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+              ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+              ${expensesDayCalCells.map(c => c.blank ? `<div></div>` : `
+                <div data-action="expenses-day-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
+            </div>
+          </div>` : ''}
+        </div>
       </div>`;
 
     return `
@@ -1321,8 +1320,9 @@
         <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
+    ${expensesDayPicker}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-      ${expensesDayCard}
+      <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${esc(ctx.expensesSelectedDayLabel)}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.expensesSelectedDayTotal)}</div></div>
       <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${ctx.expensesMonthLabel}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthExpensesTotal)}</div></div>
     </div>
     <div class="search-wrap">
