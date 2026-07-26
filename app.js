@@ -2241,6 +2241,24 @@
         state.fullTimeIncome.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(f => {
           lines.push([f.source || '', f.date || '', Number(f.amount) || 0]);
         });
+        lines.push([]);
+        lines.push(['CLIENTS']);
+        lines.push(['Name', 'Phone', 'Email', 'Lead Status', 'Follow-up Date', 'Notes']);
+        state.clients.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(c => {
+          lines.push([c.name || '', c.phone || '', c.email || '', c.leadStatus || '', c.followUpDate || '', c.notes || '']);
+        });
+        lines.push([]);
+        lines.push(['LOANS']);
+        lines.push(['Lender', 'Total Amount', 'Monthly Due', 'Remaining Balance', 'Due Date', 'Status']);
+        state.loans.slice().sort((a, b) => (a.lender || '').localeCompare(b.lender || '')).forEach(l => {
+          lines.push([l.lender || '', Number(l.amount) || 0, Number(l.monthlyDue) || 0, Number(l.remainingBalance) || 0, l.dueDate || '', l.status || '']);
+        });
+        lines.push([]);
+        lines.push(['GOALS']);
+        lines.push(['Name', 'Target', 'Current', 'Currency']);
+        state.goals.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(g => {
+          lines.push([g.name || '', Number(g.target) || 0, Number(g.current) || 0, g.currency || 'PHP']);
+        });
         downloadCSV(`pol-tracker-export-${TODAY_STR}.csv`, lines);
         break;
       }
@@ -2305,9 +2323,13 @@
         if (rec) generateDocPdf(rec.type, rec.draft);
         break;
       }
-      case 'doc-history-delete':
+      case 'doc-history-delete': {
+        const rec = state.documents.find(r => r.id === id);
+        const recLabel = rec ? `${DOC_TYPE_META[rec.type] ? DOC_TYPE_META[rec.type].title : 'document'} for ${rec.draft.clientName || 'this client'}` : 'this document';
+        if (!confirm(`Are you sure you want to delete the ${recLabel}? This cannot be undone.`)) break;
         setState(s => ({ documents: s.documents.filter(r => r.id !== id) }));
         break;
+      }
       case 'doc-date-toggle': setState(s => ({ docDatePickerOpen: !s.docDatePickerOpen, docDuePickerOpen: false })); break;
       case 'doc-date-cal-prev': setState(s => { let m = s.docDateCalMonth - 1, y = s.docDateCalYear; if (m < 0) { m = 11; y--; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
       case 'doc-date-cal-next': setState(s => { let m = s.docDateCalMonth + 1, y = s.docDateCalYear; if (m > 11) { m = 0; y++; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
