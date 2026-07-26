@@ -761,7 +761,7 @@
   function navBtn(view, icon, label, action) {
     const c = ctxGlobal.navColor(view);
     return `<button type="button" class="nav-btn" style="color:${c.color};background:${c.bg}" data-action="nav" data-view="${action || view}" title="${esc(label)}">
-      <span class="ic">${icon}</span><span class="nav-label">${esc(label)}</span>
+      <span class="ic"><i class="ti ti-${icon}" aria-hidden="true"></i></span><span class="nav-label">${esc(label)}</span>
     </button>`;
   }
 
@@ -781,21 +781,21 @@
         <div class="logo-badge">pol.</div>
       </div>
       <nav class="navlist">
-        ${navBtn('dashboard', '▦', 'Dashboard')}
+        ${navBtn('dashboard', 'layout-dashboard', 'Dashboard')}
         <div class="nav-section">Production</div>
-        ${navBtn('shoots', '▤', 'Shoots')}
-        ${navBtn('clients', '◉', 'Clients')}
+        ${navBtn('shoots', 'video', 'Shoots')}
+        ${navBtn('clients', 'user', 'Clients')}
         <div class="nav-section">Money</div>
-        ${navBtn('finances', '₱', 'Income')}
-        ${navBtn('expenses', '◔', 'Expenses')}
-        ${navBtn('loans', '◫', 'Loans')}
-        ${navBtn('goals', '★', 'Goals')}
+        ${navBtn('finances', 'wallet', 'Income')}
+        ${navBtn('expenses', 'receipt', 'Expenses')}
+        ${navBtn('loans', 'building-bank', 'Loans')}
+        ${navBtn('goals', 'target-arrow', 'Goals')}
         <div class="nav-section">Tools</div>
-        ${navBtn('docs', '▧', 'Documents')}
-        ${navBtn('insights', '✦', 'Insights')}
+        ${navBtn('docs', 'file-text', 'Documents')}
+        ${navBtn('insights', 'chart-bar', 'Insights')}
       </nav>
       <button type="button" class="nav-btn" style="margin-top:auto;color:oklch(0.58 0.19 25)" data-action="logout" title="Log out">
-        <span class="ic">⏻</span><span class="nav-label">Log out</span>
+        <span class="ic"><i class="ti ti-logout" aria-hidden="true"></i></span><span class="nav-label">Log out</span>
       </button>
     </aside>`;
   }
