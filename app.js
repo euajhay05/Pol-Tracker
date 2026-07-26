@@ -1097,8 +1097,8 @@
               <option value="other" ${state.ftDraft.sourceType === 'other' ? 'selected' : ''}>Others</option>
             </select>
           </div>
-          ${state.ftDraft.sourceType === 'other' ? `<div class="field" style="flex:1.4;min-width:150px"><label>Please Specify</label><input type="text" value="${esc(state.ftDraft.sourceOther)}" data-bind="ftDraft.sourceOther" placeholder="e.g. December Bonus"/></div>` : ''}
-          <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(state.ftDraft.amount))}" data-bind="ftDraft.amount" data-fmt="money" placeholder="0"/></div>
+          ${state.ftDraft.sourceType === 'other' ? `<div class="field" style="flex:1.4;min-width:150px"><label>Please Specify</label><input type="text" value="${esc(state.ftDraft.sourceOther)}" data-bind="ftDraft.sourceOther" placeholder="e.g. December Bonus" required/></div>` : ''}
+          <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(state.ftDraft.amount))}" data-bind="ftDraft.amount" data-fmt="money" placeholder="0" required/></div>
           ${ftDraftDatePicker}
           <button type="submit" class="btn-primary">Add</button>
         </form>
@@ -2303,6 +2303,7 @@
         return { docType: doctype };
       }); break;
       case 'doc-generate':
+        if (!(state.docDraft.clientName || '').trim()) { alert('Please enter a client name before generating.'); break; }
         generateDocPdf();
         setState(s => ({
           documents: [...s.documents, { id: 'doc' + Date.now(), type: s.docType, createdAt: new Date().toISOString(), draft: { ...s.docDraft } }],
@@ -2941,7 +2942,7 @@
         const source = d.sourceType === '1st' ? 'Salary - 1st Cutoff'
           : d.sourceType === '2nd' ? 'Salary - 2nd Cutoff'
           : (d.sourceOther || '').trim();
-        if (!source || !d.amount) return;
+        if (!source || !d.amount) { alert('Please fill in the source and amount.'); return; }
         const entryDate = d.date || TODAY_STR;
         const entry = { id: 'ft' + Date.now(), source, amount: Number(d.amount) || 0, date: entryDate };
         setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { sourceType: '1st', sourceOther: '', amount: '', date: TODAY_STR }, financeMonthKey: entryDate.slice(0, 7) }));
