@@ -365,7 +365,6 @@
       docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '' },
       documents: [],
       docsHistoryOpen: false,
-      insightsPeriod: 'weekly',
       insightsChartYear: TODAY.getFullYear(),
       insightsChartSelectedMonth: THIS_MONTH_KEY,
       chipModal: null,
@@ -723,12 +722,10 @@
       }
     }
 
-    const insightsPeriod = state.insightsPeriod;
-    const periodLabel = insightsPeriod === 'weekly' ? 'this week' : 'this month';
     const goalsAvgPercent = goalCards.length ? Math.round(goalCards.reduce((s, g) => s + g.percent, 0) / goalCards.length) : 0;
     const insightCards = [
-      { icon: '💵', title: 'Cash Flow Analysis', text: `You earned ${fmtMoney(monthlyRevenue)} ${periodLabel === 'this week' ? 'this month so far' : 'this month'} against ${fmtMoney(monthTotal)} in expenses — a net profit of ${fmtMoney(netProfit)}. ${netProfit > 0 ? 'Positive cash flow, keep it up.' : 'Expenses are outpacing income, keep an eye on spending.'}` },
-      { icon: '📊', title: `${insightsPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Report`, text: outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.' },
+      { icon: '💵', title: 'Cash Flow Analysis', text: `You earned ${fmtMoney(monthlyRevenue)} this month against ${fmtMoney(monthTotal)} in expenses — a net profit of ${fmtMoney(netProfit)}. ${netProfit > 0 ? 'Positive cash flow, keep it up.' : 'Expenses are outpacing income, keep an eye on spending.'}` },
+      { icon: '📊', title: 'Outstanding Balances', text: outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.' },
       { icon: '🎯', title: 'Goal Tracking', text: `Your savings goals are at an average of ${goalsAvgPercent}% completion. Yearly income progress: ${yearlyProgressPercent}% of the ${fmtMoney(yearlyGoalIncome)} target.` },
       { icon: '💡', title: 'Business Recommendations', text: activeClients < 3 ? 'You have relatively few active clients — try following up on leads marked "Contacted" or "Proposal Sent".' : `You have a solid client base (${activeClients} active). Keep following up on pending proposals to maintain momentum.` },
     ];
@@ -771,7 +768,7 @@
       overviewBars, overviewYear,
       dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
       userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
-      chipModalKey, chipModalData, insightsPeriod, insightCards, chartMax,
+      chipModalKey, chipModalData, insightCards, chartMax,
       shootsThisMonthCount, shootsLastMonthCount, shootsMomLabel, shootsMomColor, shootsMomBg,
       shootsThisMonthBarPct, shootsLastMonthBarPct,
     };
@@ -1531,14 +1528,10 @@
   /* ---------------- insights ---------------- */
 
   function viewInsights(ctx) {
-    const tab = (key, label) => `<button type="button" class="tab-btn" style="color:${ctx.insightsPeriod === key ? 'oklch(0.22 0.02 150)' : 'oklch(0.48 0.015 150)'};background:${ctx.insightsPeriod === key ? 'oklch(0.92 0.06 150)' : 'transparent'}" data-action="insights-period" data-period="${key}">${label}</button>`;
     return `
     <div class="page-head">
       <div><div class="page-title sg">Insights</div><div class="page-sub">AI-generated analysis of your business</div></div>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <div class="tabbar">${tab('weekly', 'Weekly')}${tab('monthly', 'Monthly')}</div>
-        <button type="button" class="btn-telegram" data-action="export-data-csv" title="Download separate CSV files for Shoots, Expenses, Income, Clients, Loans, and Goals">⬇ Export Data</button>
-      </div>
+      <button type="button" class="btn-telegram" data-action="export-data-csv" title="Download separate CSV files for Shoots, Expenses, Income, Clients, Loans, and Goals">⬇ Export Data</button>
     </div>
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
@@ -2395,7 +2388,6 @@
       case 'ftdraft-date-cal-next': setState(s => { let m = s.ftDraftDateCalMonth + 1, y = s.ftDraftDateCalYear; if (m > 11) { m = 0; y++; } return { ftDraftDateCalMonth: m, ftDraftDateCalYear: y }; }); break;
       case 'ftdraft-date-pick': setState(s => ({ ftDraft: { ...s.ftDraft, date: el.dataset.date }, ftDraftDatePickerOpen: false })); break;
 
-      case 'insights-period': setState({ insightsPeriod: el.dataset.period }); break;
       case 'insights-chart-year-prev': setState(s => ({ insightsChartYear: (s.insightsChartYear || TODAY.getFullYear()) - 1 })); break;
       case 'insights-chart-year-next': setState(s => ({ insightsChartYear: (s.insightsChartYear || TODAY.getFullYear()) + 1 })); break;
       case 'insights-chart-month-select': setState({ insightsChartSelectedMonth: el.dataset.month }); break;
