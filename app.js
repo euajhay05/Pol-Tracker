@@ -772,6 +772,27 @@
     const selMonthNetProfit = selMonthRevenue - selMonthExpenses;
     const selMonthChartMax = Math.max(selMonthRevenue, selMonthExpenses, 1);
 
+    // Top Clients: total paid-to-date grouped by client name, biggest contributors first.
+    const clientTotals = {};
+    shoots.forEach(s => {
+      const name = (s.client || '').trim();
+      if (!name) return;
+      if (!clientTotals[name]) clientTotals[name] = { name, total: 0, count: 0 };
+      clientTotals[name].total += Number(s.paid) || 0;
+      clientTotals[name].count += 1;
+    });
+    const topClients = Object.values(clientTotals)
+      .filter(c => c.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+      .map(c => ({ name: c.name, totalLabel: fmtMoney(c.total), shootsLabel: `${c.count} shoot${c.count === 1 ? '' : 's'}` }));
+
+    // Biggest Expenses: top 5 single largest expense entries, all-time.
+    const biggestExpenses = expenses.slice()
+      .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))
+      .slice(0, 5)
+      .map(e => ({ description: e.description || 'Untitled', dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) }));
+
     return {
       view, shoots, navColor, goalCards, thisMonth, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
@@ -784,6 +805,7 @@
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
       overviewBars, overviewYear,
       selMonthLabel, selMonthRevenue, selMonthExpenses, selMonthNetProfit, selMonthChartMax,
+      topClients, biggestExpenses,
       dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
       userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
       chipModalKey, chipModalData, insightCards, chartMax,
@@ -1584,6 +1606,37 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid oklch(0 0 0 / 0.06)">
         <span style="font-size:12.5px;font-weight:600;color:oklch(0.42 0.015 150)">Net Profit</span>
         <span style="font-size:16px;font-weight:700;color:${ctx.selMonthNetProfit > 0 ? 'oklch(0.45 0.14 150)' : 'oklch(0.58 0.19 25)'}">${fmtMoney(ctx.selMonthNetProfit)}</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px">Top Clients</div>
+        ${ctx.topClients.length === 0 ? `<div style="font-size:13px;color:oklch(0.55 0.015 150)">No payments collected yet.</div>` : `
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${ctx.topClients.map((c, i) => `
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="width:22px;height:22px;border-radius:50%;background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">${i + 1}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</div>
+                <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${c.shootsLabel}</div>
+              </div>
+              <div style="font-size:13.5px;font-weight:700;flex:none">${c.totalLabel}</div>
+            </div>`).join('')}
+        </div>`}
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px">Biggest Expenses</div>
+        ${ctx.biggestExpenses.length === 0 ? `<div style="font-size:13px;color:oklch(0.55 0.015 150)">No expenses logged yet.</div>` : `
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${ctx.biggestExpenses.map(e => `
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.description)}</div>
+                <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${e.dateLabel}</div>
+              </div>
+              <div style="font-size:13.5px;font-weight:700;flex:none;color:oklch(0.58 0.19 25)">${e.amountLabel}</div>
+            </div>`).join('')}
+        </div>`}
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px">
