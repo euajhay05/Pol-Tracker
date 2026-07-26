@@ -583,26 +583,8 @@
     const dashMonthKey = state.dashMonthKey || THIS_MONTH_KEY;
     const dashMonthLabel = new Date(dashMonthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-    // "thisMonth"/shootsMom* stay pinned to the REAL current month — used by the Insights
-    // page's "This Month vs Last Month" comparison, which must not shift when browsing
-    // past months on the Dashboard card.
-    const thisMonth = shoots.filter(s => s.date && s.date.slice(0, 7) === THIS_MONTH_KEY);
     const completed = shoots.filter(s => s.status === 'posted');
     const outstanding = shoots.reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
-
-    const lastMonthDate = new Date(TODAY.getFullYear(), TODAY.getMonth() - 1, 1);
-    const lastMonthKey = lastMonthDate.getFullYear() + '-' + String(lastMonthDate.getMonth() + 1).padStart(2, '0');
-    const lastMonthShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === lastMonthKey);
-    const shootsThisMonthCount = thisMonth.length;
-    const shootsLastMonthCount = lastMonthShoots.length;
-    const shootsMomDelta = shootsThisMonthCount - shootsLastMonthCount;
-    const shootsMomPct = shootsLastMonthCount > 0 ? Math.round((shootsMomDelta / shootsLastMonthCount) * 100) : (shootsThisMonthCount > 0 ? 100 : 0);
-    const shootsMomLabel = shootsMomDelta === 0 ? 'No change' : `${shootsMomDelta > 0 ? '▲' : '▼'} ${Math.abs(shootsMomPct)}%`;
-    const shootsMomColor = shootsMomDelta > 0 ? 'oklch(0.45 0.14 150)' : (shootsMomDelta < 0 ? 'oklch(0.58 0.19 25)' : 'oklch(0.5 0.015 150)');
-    const shootsMomBg = shootsMomDelta > 0 ? 'oklch(0.5 0.13 150 / 0.14)' : (shootsMomDelta < 0 ? 'oklch(0.58 0.19 25 / 0.14)' : 'oklch(0.91 0.012 150)');
-    const shootsMaxCount = Math.max(shootsThisMonthCount, shootsLastMonthCount, 1);
-    const shootsThisMonthBarPct = Math.max(8, Math.round((shootsThisMonthCount / shootsMaxCount) * 100));
-    const shootsLastMonthBarPct = Math.max(8, Math.round((shootsLastMonthCount / shootsMaxCount) * 100));
 
     // Dashboard-card-specific: follows the dashMonthKey month switcher.
     const dashMonthShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashMonthKey);
@@ -865,7 +847,7 @@
       .map(e => ({ description: e.description || 'Untitled', dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) }));
 
     return {
-      view, shoots, navColor, goalCards, thisMonth, completed, outstanding,
+      view, shoots, navColor, goalCards, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
@@ -882,8 +864,6 @@
       dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
       userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
       chipModalKey, chipModalData, insightCards, chartMax,
-      shootsThisMonthCount, shootsLastMonthCount, shootsMomLabel, shootsMomColor, shootsMomBg,
-      shootsThisMonthBarPct, shootsLastMonthBarPct,
     };
   }
 
