@@ -93,6 +93,37 @@
       return { label, amount };
     });
   }
+  // Strips anything that isn't a digit or decimal point from a money input's raw typed value
+  // (commas, letters, extra dots) — this is what actually gets stored in state, so calculations
+  // (Number(...)) never see commas. Only the DISPLAYED value gets comma-formatted.
+  function sanitizeMoneyInput(v) {
+    v = String(v == null ? '' : v).replace(/[^\d.]/g, '');
+    const dotIdx = v.indexOf('.');
+    if (dotIdx !== -1) v = v.slice(0, dotIdx + 1) + v.slice(dotIdx + 1).replace(/\./g, '');
+    return v;
+  }
+  // Live "as-you-type" thousands-separator formatting for money inputs, e.g. "9584.02" -> "9,584.02".
+  function formatMoneyLiveDisplay(v) {
+    const s = sanitizeMoneyInput(v);
+    if (!s) return '';
+    const dotIdx = s.indexOf('.');
+    let intPart = dotIdx === -1 ? s : s.slice(0, dotIdx);
+    const decPart = dotIdx === -1 ? null : s.slice(dotIdx + 1);
+    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return decPart !== null ? `${intPart}.${decPart}` : intPart;
+  }
+  // After reformatting adds/removes commas, the cursor's raw character-index no longer lines up
+  // with the same visual spot — walk the new formatted string until we've passed the same number
+  // of non-comma characters that were to the left of the cursor before formatting.
+  function moneyCursorAfterFormat(formatted, rawCharsBeforeCursor) {
+    if (rawCharsBeforeCursor <= 0) return 0;
+    let count = 0;
+    for (let i = 0; i < formatted.length; i++) {
+      if (formatted[i] !== ',') count++;
+      if (count >= rawCharsBeforeCursor) return i + 1;
+    }
+    return formatted.length;
+  }
   function fmtDateLong(dstr) {
     if (!dstr) return '—';
     const dt = new Date(dstr + 'T00:00:00');
@@ -1111,7 +1142,7 @@
             </select>
           </div>
           ${state.ftDraft.sourceType === 'other' ? `<div class="field" style="flex:1.4;min-width:150px"><label>Please Specify</label><input type="text" value="${esc(state.ftDraft.sourceOther)}" data-bind="ftDraft.sourceOther" placeholder="e.g. December Bonus"/></div>` : ''}
-          <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(state.ftDraft.amount)}" data-bind="ftDraft.amount" placeholder="0"/></div>
+          <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(state.ftDraft.amount))}" data-bind="ftDraft.amount" data-fmt="money" placeholder="0"/></div>
           ${ftDraftDatePicker}
           <button type="submit" class="btn-primary">Add</button>
         </form>
@@ -1424,7 +1455,7 @@
         <div class="field"><label>Client Address / Contact</label><input type="text" value="${esc(d.clientContact)}" data-bind="docDraft.clientContact" placeholder="Address, phone, or email"/></div>
         <div class="field"><label>Project / Service</label><input type="text" value="${esc(d.description)}" data-bind="docDraft.description" placeholder="e.g. Vlog Collab - Tagaytay"/></div>
         <div class="row-2">
-          <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="docDraft.amount"/></div>
+          <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="docDraft.amount" data-fmt="money"/></div>
           ${docDatePicker}
         </div>
         <div class="field"><label>Terms / Notes</label><input type="text" value="${esc(d.notes)}" data-bind="docDraft.notes" placeholder="e.g. 50% downpayment, balance on delivery"/></div>
@@ -1517,7 +1548,7 @@
       <div style="color:oklch(0.5 0.015 150);font-size:12.5px;margin-bottom:16px">Update your pricing here — changes apply to new shoots only. Shoots already booked keep their locked-in price.</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
         ${packageRateRows.map(pr => `
-          <div class="field"><label>${pr.label}</label><input type="text" inputmode="decimal" value="${esc(state.packageRates[pr.key])}" data-bind="packageRates.${pr.key}" data-special="packageRate" data-key="${pr.key}"/></div>`).join('')}
+          <div class="field"><label>${pr.label}</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(state.packageRates[pr.key]))}" data-bind="packageRates.${pr.key}" data-fmt="money" data-special="packageRate" data-key="${pr.key}"/></div>`).join('')}
       </div>
     </div>`;
   }
@@ -1755,10 +1786,10 @@
             <div class="field"><label>Package</label>
               <select data-bind="draft.packageTier" data-special="packageTier">${liveTiers.map(t => `<option value="${t.value}" ${d.packageTier === t.value ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
             </div>` : `
-            <div class="field"><label>Project Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.package)}" data-bind="draft.package" placeholder="0"/></div>`}
-            <div class="field"><label>Amount Received (₱)</label><input type="text" inputmode="decimal" value="${esc(d.paid)}" data-bind="draft.paid" placeholder="0"/></div>
+            <div class="field"><label>Project Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>`}
+            <div class="field"><label>Amount Received (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.paid))}" data-bind="draft.paid" data-fmt="money" placeholder="0"/></div>
           </div>
-          ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.package)}" data-bind="draft.package" placeholder="0"/></div>` : ''}
+          ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>` : ''}
           ${isRealEstate ? `
           <div style="background:var(--card2);border:1px solid var(--border3);border-radius:12px;padding:14px 16px">
             <button type="button" data-action="shoot-addons-toggle" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%">
@@ -1865,7 +1896,7 @@
         <form data-action="save-telegram-expense" style="display:flex;flex-direction:column;gap:12px">
           <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot"/></div>
           <div class="row-2">
-            <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="expenseDraft.amount" placeholder="0"/></div>
+            <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="expenseDraft.amount" data-fmt="money" placeholder="0"/></div>
             <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="expenseDraft.date"/></div>
           </div>
           <button type="submit" class="btn-primary" style="text-align:center;margin-top:4px">Add Expense</button>
@@ -1888,7 +1919,7 @@
         <div class="modal-head"><div class="modal-title">${esc(l.lender)}</div><button type="button" class="modal-close" data-action="modal-close" data-which="loanpayment">✕</button></div>
         <div class="modal-fields">
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">Remaining balance: <strong>${fmtMoney(remaining)}</strong></div>
-          <div class="field"><label>Payment Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="loanPaymentDraft.amount" placeholder="0" autofocus/></div>
+          <div class="field"><label>Payment Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanPaymentDraft.amount" data-fmt="money" placeholder="0" autofocus/></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button type="button" data-action="loan-payment-quick" data-amount="${l.monthlyDue}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Monthly Due (${fmtMoney(l.monthlyDue)})</button>
             <button type="button" data-action="loan-payment-quick" data-amount="${remaining}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Pay Off Full (${fmtMoney(remaining)})</button>
@@ -1913,11 +1944,11 @@
         <div class="modal-fields">
           <div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan"/></div>
           <div class="row-2">
-            <div class="field"><label>Loan Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="loanDraft.amount"/></div>
-            <div class="field"><label>Remaining Balance (₱)</label><input type="text" inputmode="decimal" value="${esc(d.remainingBalance)}" data-bind="loanDraft.remainingBalance"/></div>
+            <div class="field"><label>Loan Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanDraft.amount" data-fmt="money"/></div>
+            <div class="field"><label>Remaining Balance (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.remainingBalance))}" data-bind="loanDraft.remainingBalance" data-fmt="money"/></div>
           </div>
           <div class="row-2">
-            <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(d.monthlyDue)}" data-bind="loanDraft.monthlyDue"/></div>
+            <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.monthlyDue))}" data-bind="loanDraft.monthlyDue" data-fmt="money"/></div>
             <div class="field"><label>Due Date</label><input type="date" value="${esc(d.dueDate)}" data-bind="loanDraft.dueDate"/></div>
           </div>
           <div class="field"><label>Status</label>
@@ -1954,10 +1985,10 @@
             <button type="button" data-action="goal-currency-pick" data-currency="USD" style="all:unset;cursor:pointer;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:700;background:${isUSD ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${isUSD ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">$ USD</button>
           </div>
           <div class="row-2">
-            <div class="field"><label>Target Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(d.target)}" data-bind="goalDraft.target"/>
+            <div class="field"><label>Target Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.target))}" data-bind="goalDraft.target" data-fmt="money"/>
               ${isUSD ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">≈ ${targetPhpPreview}</div>` : ''}
             </div>
-            <div class="field"><label>Current Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(d.current)}" data-bind="goalDraft.current"/>
+            <div class="field"><label>Current Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.current))}" data-bind="goalDraft.current" data-fmt="money"/>
               ${isUSD ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">≈ ${currentPhpPreview}</div>` : ''}
             </div>
           </div>
@@ -1991,7 +2022,7 @@
             <button type="button" data-action="goal-fund-mode" data-mode="deposit" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;background:${mode === 'deposit' ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${mode === 'deposit' ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">Deposit</button>
             <button type="button" data-action="goal-fund-mode" data-mode="withdraw" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;background:${mode === 'withdraw' ? 'oklch(0.58 0.19 25)' : 'oklch(0.91 0.012 150)'};color:${mode === 'withdraw' ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">Withdraw</button>
           </div>
-          <div class="field"><label>Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(d.amount)}" data-bind="goalFundDraft.amount" placeholder="0" autofocus/></div>
+          <div class="field"><label>Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="goalFundDraft.amount" data-fmt="money" placeholder="0" autofocus/></div>
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New total: <strong>${currencySymbol}${previewCurrent.toLocaleString('en-US')}</strong></div>
         </div>
         <div class="modal-actions">
@@ -2804,11 +2835,24 @@
       // bubble, silently dropping any data-special side effect wired to 'change'. Selects
       // are atomic choices anyway, so let 'change' alone handle them.
       if (e.target.tagName === 'SELECT') return;
-      const bind = e.target.dataset.bind;
-      if (bind) {
-        applyBind(bind, e.target.value);
+      const el = e.target;
+      const bind = el.dataset.bind;
+      if (!bind) return;
+      if (el.dataset.fmt === 'money') {
+        const oldCursor = el.selectionStart == null ? el.value.length : el.selectionStart;
+        const rawCharsBeforeCursor = el.value.slice(0, oldCursor).replace(/[^\d.]/g, '').length;
+        applyBind(bind, sanitizeMoneyInput(el.value));
         render();
+        const newEl = app.querySelector(`[data-bind="${bind}"]`);
+        if (newEl) {
+          const pos = moneyCursorAfterFormat(newEl.value, rawCharsBeforeCursor);
+          newEl.focus();
+          try { newEl.setSelectionRange(pos, pos); } catch (err) { /* not applicable for this input type */ }
+        }
+        return;
       }
+      applyBind(bind, el.value);
+      render();
     });
 
     app.addEventListener('change', (e) => {
