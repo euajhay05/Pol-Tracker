@@ -1635,7 +1635,7 @@
           ${shootTypePills.map(tp => `<button type="button" data-action="shoot-type-pick" data-type="${esc(tp.value)}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${tp.bg};color:${tp.color};border:1px solid ${tp.border}">${tp.icon} ${esc(tp.label)}</button>`).join('')}
         </div>
         <div class="modal-fields">
-          <div class="field"><label>Client / Project</label><input type="text" list="clientNamesList" value="${esc(d.client)}" data-bind="draft.client" placeholder="e.g. Globe Telecom Anthem"/>
+          <div class="field"><label>Client / Project</label><input type="text" list="clientNamesList" value="${esc(d.client)}" data-bind="draft.client" placeholder="e.g. Globe Telecom Anthem" required/>
             <datalist id="clientNamesList">${state.clients.map(c => `<option value="${esc(c.name)}"></option>`).join('')}</datalist>
           </div>
           <div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>
@@ -1972,7 +1972,7 @@
       <form class="modal-box" style="width:420px" data-stop data-action="save-client">
         <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Client' : 'Add Client'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="client">✕</button></div>
         <div class="modal-fields">
-          <div class="field"><label>Name</label><input type="text" value="${esc(d.name)}" data-bind="clientDraft.name" placeholder="e.g. Nadine Reyes"/></div>
+          <div class="field"><label>Name</label><input type="text" value="${esc(d.name)}" data-bind="clientDraft.name" placeholder="e.g. Nadine Reyes" required/></div>
           <div class="row-2">
             <div class="field"><label>Phone</label><input type="text" value="${esc(d.phone)}" data-bind="clientDraft.phone" placeholder="09XX XXX XXXX"/></div>
             <div class="field"><label>Email</label><input type="text" value="${esc(d.email)}" data-bind="clientDraft.email" placeholder="email@example.com"/></div>
@@ -2883,6 +2883,7 @@
       const action = form.dataset.action;
       if (action === 'save-shoot') {
         const d = state.draft;
+        if (!(d.client || '').trim()) { alert('Please enter a client / project name.'); return; }
         const isRealEstate = d.shootType === 'Real Estate';
         const liveTiers = getLiveTiers(state.packageRates);
         const packageAmount = (!isRealEstate || d.packageTier === 'custom')
@@ -2969,6 +2970,7 @@
         }
       } else if (action === 'save-client') {
         const d = state.clientDraft;
+        if (!(d.name || '').trim()) { alert('Please enter a client name.'); return; }
         setState(s => s.clientModal.mode === 'add'
           ? { clients: [...s.clients, { ...d, id: 'c' + Date.now() }], clientModal: null, clientDraft: null }
           : { clients: s.clients.map(c => c.id === d.id ? d : c), clientModal: null, clientDraft: null });
