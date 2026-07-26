@@ -731,7 +731,6 @@
 
     const goalsAvgPercent = goalCards.length ? Math.round(goalCards.reduce((s, g) => s + g.percent, 0) / goalCards.length) : 0;
     const insightCards = [
-      { icon: '💵', title: 'Cash Flow Analysis', text: `You earned ${fmtMoney(monthlyRevenue)} this month against ${fmtMoney(monthTotal)} in expenses — a net profit of ${fmtMoney(netProfit)}. ${netProfit > 0 ? 'Positive cash flow, keep it up.' : 'Expenses are outpacing income, keep an eye on spending.'}` },
       { icon: '📊', title: 'Outstanding Balances', text: outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.', clickKey: outstanding > 0 ? 'outstandingBalances' : null },
       { icon: '🎯', title: 'Goal Tracking', bars: [
         { label: 'Savings Goals Progress', percent: goalsAvgPercent, sub: `${goalsAvgPercent}% average completion` },
@@ -1572,6 +1571,10 @@
           <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">Expenses</span><span style="font-weight:700">${fmtMoney(ctx.monthTotal)}</span></div>
           <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.monthTotal / ctx.chartMax) * 100)}%;background:oklch(0.62 0.17 45);border-radius:5px"></div></div>
         </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid oklch(0 0 0 / 0.06)">
+        <span style="font-size:12.5px;font-weight:600;color:oklch(0.42 0.015 150)">Net Profit</span>
+        <span style="font-size:16px;font-weight:700;color:${ctx.netProfit > 0 ? 'oklch(0.45 0.14 150)' : 'oklch(0.58 0.19 25)'}">${fmtMoney(ctx.netProfit)}</span>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px">
