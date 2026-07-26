@@ -434,7 +434,11 @@
     const shootType = normalizeShootType(sh.shootType);
     const sm = statusMeta(status);
     const scm = SCRIPT_STATUS_META[scriptStatus] || SCRIPT_STATUS_META['Not Started'];
-    const days = daysLeftOf(sh.deadline || sh.date);
+    // Booked/Resched haven't started editing yet, so the countdown that matters is the shoot
+    // date itself. Once it's in Editing (or later), the countdown switches to the edit/delivery
+    // deadline (falling back to the shoot date if no deadline was set).
+    const usesShootDateOnly = status === 'idea' || status === 'resched';
+    const days = daysLeftOf(usesShootDateOnly ? sh.date : (sh.deadline || sh.date));
     const pkg = Number(sh.package) || 0;
     const paidAmt = Number(sh.paid) || 0;
     const dl = (status === 'posted' || status === 'approval')
