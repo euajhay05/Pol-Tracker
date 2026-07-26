@@ -1824,9 +1824,9 @@
       <div class="modal-box" style="width:420px" data-stop>
         <div class="modal-head"><div class="modal-title">Add Expense</div><button type="button" class="modal-close" data-action="modal-close" data-which="telegram">✕</button></div>
         <form data-action="save-telegram-expense" style="display:flex;flex-direction:column;gap:12px">
-          <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot"/></div>
+          <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot" required/></div>
           <div class="row-2">
-            <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="expenseDraft.amount" data-fmt="money" placeholder="0"/></div>
+            <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="expenseDraft.amount" data-fmt="money" placeholder="0" required/></div>
             <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="expenseDraft.date"/></div>
           </div>
           <button type="submit" class="btn-primary" style="text-align:center;margin-top:4px">Add Expense</button>
@@ -1872,7 +1872,7 @@
       <form class="modal-box" style="width:420px" data-stop data-action="save-loan">
         <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Loan' : 'Add Loan'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="loan">✕</button></div>
         <div class="modal-fields">
-          <div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan"/></div>
+          <div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan" required/></div>
           <div class="row-2">
             <div class="field"><label>Loan Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanDraft.amount" data-fmt="money"/></div>
             <div class="field"><label>Remaining Balance (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.remainingBalance))}" data-bind="loanDraft.remainingBalance" data-fmt="money"/></div>
@@ -1909,7 +1909,7 @@
       <form class="modal-box" style="width:400px" data-stop data-action="save-goal">
         <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Goal' : 'Add Goal'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="goal">✕</button></div>
         <div class="modal-fields">
-          <div class="field"><label>Goal Name</label><input type="text" value="${esc(d.name)}" data-bind="goalDraft.name" placeholder="e.g. Car Fund"/></div>
+          <div class="field"><label>Goal Name</label><input type="text" value="${esc(d.name)}" data-bind="goalDraft.name" placeholder="e.g. Car Fund" required/></div>
           <div style="display:flex;gap:8px">
             <button type="button" data-action="goal-currency-pick" data-currency="PHP" style="all:unset;cursor:pointer;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:700;background:${!isUSD ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${!isUSD ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">₱ PHP</button>
             <button type="button" data-action="goal-currency-pick" data-currency="USD" style="all:unset;cursor:pointer;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:700;background:${isUSD ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${isUSD ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">$ USD</button>
@@ -2933,7 +2933,7 @@
         });
       } else if (action === 'save-telegram-expense') {
         const d = state.expenseDraft;
-        if (!d.description || !d.amount) { setState({ telegramModalOpen: false }); return; }
+        if (!(d.description || '').trim() || !d.amount) { alert('Please fill in what you spent on and the amount.'); return; }
         const entry = { id: 'ex' + Date.now(), description: d.description, amount: Number(d.amount) || 0, date: d.date || TODAY_STR };
         setState(s => ({ expenses: [...s.expenses, entry], telegramModalOpen: false }));
       } else if (action === 'save-fulltime') {
@@ -2947,6 +2947,7 @@
         setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { sourceType: '1st', sourceOther: '', amount: '', date: TODAY_STR }, financeMonthKey: entryDate.slice(0, 7) }));
       } else if (action === 'save-loan') {
         const d = state.loanDraft;
+        if (!(d.lender || '').trim()) { alert('Please enter a lender / source name.'); return; }
         const cleaned = { ...d, amount: Number(d.amount) || 0, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: Number(d.remainingBalance) || 0 };
         setState(s => s.loanModal.mode === 'add'
           ? { loans: [...s.loans, { ...cleaned, id: 'ln' + Date.now() }], loanModal: null, loanDraft: null }
@@ -2969,6 +2970,7 @@
         }
       } else if (action === 'save-goal') {
         const d = state.goalDraft;
+        if (!(d.name || '').trim()) { alert('Please enter a goal name.'); return; }
         const isUSD = d.currency === 'USD';
         const target = isUSD ? Math.round((Number(d.target) || 0) * USD_TO_PHP) : (Number(d.target) || 0);
         const current = isUSD ? Math.round((Number(d.current) || 0) * USD_TO_PHP) : (Number(d.current) || 0);
