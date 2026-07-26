@@ -2077,6 +2077,7 @@
     const remaining = Number(l.remainingBalance) || 0;
     const amt = Number(d.amount) || 0;
     const previewRemaining = Math.max(0, remaining - amt);
+    const history = (l.paymentHistory || []).slice().sort((a, b) => b.id.localeCompare(a.id));
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="loanpayment">
       <form class="modal-box" style="width:360px" data-stop data-action="save-loan-payment">
@@ -2089,6 +2090,18 @@
             <button type="button" data-action="loan-payment-quick" data-amount="${remaining}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Pay Off Full (${fmtMoney(remaining)})</button>
           </div>
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New balance: <strong>${fmtMoney(previewRemaining)}</strong>${previewRemaining === 0 && amt > 0 ? ' — will be marked Paid Off ✓' : ''}</div>
+          ${history.length > 0 ? `
+          <div style="border-top:1px solid var(--border2);padding-top:12px">
+            <div style="font-size:11.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:8px">Payment History</div>
+            <div style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto">
+              ${history.map(h => `
+                <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card2);border-radius:8px;padding:7px 10px">
+                  <div style="font-size:12px;color:oklch(0.45 0.015 150)">${fmtDate(h.date)}</div>
+                  <div style="font-size:12.5px;font-weight:600">${fmtMoney(h.amount)}</div>
+                  <button type="button" data-action="loan-payment-history-delete" data-hist-id="${esc(h.id)}" style="all:unset;cursor:pointer;color:oklch(0.5 0.015 150);font-size:12px;padding:2px 4px" title="Remove this payment">✕</button>
+                </div>`).join('')}
+            </div>
+          </div>` : ''}
         </div>
         <div class="modal-actions">
           <button type="submit" class="btn-primary" style="flex:1;text-align:center">Log Payment</button>
@@ -2176,6 +2189,7 @@
     const amt = Number(d.amount) || 0;
     const displayCurrent = isUSD ? (Number(g.current) || 0) / USD_TO_PHP : (Number(g.current) || 0);
     const previewCurrent = mode === 'deposit' ? displayCurrent + amt : Math.max(0, displayCurrent - amt);
+    const history = (g.fundHistory || []).slice().sort((a, b) => b.id.localeCompare(a.id));
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="goalfund">
       <form class="modal-box" style="width:360px" data-stop data-action="save-goal-fund">
@@ -2188,6 +2202,18 @@
           </div>
           <div class="field"><label>Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="goalFundDraft.amount" data-fmt="money" placeholder="0" autofocus required/></div>
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New total: <strong>${currencySymbol}${previewCurrent.toLocaleString('en-US')}</strong></div>
+          ${history.length > 0 ? `
+          <div style="border-top:1px solid var(--border2);padding-top:12px">
+            <div style="font-size:11.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:8px">Contribution History</div>
+            <div style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto">
+              ${history.map(h => `
+                <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card2);border-radius:8px;padding:7px 10px">
+                  <div style="font-size:12px;color:oklch(0.45 0.015 150)">${fmtDate(h.date)}</div>
+                  <div style="font-size:12.5px;font-weight:600;color:${h.mode === 'withdraw' ? 'oklch(0.58 0.19 25)' : 'inherit'}">${h.mode === 'withdraw' ? '−' : '+'}${currencySymbol}${(Number(h.amount) || 0).toLocaleString('en-US')}</div>
+                  <button type="button" data-action="goal-fund-history-delete" data-hist-id="${esc(h.id)}" style="all:unset;cursor:pointer;color:oklch(0.5 0.015 150);font-size:12px;padding:2px 4px" title="Remove this entry">✕</button>
+                </div>`).join('')}
+            </div>
+          </div>` : ''}
         </div>
         <div class="modal-actions">
           <button type="submit" class="btn-primary" style="flex:1;text-align:center">${mode === 'deposit' ? 'Add Fund' : 'Withdraw Fund'}</button>
@@ -2513,6 +2539,26 @@
         break;
       case 'loan-payment-open': setState({ loanPaymentModal: { id }, loanPaymentDraft: { amount: '' } }); break;
       case 'loan-payment-quick': setState(s => ({ loanPaymentDraft: { ...s.loanPaymentDraft, amount: el.dataset.amount } })); break;
+      case 'loan-payment-history-delete': {
+        if (!confirm('Remove this logged payment? The amount will be added back to the remaining balance.')) break;
+        const targetId = state.loanPaymentModal && state.loanPaymentModal.id;
+        const histId = el.dataset.histId;
+        setState(s => ({
+          loans: s.loans.map(l => {
+            if (l.id !== targetId) return l;
+            const entry = (l.paymentHistory || []).find(h => h.id === histId);
+            if (!entry) return l;
+            const newRemaining = (Number(l.remainingBalance) || 0) + (Number(entry.amount) || 0);
+            return {
+              ...l,
+              remainingBalance: newRemaining,
+              status: newRemaining > 0 && l.status === 'paid' ? 'ongoing' : l.status,
+              paymentHistory: (l.paymentHistory || []).filter(h => h.id !== histId),
+            };
+          }),
+        }));
+        break;
+      }
 
       case 'goal-add-open': setState({ goalModal: { mode: 'add' }, goalDraft: { id: null, name: '', target: '', current: '', currency: 'PHP' } }); break;
       case 'goal-currency-pick': setState(s => {
@@ -2530,6 +2576,22 @@
         break;
       case 'goal-fund-open': setState({ goalFundModal: { id }, goalFundDraft: { mode: 'deposit', amount: '' } }); break;
       case 'goal-fund-mode': setState(s => ({ goalFundDraft: { ...s.goalFundDraft, mode: el.dataset.mode } })); break;
+      case 'goal-fund-history-delete': {
+        if (!confirm('Remove this logged entry? Its effect on the saved total will be reversed.')) break;
+        const targetId = state.goalFundModal && state.goalFundModal.id;
+        const histId = el.dataset.histId;
+        setState(s => ({
+          goals: s.goals.map(g => {
+            if (g.id !== targetId) return g;
+            const entry = (g.fundHistory || []).find(h => h.id === histId);
+            if (!entry) return g;
+            const reverseDelta = entry.mode === 'withdraw' ? (Number(entry.phpAmount) || 0) : -(Number(entry.phpAmount) || 0);
+            const newCurrent = Math.max(0, (Number(g.current) || 0) + reverseDelta);
+            return { ...g, current: newCurrent, fundHistory: (g.fundHistory || []).filter(h => h.id !== histId) };
+          }),
+        }));
+        break;
+      }
 
       case 'client-add-open': setState({ clientModal: { mode: 'add' }, clientDraft: { id: null, name: '', phone: '', email: '', leadStatus: 'New Lead', followUpDate: '', notes: '' } }); break;
       case 'client-edit': openEditClient(id); break;
@@ -3210,7 +3272,8 @@
             loans: s.loans.map(l => {
               if (l.id !== targetId) return l;
               const newRemaining = Math.max(0, (Number(l.remainingBalance) || 0) - amt);
-              return { ...l, remainingBalance: newRemaining, status: newRemaining === 0 ? 'paid' : l.status };
+              const historyEntry = { id: 'lp' + Date.now(), date: TODAY_STR, amount: amt };
+              return { ...l, remainingBalance: newRemaining, status: newRemaining === 0 ? 'paid' : l.status, paymentHistory: [...(l.paymentHistory || []), historyEntry] };
             }),
             loanPaymentModal: null, loanPaymentDraft: null,
           }));
@@ -3237,8 +3300,9 @@
             const phpAmt = g.currency === 'USD' ? amt * USD_TO_PHP : amt;
             const delta = fd.mode === 'withdraw' ? -phpAmt : phpAmt;
             const newCurrent = Math.max(0, (Number(g.current) || 0) + delta);
+            const historyEntry = { id: 'gf' + Date.now(), date: TODAY_STR, amount: amt, phpAmount: phpAmt, mode: fd.mode || 'deposit' };
             return {
-              goals: s.goals.map(x => x.id === targetId ? { ...x, current: newCurrent } : x),
+              goals: s.goals.map(x => x.id === targetId ? { ...x, current: newCurrent, fundHistory: [...(x.fundHistory || []), historyEntry] } : x),
               goalFundModal: null, goalFundDraft: null,
             };
           });
