@@ -168,6 +168,27 @@
     if (days <= 7) return { label: `${days}d left`, color: 'oklch(0.58 0.16 80)' };
     return { label: `${days}d left`, color: 'oklch(0.48 0.015 150)' };
   }
+  function ordinal(n) {
+    n = Number(n);
+    const v = n % 100;
+    const suffixes = { 1: 'st', 2: 'nd', 3: 'rd' };
+    return n + (suffixes[v - 20] || suffixes[v] || 'th');
+  }
+  // Loans have a recurring monthly due DAY (e.g. "the 23rd") rather than a one-time date —
+  // this finds the next actual calendar date that day falls on (today if it's today, else
+  // next month), clamping to the last day of shorter months (e.g. day 31 in Feb -> Feb 28/29).
+  function nextMonthlyDueDate(dueDay) {
+    const day = Number(dueDay);
+    if (!day || day < 1 || day > 31) return null;
+    const clampedDayIn = (y, m) => Math.min(day, new Date(y, m + 1, 0).getDate());
+    let y = TODAY.getFullYear(), m = TODAY.getMonth();
+    let d = clampedDayIn(y, m);
+    if (d < TODAY.getDate()) {
+      m += 1; if (m > 11) { m = 0; y++; }
+      d = clampedDayIn(y, m);
+    }
+    return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
   function statusMeta(status) { return STATUS_META.find(s => s.value === status) || STATUS_META[0]; }
   function goalIcon(name) {
     const n = (name || '').toLowerCase();
@@ -583,16 +604,24 @@
     const loanCards = state.loans.map(l => {
       const paidPercent = l.amount > 0 ? Math.min(100, Math.round(((l.amount - l.remainingBalance) / l.amount) * 100)) : 100;
       const isPaid = l.status === 'paid';
-      const dueDays = (!isPaid && l.dueDate) ? daysLeftOf(l.dueDate) : null;
+      // dueDay (1-31) is the recurring monthly due day (e.g. "every 23rd"); older records may
+      // only have a one-time dueDate, so fall back to that date's day-of-month for compatibility.
+      const dueDay = l.dueDay ? Number(l.dueDay) : (l.dueDate ? new Date(l.dueDate + 'T00:00:00').getDate() : null);
+      const nextDue = (!isPaid && dueDay) ? nextMonthlyDueDate(dueDay) : null;
+      const dueDays = nextDue ? daysLeftOf(nextDue) : null;
       const dueBadge = dueDays !== null ? daysLeftLabelAndColor(dueDays) : null;
+      const monthlyDueNum = Number(l.monthlyDue) || 0;
+      const remainingNum = Number(l.remainingBalance) || 0;
+      const monthsLeft = (!isPaid && monthlyDueNum > 0 && remainingNum > 0) ? Math.ceil(remainingNum / monthlyDueNum) : null;
       return {
-        ...l, paidPercent,
+        ...l, paidPercent, dueDay,
         statusLabel: isPaid ? 'Paid Off' : 'Ongoing',
         statusColor: isPaid ? 'oklch(0.5 0.15 150)' : 'oklch(0.58 0.16 80)',
         statusBg: isPaid ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.78 0.14 80 / 0.16)',
         amountLabel: fmtMoney(l.amount), remainingLabel: fmtMoney(l.remainingBalance), monthlyDueLabel: fmtMoney(l.monthlyDue),
-        dueLabel: l.dueDate ? `Due ${fmtDate(l.dueDate)}` : 'No active due date',
+        dueLabel: dueDay ? `Due every ${ordinal(dueDay)} of the month` : 'No active due date',
         showDueBadge: !!dueBadge, dueBadgeLabel: dueBadge ? dueBadge.label : '', dueBadgeColor: dueBadge ? dueBadge.color : '',
+        monthsLeftLabel: isPaid ? 'Paid off ✓' : (monthsLeft !== null ? `~${monthsLeft} month${monthsLeft === 1 ? '' : 's'} left to pay off` : null),
       };
     });
 
@@ -1339,9 +1368,10 @@
             <span style="font-size:15px;font-weight:700">${l.remainingLabel} <span style="font-weight:500;color:oklch(0.5 0.015 150);font-size:12.5px">left</span></span>
             <span style="font-size:13px;color:oklch(0.5 0.015 150)">${l.amountLabel} total</span>
           </div>
-          <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden;margin-bottom:18px">
+          <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden;margin-bottom:8px">
             <div style="height:100%;width:${l.paidPercent}%;background:linear-gradient(90deg, oklch(0.5 0.13 165), oklch(0.42 0.12 155));border-radius:5px"></div>
           </div>
+          ${l.monthsLeftLabel ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:18px">${l.monthsLeftLabel}</div>` : `<div style="margin-bottom:18px"></div>`}
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div style="font-size:13.5px;color:oklch(0.45 0.015 150)">Monthly due: <span style="color:oklch(0.2 0.02 150);font-weight:700">${l.monthlyDueLabel}</span></div>
             ${l.showDueBadge ? `<div style="font-size:12px;font-weight:700;color:${l.dueBadgeColor}">${l.dueBadgeLabel}</div>` : ''}
@@ -2047,7 +2077,7 @@
           </div>
           <div class="row-2">
             <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.monthlyDue))}" data-bind="loanDraft.monthlyDue" data-fmt="money"/></div>
-            <div class="field"><label>Due Date</label><input type="date" value="${esc(d.dueDate)}" data-bind="loanDraft.dueDate"/></div>
+            <div class="field"><label>Due Day of Month</label><input type="number" min="1" max="31" value="${esc(d.dueDay)}" data-bind="loanDraft.dueDay" placeholder="e.g. 23"/></div>
           </div>
           <div class="field"><label>Status</label>
             <select data-bind="loanDraft.status">
@@ -2271,7 +2301,10 @@
   function openEditLoan(id) {
     const l = state.loans.find(x => x.id === id);
     if (!l) return;
-    setState({ loanModal: { mode: 'edit', id }, loanDraft: { ...l } });
+    // Older records may only have a one-time dueDate rather than a recurring dueDay —
+    // derive dueDay from it so the edit form still pre-fills correctly.
+    const dueDay = l.dueDay || (l.dueDate ? new Date(l.dueDate + 'T00:00:00').getDate() : '');
+    setState({ loanModal: { mode: 'edit', id }, loanDraft: { ...l, dueDay } });
   }
   function openEditGoal(id) {
     const g = state.goals.find(x => x.id === id);
@@ -2423,9 +2456,9 @@
           clientRows.push([c.name || '', c.phone || '', c.email || '', c.leadStatus || '', c.followUpDate || '', c.notes || '']);
         });
 
-        const loanRows = [['Lender', 'Total Amount', 'Monthly Due', 'Remaining Balance', 'Due Date', 'Status']];
+        const loanRows = [['Lender', 'Total Amount', 'Monthly Due', 'Remaining Balance', 'Due Day of Month', 'Status']];
         state.loans.slice().sort((a, b) => (a.lender || '').localeCompare(b.lender || '')).forEach(l => {
-          loanRows.push([l.lender || '', Number(l.amount) || 0, Number(l.monthlyDue) || 0, Number(l.remainingBalance) || 0, l.dueDate || '', l.status || '']);
+          loanRows.push([l.lender || '', Number(l.amount) || 0, Number(l.monthlyDue) || 0, Number(l.remainingBalance) || 0, l.dueDay || (l.dueDate ? new Date(l.dueDate + 'T00:00:00').getDate() : ''), l.status || '']);
         });
 
         const goalRows = [['Name', 'Target', 'Current', 'Currency']];
@@ -2443,7 +2476,7 @@
         break;
       }
 
-      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', remainingBalance: '', dueDate: '', status: 'ongoing' } }); break;
+      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', remainingBalance: '', dueDay: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
       case 'loan-delete':
         if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
@@ -3133,7 +3166,8 @@
       } else if (action === 'save-loan') {
         const d = state.loanDraft;
         if (!(d.lender || '').trim() || !d.amount) { alert('Please enter a lender / source name and a loan amount.'); return; }
-        const cleaned = { ...d, amount: Number(d.amount) || 0, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: Number(d.remainingBalance) || 0 };
+        const cleaned = { ...d, amount: Number(d.amount) || 0, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: Number(d.remainingBalance) || 0, dueDay: d.dueDay ? Number(d.dueDay) : null };
+        delete cleaned.dueDate;
         setState(s => s.loanModal.mode === 'add'
           ? { loans: [...s.loans, { ...cleaned, id: 'ln' + Date.now() }], loanModal: null, loanDraft: null }
           : { loans: s.loans.map(l => l.id === cleaned.id ? cleaned : l), loanModal: null, loanDraft: null });
