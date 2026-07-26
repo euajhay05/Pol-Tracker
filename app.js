@@ -1157,10 +1157,7 @@
     return `
     <div class="page-head">
       <div><div class="page-title sg">Finances</div><div class="page-sub">Package value vs. what's been collected</div></div>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        ${financeMonthPicker}
-        <button type="button" class="btn-telegram" data-action="export-data-csv">⬇ Export CSV</button>
-      </div>
+      ${financeMonthPicker}
     </div>
     <div class="tabbar" style="margin-bottom:24px">
       ${tab('sidehustle', 'Side Hustle')}${tab('fulltime', 'Full-Time')}${tab('combined', 'Combined')}
@@ -1511,7 +1508,10 @@
     return `
     <div class="page-head">
       <div><div class="page-title sg">Insights</div><div class="page-sub">AI-generated analysis of your business</div></div>
-      <div class="tabbar">${tab('weekly', 'Weekly')}${tab('monthly', 'Monthly')}</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div class="tabbar">${tab('weekly', 'Weekly')}${tab('monthly', 'Monthly')}</div>
+        <button type="button" class="btn-telegram" data-action="export-data-csv" title="Download separate CSV files for Shoots, Expenses, Income, Clients, Loans, and Goals">⬇ Export Data</button>
+      </div>
     </div>
     <div class="card" style="margin-bottom:16px">
       <div class="card-title" style="margin-bottom:14px">Shoots: This Month vs Last Month</div>
@@ -2240,44 +2240,46 @@
       case 'expenses-month-today': setState({ expensesMonthKey: THIS_MONTH_KEY }); break;
 
       case 'export-data-csv': {
-        const lines = [];
-        lines.push(['SHOOTS']);
-        lines.push(['Client', 'Location', 'Date', 'Status', 'Package Total', 'Paid', 'Balance', 'Deadline']);
+        // One clean, single-table CSV per data type — easier to open in Excel/Sheets than
+        // one file with several stacked tables of different shapes.
+        const shootRows = [['Client', 'Location', 'Date', 'Status', 'Package Total', 'Paid', 'Balance', 'Deadline']];
         state.shoots.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(sh => {
           const pkg = Number(sh.package) || 0, paid = Number(sh.paid) || 0;
-          lines.push([sh.client || '', sh.location || '', sh.date || '', normalizeShootStatus(sh.status), pkg, paid, pkg - paid, sh.deadline || '']);
+          shootRows.push([sh.client || '', sh.location || '', sh.date || '', normalizeShootStatus(sh.status), pkg, paid, pkg - paid, sh.deadline || '']);
         });
-        lines.push([]);
-        lines.push(['EXPENSES']);
-        lines.push(['Description', 'Date', 'Amount']);
+
+        const expenseRows = [['Description', 'Date', 'Amount']];
         state.expenses.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(ex => {
-          lines.push([ex.description || '', ex.date || '', Number(ex.amount) || 0]);
+          expenseRows.push([ex.description || '', ex.date || '', Number(ex.amount) || 0]);
         });
-        lines.push([]);
-        lines.push(['FULL-TIME INCOME']);
-        lines.push(['Source', 'Date', 'Amount']);
+
+        const incomeRows = [['Source', 'Date', 'Amount']];
         state.fullTimeIncome.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(f => {
-          lines.push([f.source || '', f.date || '', Number(f.amount) || 0]);
+          incomeRows.push([f.source || '', f.date || '', Number(f.amount) || 0]);
         });
-        lines.push([]);
-        lines.push(['CLIENTS']);
-        lines.push(['Name', 'Phone', 'Email', 'Lead Status', 'Follow-up Date', 'Notes']);
+
+        const clientRows = [['Name', 'Phone', 'Email', 'Lead Status', 'Follow-up Date', 'Notes']];
         state.clients.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(c => {
-          lines.push([c.name || '', c.phone || '', c.email || '', c.leadStatus || '', c.followUpDate || '', c.notes || '']);
+          clientRows.push([c.name || '', c.phone || '', c.email || '', c.leadStatus || '', c.followUpDate || '', c.notes || '']);
         });
-        lines.push([]);
-        lines.push(['LOANS']);
-        lines.push(['Lender', 'Total Amount', 'Monthly Due', 'Remaining Balance', 'Due Date', 'Status']);
+
+        const loanRows = [['Lender', 'Total Amount', 'Monthly Due', 'Remaining Balance', 'Due Date', 'Status']];
         state.loans.slice().sort((a, b) => (a.lender || '').localeCompare(b.lender || '')).forEach(l => {
-          lines.push([l.lender || '', Number(l.amount) || 0, Number(l.monthlyDue) || 0, Number(l.remainingBalance) || 0, l.dueDate || '', l.status || '']);
+          loanRows.push([l.lender || '', Number(l.amount) || 0, Number(l.monthlyDue) || 0, Number(l.remainingBalance) || 0, l.dueDate || '', l.status || '']);
         });
-        lines.push([]);
-        lines.push(['GOALS']);
-        lines.push(['Name', 'Target', 'Current', 'Currency']);
+
+        const goalRows = [['Name', 'Target', 'Current', 'Currency']];
         state.goals.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(g => {
-          lines.push([g.name || '', Number(g.target) || 0, Number(g.current) || 0, g.currency || 'PHP']);
+          goalRows.push([g.name || '', Number(g.target) || 0, Number(g.current) || 0, g.currency || 'PHP']);
         });
-        downloadCSV(`pol-tracker-export-${TODAY_STR}.csv`, lines);
+
+        const files = [
+          ['shoots', shootRows], ['expenses', expenseRows], ['income', incomeRows],
+          ['clients', clientRows], ['loans', loanRows], ['goals', goalRows],
+        ];
+        files.forEach(([name, rows], i) => {
+          setTimeout(() => downloadCSV(`pol-tracker-${name}-${TODAY_STR}.csv`, rows), i * 150);
+        });
         break;
       }
 
