@@ -2066,7 +2066,7 @@
           <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot" required/></div>
           <div class="row-2">
             <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="expenseDraft.amount" data-fmt="money" placeholder="0" required/></div>
-            <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-bind="expenseDraft.date"/></div>
+            <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" max="${TODAY_STR}" data-bind="expenseDraft.date"/></div>
           </div>
           <button type="submit" class="btn-primary" style="text-align:center;margin-top:4px">Add Expense</button>
         </form>
@@ -3248,6 +3248,7 @@
       } else if (action === 'save-telegram-expense') {
         const d = state.expenseDraft;
         if (!(d.description || '').trim() || !d.amount) { alert('Please fill in what you spent on and the amount.'); return; }
+        if (d.date && d.date > TODAY_STR) { alert('Expense date cannot be in the future.'); return; }
         const entry = { id: 'ex' + Date.now(), description: d.description, amount: Number(d.amount) || 0, date: d.date || TODAY_STR };
         setState(s => ({ expenses: [...s.expenses, entry], telegramModalOpen: false }));
       } else if (action === 'save-fulltime') {
