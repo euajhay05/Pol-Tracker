@@ -254,6 +254,32 @@
     return cells;
   }
 
+  function buildExpenseCalendarCells(year, month, expenses, selectedDate) {
+    const firstDay = new Date(year, month, 1);
+    const startWeekday = firstDay.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < startWeekday; i++) cells.push({ blank: true });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const mm = String(month + 1).padStart(2, '0');
+      const dd = String(d).padStart(2, '0');
+      const dateStr = `${year}-${mm}-${dd}`;
+      const dayExpenses = expenses.filter(e => e.date === dateStr);
+      const dayTotal = dayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const isToday = dateStr === TODAY_STR;
+      const isSelected = dateStr === selectedDate;
+      cells.push({
+        dayNum: d, dateStr,
+        bg: isSelected ? 'oklch(0.55 0.14 150 / 0.22)' : (isToday ? 'oklch(0 0 0 / 0.06)' : 'oklch(0.97 0.006 150)'),
+        border: isSelected ? 'oklch(0.55 0.14 150 / 0.6)' : 'oklch(0 0 0 / 0.05)',
+        textColor: isToday ? 'oklch(0.6 0.15 150)' : 'oklch(0.35 0.015 150)',
+        hasExpense: dayExpenses.length > 0,
+        dayTotalLabel: dayExpenses.length > 0 ? fmtMoney(dayTotal) : '',
+      });
+    }
+    return cells;
+  }
+
   function buildRangeCalendarCells(year, month, draftFrom, draftTo) {
     const firstDay = new Date(year, month, 1);
     const startWeekday = firstDay.getDay();
@@ -370,7 +396,6 @@
       expenseDraft: { description: '', amount: '', date: TODAY_STR },
       expensesMonthKey: THIS_MONTH_KEY,
       expensesSelectedDate: TODAY_STR,
-      expensesDayPickerOpen: false,
       expensesDayCalYear: TODAY.getFullYear(),
       expensesDayCalMonth: TODAY.getMonth(),
       loanModal: null,
@@ -654,7 +679,10 @@
 
     const expensesSelectedDate = state.expensesSelectedDate || TODAY_STR;
     const expensesSelectedDayLabel = expensesSelectedDate === TODAY_STR ? 'Today' : fmtDate(expensesSelectedDate);
-    const expensesSelectedDayTotal = allExpenseRows.filter(e => e.date === expensesSelectedDate).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const expensesSelectedDayRows = allExpenseRows.filter(e => e.date === expensesSelectedDate);
+    const expensesSelectedDayTotal = expensesSelectedDayRows.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const expensesCalMonthLabel = new Date(state.expensesDayCalYear, state.expensesDayCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const expensesCalCells = buildExpenseCalendarCells(state.expensesDayCalYear, state.expensesDayCalMonth, expenses, expensesSelectedDate);
 
     const monthLabel = new Date(state.calendarYear, state.calendarMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const calendarCells = buildCalendarCells(state.calendarYear, state.calendarMonth, shoots, state.selectedDate);
@@ -836,7 +864,8 @@
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
       expensesMonthKey, expensesMonthLabel, monthExpensesTotal,
-      expensesSelectedDate, expensesSelectedDayLabel, expensesSelectedDayTotal,
+      expensesSelectedDate, expensesSelectedDayLabel, expensesSelectedDayTotal, expensesSelectedDayRows,
+      expensesCalMonthLabel, expensesCalCells,
       totalFullTime, monthFullTime, fullTimeRows, combinedTotal, fullTimeSharePercent, sideHustleSharePercent,
       financeMonthKey, financeMonthLabel, ftMonthTotal, ftMonthRows,
       monthShoots, monthSideHustleCollected, monthCombinedTotal, monthFullTimeSharePercent, monthSideHustleSharePercent,
@@ -1280,35 +1309,43 @@
         ${ctx.expensesMonthKey !== THIS_MONTH_KEY ? `<button type="button" data-action="expenses-month-today" style="all:unset;cursor:pointer;margin-left:6px;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">This Month</button>` : ''}
       </div>`;
 
-    const expensesDayCalLabel = new Date(state.expensesDayCalYear, state.expensesDayCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const expensesDayCalCells = buildCalendarCells(state.expensesDayCalYear, state.expensesDayCalMonth, [], ctx.expensesSelectedDate);
-    // A single control row for picking which day's total to view — kept separate from the
-    // stat cards below so those stay plain label+number, not cluttered with nav buttons.
-    const expensesDayPicker = `
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-        <div style="font-size:12.5px;font-weight:600;color:oklch(0.45 0.015 150)">Viewing daily total for:</div>
-        <div style="position:relative;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 12px">
-          <button type="button" data-action="expenses-day-prev" style="all:unset;cursor:pointer;width:22px;height:22px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
-          <button type="button" data-action="expenses-day-toggle" style="all:unset;cursor:pointer;font-weight:700;font-size:13px;min-width:80px;text-align:center;padding:2px 6px;border-radius:7px" class="sg">${esc(ctx.expensesSelectedDayLabel)} 📅</button>
-          <button type="button" data-action="expenses-day-next" style="all:unset;cursor:pointer;width:22px;height:22px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
-          ${ctx.expensesSelectedDate !== TODAY_STR ? `<button type="button" data-action="expenses-day-today" style="all:unset;cursor:pointer;margin-left:2px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Today</button>` : ''}
-          ${state.expensesDayPickerOpen ? `
-          <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <div class="sg" style="font-weight:700;font-size:15px">${expensesDayCalLabel}</div>
-              <div style="display:flex;gap:6px">
-                <button type="button" data-action="expenses-day-cal-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
-                <button type="button" data-action="expenses-day-cal-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
-              ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
-              ${expensesDayCalCells.map(c => c.blank ? `<div></div>` : `
-                <div data-action="expenses-day-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
-            </div>
-          </div>` : ''}
+    // Instead of a popover date-picker, a permanent calendar (like the Shoots calendar view)
+    // with a side panel — click any date to see exactly what was spent that day, plus its
+    // total. Days with spending show a small peso total right on the cell.
+    const expensesCalendarSection = `
+      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px">
+        <div style="flex:1;min-width:320px;background:var(--panel2);border-radius:16px;padding:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <button type="button" class="btn-ghost" style="padding:6px 10px;border-radius:8px;font-size:15px" data-action="expenses-day-cal-prev">‹</button>
+            <div class="sg" style="font-weight:700;font-size:15px">${ctx.expensesCalMonthLabel}</div>
+            <button type="button" class="btn-ghost" style="padding:6px 10px;border-radius:8px;font-size:15px" data-action="expenses-day-cal-next">›</button>
+          </div>
+          <div class="cal-grid" style="margin-bottom:8px">
+            ${WEEKDAY_LABELS.map(wd => `<div style="text-align:center;font-size:11px;color:oklch(0.55 0.015 150);font-weight:700;padding-bottom:4px">${wd}</div>`).join('')}
+          </div>
+          <div class="cal-grid">
+            ${ctx.expensesCalCells.map(c => c.blank
+              ? `<div></div>`
+              : `<div class="cal-cell" style="background:${c.bg};border:1px solid ${c.border}" data-action="expenses-day-pick" data-date="${c.dateStr}">
+                  <div style="font-size:12px;font-weight:600;color:${c.textColor}">${c.dayNum}</div>
+                  ${c.hasExpense ? `<div style="font-size:9.5px;font-weight:700;color:oklch(0.58 0.19 25)">${c.dayTotalLabel}</div>` : ''}
+                </div>`).join('')}
+          </div>
+        </div>
+        <div style="width:280px;flex:none" class="card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+            <div class="card-title" style="margin-bottom:0">${esc(ctx.expensesSelectedDayLabel)}</div>
+            ${ctx.expensesSelectedDate !== TODAY_STR ? `<button type="button" data-action="expenses-day-today" style="all:unset;cursor:pointer;font-size:11px;font-weight:600;color:oklch(0.45 0.14 150)">Today</button>` : ''}
+          </div>
+          <div class="sg" style="font-size:22px;font-weight:700;margin-bottom:14px">${fmtMoney(ctx.expensesSelectedDayTotal)}</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${ctx.expensesSelectedDayRows.map(ex => `
+              <div style="background:var(--card2);border-radius:10px;padding:11px">
+                <div style="font-weight:600;font-size:13.5px;margin-bottom:3px">${esc(ex.description)}</div>
+                <div style="color:oklch(0.48 0.015 150);font-size:12px">${ex.amountLabel}</div>
+              </div>`).join('')}
+            ${ctx.expensesSelectedDayRows.length === 0 ? `<div style="color:oklch(0.55 0.015 150);font-size:13px">No expenses this day.</div>` : ''}
+          </div>
         </div>
       </div>`;
 
@@ -1320,11 +1357,10 @@
         <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
-    ${expensesDayPicker}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-      <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${esc(ctx.expensesSelectedDayLabel)}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.expensesSelectedDayTotal)}</div></div>
       <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${ctx.expensesMonthLabel}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthExpensesTotal)}</div></div>
     </div>
+    ${expensesCalendarSection}
     <div class="search-wrap">
       <input type="text" value="${esc(state.expensesSearch)}" data-bind="expensesSearch" placeholder="Search expenses..."/>
       ${searchClear}
@@ -2420,17 +2456,10 @@
       }); break;
       case 'expenses-month-today': setState({ expensesMonthKey: THIS_MONTH_KEY }); break;
 
-      case 'expenses-day-prev': setState(s => ({ expensesSelectedDate: addDays(s.expensesSelectedDate || TODAY_STR, -1) })); break;
-      case 'expenses-day-next': setState(s => ({ expensesSelectedDate: addDays(s.expensesSelectedDate || TODAY_STR, 1) })); break;
       case 'expenses-day-today': setState({ expensesSelectedDate: TODAY_STR }); break;
-      case 'expenses-day-toggle': setState(s => {
-        if (s.expensesDayPickerOpen) return { expensesDayPickerOpen: false };
-        const base = new Date((s.expensesSelectedDate || TODAY_STR) + 'T00:00:00');
-        return { expensesDayPickerOpen: true, expensesDayCalYear: base.getFullYear(), expensesDayCalMonth: base.getMonth() };
-      }); break;
       case 'expenses-day-cal-prev': setState(s => { let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
       case 'expenses-day-cal-next': setState(s => { let m = s.expensesDayCalMonth + 1, y = s.expensesDayCalYear; if (m > 11) { m = 0; y++; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
-      case 'expenses-day-pick': setState({ expensesSelectedDate: el.dataset.date, expensesDayPickerOpen: false }); break;
+      case 'expenses-day-pick': setState({ expensesSelectedDate: el.dataset.date }); break;
 
       case 'export-data-csv': {
         // One clean, single-table CSV per data type — easier to open in Excel/Sheets than
@@ -2920,10 +2949,10 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
-      if ((state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen || state.expensesDayPickerOpen) && !e.target.closest('[data-picker-popover]')) {
+      if ((state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) && !e.target.closest('[data-picker-popover]')) {
         const action = actionEl ? actionEl.dataset.action : null;
-        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle' && action !== 'ftdraft-date-toggle' && action !== 'expenses-day-toggle') {
-          setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false, expensesDayPickerOpen: false });
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle' && action !== 'ftdraft-date-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
         }
       }
       if (!actionEl) return;
@@ -3109,9 +3138,9 @@
       if (state.shootConfirmCloseOpen) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: false });
-      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen || state.expensesDayPickerOpen) {
+      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) {
         e.preventDefault(); e.stopPropagation();
-        setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false, expensesDayPickerOpen: false });
+        setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
