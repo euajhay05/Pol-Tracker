@@ -711,6 +711,13 @@
       thisMonth: { title: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, items: dashMonthShoots.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
       completed: { title: 'Completed Shoots', items: completed.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
       activeClients: { title: 'Active Clients', items: state.clients.filter(c => c.leadStatus === 'Booked' || c.leadStatus === 'Client').map(c => ({ primary: c.name, secondary: c.leadStatus })) },
+      outstandingBalances: {
+        title: 'Outstanding Balances',
+        items: shoots
+          .filter(s => (Number(s.package) || 0) - (Number(s.paid) || 0) > 0)
+          .sort((a, b) => ((Number(b.package) || 0) - (Number(b.paid) || 0)) - ((Number(a.package) || 0) - (Number(a.paid) || 0)))
+          .map(s => ({ primary: s.client, secondary: fmtMoney((Number(s.package) || 0) - (Number(s.paid) || 0)) })),
+      },
     };
     let chipModalData = chipModalKey ? CHIP_MODAL_META[chipModalKey] : null;
     if (!chipModalData && chipModalKey && chipModalKey.startsWith('clientshoots:')) {
@@ -725,8 +732,11 @@
     const goalsAvgPercent = goalCards.length ? Math.round(goalCards.reduce((s, g) => s + g.percent, 0) / goalCards.length) : 0;
     const insightCards = [
       { icon: '💵', title: 'Cash Flow Analysis', text: `You earned ${fmtMoney(monthlyRevenue)} this month against ${fmtMoney(monthTotal)} in expenses — a net profit of ${fmtMoney(netProfit)}. ${netProfit > 0 ? 'Positive cash flow, keep it up.' : 'Expenses are outpacing income, keep an eye on spending.'}` },
-      { icon: '📊', title: 'Outstanding Balances', text: outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.' },
-      { icon: '🎯', title: 'Goal Tracking', text: `Your savings goals are at an average of ${goalsAvgPercent}% completion. Yearly income progress: ${yearlyProgressPercent}% of the ${fmtMoney(yearlyGoalIncome)} target.` },
+      { icon: '📊', title: 'Outstanding Balances', text: outstanding > 0 ? `You have ${fmtMoney(outstanding)} in outstanding balances across your shoots.` : 'No outstanding balance on any shoots — everything is paid up.', clickKey: outstanding > 0 ? 'outstandingBalances' : null },
+      { icon: '🎯', title: 'Goal Tracking', bars: [
+        { label: 'Savings Goals Progress', percent: goalsAvgPercent, sub: `${goalsAvgPercent}% average completion` },
+        { label: 'Yearly Income Progress', percent: yearlyProgressPercent, sub: `${yearlyProgressPercent}% of ${fmtMoney(yearlyGoalIncome)} target` },
+      ] },
       { icon: '💡', title: 'Business Recommendations', text: activeClients < 3 ? 'You have relatively few active clients — try following up on leads marked "Contacted" or "Proposal Sent".' : `You have a solid client base (${activeClients} active). Keep following up on pending proposals to maintain momentum.` },
     ];
     const chartMax = Math.max(monthlyRevenue, monthTotal, 1);
@@ -1565,11 +1575,21 @@
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px">
-      ${ctx.insightCards.map(ic => `
-        <div class="card">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="color:oklch(0.55 0.14 150)">${ic.icon}</span><div class="sg" style="font-weight:700;font-size:15px">${esc(ic.title)}</div></div>
-          <div style="font-size:13.5px;line-height:1.6;color:oklch(0.32 0.015 150)">${esc(ic.text)}</div>
-        </div>`).join('')}
+      ${ctx.insightCards.map(ic => {
+        const inner = ic.bars ? `
+          <div style="display:flex;flex-direction:column;gap:14px">
+            ${ic.bars.map(b => `
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">${esc(b.label)}</span><span style="font-weight:700">${b.percent}%</span></div>
+                <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.min(100, b.percent)}%;background:oklch(0.55 0.14 150);border-radius:5px"></div></div>
+                <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:4px">${esc(b.sub)}</div>
+              </div>`).join('')}
+          </div>` : `<div style="font-size:13.5px;line-height:1.6;color:oklch(0.32 0.015 150)">${esc(ic.text)}</div>`;
+        const header = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="color:oklch(0.55 0.14 150)">${ic.icon}</span><div class="sg" style="font-weight:700;font-size:15px">${esc(ic.title)}</div></div>`;
+        return ic.clickKey
+          ? `<button type="button" data-action="chip-open" data-key="${ic.clickKey}" style="all:unset;cursor:pointer;box-sizing:border-box;display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px">${header}${inner}</button>`
+          : `<div class="card">${header}${inner}</div>`;
+      }).join('')}
     </div>`;
   }
 
