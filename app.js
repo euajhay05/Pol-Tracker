@@ -736,7 +736,6 @@
         { label: 'Savings Goals Progress', percent: goalsAvgPercent, sub: `${goalsAvgPercent}% average completion` },
         { label: 'Yearly Income Progress', percent: yearlyProgressPercent, sub: `${yearlyProgressPercent}% of ${fmtMoney(yearlyGoalIncome)} target` },
       ] },
-      { icon: '💡', title: 'Business Recommendations', text: activeClients < 3 ? 'You have relatively few active clients — try following up on leads marked "Contacted" or "Proposal Sent".' : `You have a solid client base (${activeClients} active). Keep following up on pending proposals to maintain momentum.` },
     ];
     const chartMax = Math.max(monthlyRevenue, monthTotal, 1);
 
