@@ -285,7 +285,7 @@
       financeRangeCalMonth: TODAY.getMonth(),
       financeRangeDraftFrom: null,
       financeRangeDraftTo: null,
-      ftDraft: { source: '', amount: '', date: TODAY_STR },
+      ftDraft: { sourceType: '1st', sourceOther: '', amount: '', date: TODAY_STR },
       ftDraftDatePickerOpen: false, ftDraftDateCalYear: TODAY.getFullYear(), ftDraftDateCalMonth: TODAY.getMonth(),
       ftMonthKey: THIS_MONTH_KEY,
       dashMonthKey: THIS_MONTH_KEY,
@@ -1099,7 +1099,14 @@
       <div class="card" style="margin-bottom:24px">
         <div class="card-title">Add Income</div>
         <form data-action="save-fulltime" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-          <div class="field" style="flex:2;min-width:160px"><label>Source</label><input type="text" value="${esc(state.ftDraft.source)}" data-bind="ftDraft.source" placeholder="e.g. Salary - 1st Cutoff"/></div>
+          <div class="field" style="flex:1.4;min-width:150px"><label>Source</label>
+            <select data-bind="ftDraft.sourceType">
+              <option value="1st" ${state.ftDraft.sourceType === '1st' ? 'selected' : ''}>1st Cutoff</option>
+              <option value="2nd" ${state.ftDraft.sourceType === '2nd' ? 'selected' : ''}>2nd Cutoff</option>
+              <option value="other" ${state.ftDraft.sourceType === 'other' ? 'selected' : ''}>Others</option>
+            </select>
+          </div>
+          ${state.ftDraft.sourceType === 'other' ? `<div class="field" style="flex:1.4;min-width:150px"><label>Please Specify</label><input type="text" value="${esc(state.ftDraft.sourceOther)}" data-bind="ftDraft.sourceOther" placeholder="e.g. December Bonus"/></div>` : ''}
           <div class="field" style="flex:1;min-width:110px"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(state.ftDraft.amount)}" data-bind="ftDraft.amount" placeholder="0"/></div>
           ${ftDraftDatePicker}
           <button type="submit" class="btn-primary">Add</button>
@@ -2935,10 +2942,13 @@
         setState(s => ({ expenses: [...s.expenses, entry], telegramModalOpen: false }));
       } else if (action === 'save-fulltime') {
         const d = state.ftDraft;
-        if (!d.source || !d.amount) return;
+        const source = d.sourceType === '1st' ? 'Salary - 1st Cutoff'
+          : d.sourceType === '2nd' ? 'Salary - 2nd Cutoff'
+          : (d.sourceOther || '').trim();
+        if (!source || !d.amount) return;
         const entryDate = d.date || TODAY_STR;
-        const entry = { id: 'ft' + Date.now(), source: d.source, amount: Number(d.amount) || 0, date: entryDate };
-        setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { source: '', amount: '', date: TODAY_STR }, ftMonthKey: entryDate.slice(0, 7) }));
+        const entry = { id: 'ft' + Date.now(), source, amount: Number(d.amount) || 0, date: entryDate };
+        setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { sourceType: '1st', sourceOther: '', amount: '', date: TODAY_STR }, ftMonthKey: entryDate.slice(0, 7) }));
       } else if (action === 'save-loan') {
         const d = state.loanDraft;
         const cleaned = { ...d, amount: Number(d.amount) || 0, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: Number(d.remainingBalance) || 0 };
