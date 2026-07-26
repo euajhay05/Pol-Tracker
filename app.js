@@ -230,7 +230,7 @@
     cur[keys[keys.length - 1]] = value;
     return root;
   }
-  function buildCalendarCells(year, month, shoots, selectedDate) {
+  function buildCalendarCells(year, month, shoots, selectedDate, disableFuture) {
     const firstDay = new Date(year, month, 1);
     const startWeekday = firstDay.getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -243,11 +243,12 @@
       const dayShoots = shoots.filter(s => s.date === dateStr);
       const isToday = dateStr === TODAY_STR;
       const isSelected = dateStr === selectedDate;
+      const isFuture = disableFuture && dateStr > TODAY_STR;
       cells.push({
-        dayNum: d, dateStr,
+        dayNum: d, dateStr, disabled: isFuture,
         bg: isSelected ? 'oklch(0.55 0.14 150 / 0.22)' : (isToday ? 'oklch(0 0 0 / 0.06)' : 'oklch(0.97 0.006 150)'),
         border: isSelected ? 'oklch(0.55 0.14 150 / 0.6)' : 'oklch(0 0 0 / 0.05)',
-        textColor: isToday ? 'oklch(0.6 0.15 150)' : 'oklch(0.35 0.015 150)',
+        textColor: isFuture ? 'oklch(0.75 0.01 150)' : (isToday ? 'oklch(0.6 0.15 150)' : 'oklch(0.35 0.015 150)'),
         dots: dayShoots.slice(0, 4).map(s => statusMeta(s.status).color),
       });
     }
@@ -1196,7 +1197,7 @@
 
     const ftDraftDateLabel = state.ftDraft.date ? fmtDate(state.ftDraft.date) : 'Select date';
     const ftDraftDateMonthLabel = new Date(state.ftDraftDateCalYear, state.ftDraftDateCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const ftDraftDateCells = buildCalendarCells(state.ftDraftDateCalYear, state.ftDraftDateCalMonth, [], state.ftDraft.date);
+    const ftDraftDateCells = buildCalendarCells(state.ftDraftDateCalYear, state.ftDraftDateCalMonth, [], state.ftDraft.date, true);
     const ftDraftDatePicker = `
       <div class="field" style="flex:1;min-width:130px;position:relative">
         <label>Date</label>
@@ -1217,7 +1218,7 @@
           </div>
           <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
             ${ftDraftDateCells.map(c => c.blank ? `<div></div>` : `
-              <div data-action="ftdraft-date-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
+              <div ${c.disabled ? '' : `data-action="ftdraft-date-pick" data-date="${c.dateStr}"`} style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:${c.disabled ? 'not-allowed' : 'pointer'};font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
           </div>
         </div>` : ''}
       </div>`;
@@ -3257,6 +3258,7 @@
           : d.sourceType === '2nd' ? 'Salary - 2nd Cutoff'
           : (d.sourceOther || '').trim();
         if (!source || !d.amount) { alert('Please fill in the source and amount.'); return; }
+        if (d.date && d.date > TODAY_STR) { alert('Income date cannot be in the future.'); return; }
         const entryDate = d.date || TODAY_STR;
         const entry = { id: 'ft' + Date.now(), source, amount: Number(d.amount) || 0, date: entryDate };
         setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { sourceType: '1st', sourceOther: '', amount: '', date: TODAY_STR }, financeMonthKey: entryDate.slice(0, 7) }));
