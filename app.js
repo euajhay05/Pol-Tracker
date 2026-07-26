@@ -666,7 +666,7 @@
       analysisText = `Your spending today is in the normal range (${fmtMoney(todayTotal)} vs ${fmtMoney(Math.round(avgDaily))}/day average).`;
       analysisColor = 'oklch(0.45 0.015 150)';
     }
-    const decorateExpense = (e) => ({ ...e, dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount), loggedLabel: e.createdAt ? new Date(e.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—' });
+    const decorateExpense = (e) => ({ ...e, dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) });
     const recentExpenses = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4).map(decorateExpense);
     const allExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).map(decorateExpense);
     const lastExp = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))[0] || { description: '—', amount: 0 };
@@ -1366,12 +1366,11 @@
       ${searchClear}
     </div>
     <div class="table-wrap">
-      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 1fr 32px"><div>Description</div><div>Date</div><div>Logged</div><div>Amount</div><div></div></div>
+      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 32px"><div>Description</div><div>Date</div><div>Amount</div><div></div></div>
       ${ctx.filteredExpenseRows.map(ex => `
-        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 1fr 32px">
+        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 32px">
           <div style="font-weight:600;font-size:14px">${esc(ex.description)}</div>
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${ex.dateLabel}</div>
-          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${ex.loggedLabel}</div>
           <div style="font-size:13.5px;font-weight:600">${ex.amountLabel}</div>
           <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
         </div>`).join('')}
@@ -3182,7 +3181,7 @@
       } else if (action === 'save-telegram-expense') {
         const d = state.expenseDraft;
         if (!(d.description || '').trim() || !d.amount) { alert('Please fill in what you spent on and the amount.'); return; }
-        const entry = { id: 'ex' + Date.now(), description: d.description, amount: Number(d.amount) || 0, date: d.date || TODAY_STR, createdAt: new Date().toISOString() };
+        const entry = { id: 'ex' + Date.now(), description: d.description, amount: Number(d.amount) || 0, date: d.date || TODAY_STR };
         setState(s => ({ expenses: [...s.expenses, entry], telegramModalOpen: false }));
       } else if (action === 'save-fulltime') {
         const d = state.ftDraft;
