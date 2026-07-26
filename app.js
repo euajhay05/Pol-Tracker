@@ -78,7 +78,11 @@
   }
   function fmtMoney(n) {
     n = Number(n) || 0;
-    return '₱' + n.toLocaleString('en-PH');
+    // Whole pesos display with no decimals (₱8,000); anything with centavos always shows
+    // exactly 2 decimal places (₱89,960.30) instead of the inconsistent 1-or-0 that
+    // Number.prototype.toLocaleString gives by default.
+    const hasCents = Math.round(n * 100) % 100 !== 0;
+    return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2 });
   }
   // Splits a free-text "Line Items Breakdown" field (one entry per line, e.g.
   // "Package fee - ₱10,000") into { label, amount } rows for the itemized invoice table.
