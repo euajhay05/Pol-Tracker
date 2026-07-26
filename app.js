@@ -1874,7 +1874,7 @@
         <div class="modal-fields">
           <div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan" required/></div>
           <div class="row-2">
-            <div class="field"><label>Loan Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanDraft.amount" data-fmt="money"/></div>
+            <div class="field"><label>Loan Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanDraft.amount" data-fmt="money" required/></div>
             <div class="field"><label>Remaining Balance (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.remainingBalance))}" data-bind="loanDraft.remainingBalance" data-fmt="money"/></div>
           </div>
           <div class="row-2">
@@ -2948,7 +2948,7 @@
         setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { sourceType: '1st', sourceOther: '', amount: '', date: TODAY_STR }, financeMonthKey: entryDate.slice(0, 7) }));
       } else if (action === 'save-loan') {
         const d = state.loanDraft;
-        if (!(d.lender || '').trim()) { alert('Please enter a lender / source name.'); return; }
+        if (!(d.lender || '').trim() || !d.amount) { alert('Please enter a lender / source name and a loan amount.'); return; }
         const cleaned = { ...d, amount: Number(d.amount) || 0, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: Number(d.remainingBalance) || 0 };
         setState(s => s.loanModal.mode === 'add'
           ? { loans: [...s.loans, { ...cleaned, id: 'ln' + Date.now() }], loanModal: null, loanDraft: null }
