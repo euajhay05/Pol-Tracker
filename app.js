@@ -775,7 +775,7 @@
       <div class="sg" style="font-weight:700;font-size:14px">Pol Tracker</div>
     </div>
     ${open ? `<div class="sidebar-backdrop" data-action="mobile-nav-close"></div>` : ''}
-    ${collapsed ? `<button type="button" class="sidebar-expand-btn" data-action="sidebar-toggle" title="Expand sidebar"><span></span><span></span><span></span></button>` : ''}
+    ${collapsed ? `<button type="button" class="sidebar-expand-btn" data-action="sidebar-toggle" title="Expand sidebar">pol.</button>` : ''}
     <aside class="sidebar${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}">
       <div class="logo-wrap">
         <button type="button" class="logo-hamburger" data-action="sidebar-toggle" title="Collapse sidebar"><span></span><span></span><span></span></button>
