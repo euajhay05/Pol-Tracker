@@ -712,9 +712,14 @@
     const clientRows = state.clients.map(c => {
       const lm = LEAD_STATUS_META[c.leadStatus] || LEAD_STATUS_META['New Lead'];
       const linked = shoots.filter(s => s.client.trim().toLowerCase() === c.name.trim().toLowerCase());
+      // Only leads still "in play" (not yet Booked/Client, and not Lost) count as overdue —
+      // those already have a final outcome, so a past follow-up date there is meaningless.
+      const isTentative = c.leadStatus !== 'Booked' && c.leadStatus !== 'Client' && c.leadStatus !== 'Lost';
+      const followUpOverdue = !!(isTentative && c.followUpDate && c.followUpDate < TODAY_STR);
       return {
         ...c, statusColor: lm.color, statusBg: lm.bg,
         followUpLabel: c.followUpDate ? fmtDate(c.followUpDate) : 'None set',
+        followUpOverdue,
         shootCountLabel: linked.length > 0 ? `${linked.length} shoot(s) · ${fmtMoney(linked.reduce((s, x) => s + (Number(x.package) || 0), 0))}` : 'No shoots yet',
         linkedShoots: linked,
       };
@@ -1440,7 +1445,7 @@
             <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:1px">${esc(c.email)}</div>
           </div>
           <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">${badge(c.leadStatus, c.statusColor, c.statusBg)}</div>
-          <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}"><div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${c.followUpLabel}</div></div>
+          <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}"><div style="font-size:12.5px;font-weight:${c.followUpOverdue ? '700' : '400'};color:${c.followUpOverdue ? 'oklch(0.58 0.19 25)' : 'oklch(0.45 0.015 150)'}">${c.followUpOverdue ? '⚠ ' : ''}${c.followUpLabel}</div></div>
           <button type="button" style="all:unset;cursor:pointer;font-size:11.5px;color:oklch(0.55 0.14 150);text-decoration:underline" data-action="client-view-shoots" data-id="${esc(c.id)}">${esc(c.shootCountLabel)}</button>
         </div>`).join('')}
       ${ctx.clientRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No clients match your search.</div>` : ''}
