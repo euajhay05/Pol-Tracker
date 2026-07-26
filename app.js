@@ -2047,7 +2047,7 @@
         <div class="modal-head"><div class="modal-title">${esc(l.lender)}</div><button type="button" class="modal-close" data-action="modal-close" data-which="loanpayment">✕</button></div>
         <div class="modal-fields">
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">Remaining balance: <strong>${fmtMoney(remaining)}</strong></div>
-          <div class="field"><label>Payment Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanPaymentDraft.amount" data-fmt="money" placeholder="0" autofocus/></div>
+          <div class="field"><label>Payment Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanPaymentDraft.amount" data-fmt="money" placeholder="0" autofocus required/></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button type="button" data-action="loan-payment-quick" data-amount="${l.monthlyDue}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Monthly Due (${fmtMoney(l.monthlyDue)})</button>
             <button type="button" data-action="loan-payment-quick" data-amount="${remaining}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Pay Off Full (${fmtMoney(remaining)})</button>
@@ -2150,7 +2150,7 @@
             <button type="button" data-action="goal-fund-mode" data-mode="deposit" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;background:${mode === 'deposit' ? 'oklch(0.45 0.14 150)' : 'oklch(0.91 0.012 150)'};color:${mode === 'deposit' ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">Deposit</button>
             <button type="button" data-action="goal-fund-mode" data-mode="withdraw" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;background:${mode === 'withdraw' ? 'oklch(0.58 0.19 25)' : 'oklch(0.91 0.012 150)'};color:${mode === 'withdraw' ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">Withdraw</button>
           </div>
-          <div class="field"><label>Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="goalFundDraft.amount" data-fmt="money" placeholder="0" autofocus/></div>
+          <div class="field"><label>Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="goalFundDraft.amount" data-fmt="money" placeholder="0" autofocus required/></div>
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New total: <strong>${currencySymbol}${previewCurrent.toLocaleString('en-US')}</strong></div>
         </div>
         <div class="modal-actions">
@@ -3174,7 +3174,8 @@
       } else if (action === 'save-loan-payment') {
         const pd = state.loanPaymentDraft;
         const amt = Number(pd.amount) || 0;
-        if (amt > 0 && state.loanPaymentModal) {
+        if (amt <= 0) { alert('Please enter a payment amount.'); return; }
+        if (state.loanPaymentModal) {
           const targetId = state.loanPaymentModal.id;
           setState(s => ({
             loans: s.loans.map(l => {
@@ -3184,8 +3185,6 @@
             }),
             loanPaymentModal: null, loanPaymentDraft: null,
           }));
-        } else {
-          setState({ loanPaymentModal: null, loanPaymentDraft: null });
         }
       } else if (action === 'save-goal') {
         const d = state.goalDraft;
@@ -3200,7 +3199,8 @@
       } else if (action === 'save-goal-fund') {
         const fd = state.goalFundDraft;
         const amt = Number(fd.amount) || 0;
-        if (amt > 0 && state.goalFundModal) {
+        if (amt <= 0) { alert('Please enter an amount.'); return; }
+        if (state.goalFundModal) {
           const targetId = state.goalFundModal.id;
           setState(s => {
             const g = s.goals.find(x => x.id === targetId);
@@ -3213,8 +3213,6 @@
               goalFundModal: null, goalFundDraft: null,
             };
           });
-        } else {
-          setState({ goalFundModal: null, goalFundDraft: null });
         }
       } else if (action === 'save-client') {
         const d = state.clientDraft;
