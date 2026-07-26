@@ -1115,6 +1115,11 @@
         ${ctx.ftMonthRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No income entries for ${esc(ctx.ftMonthLabel)}.</div>` : ''}
       </div>`;
 
+    const combinedRows = [
+      ...ctx.ftMonthRows.map(f => ({ date: f.date, dateLabel: f.dateLabel, source: 'Full-Time', label: f.source || 'Full-Time Income', amountLabel: f.amountLabel })),
+      ...ctx.monthShoots.filter(s => (Number(s.paid) || 0) > 0).map(s => ({ date: s.date, dateLabel: s.dateLabel, source: 'Side Hustle', label: s.client || 'Shoot', amountLabel: fmtMoney(s.paid) })),
+    ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
     const combined = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
         <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Full-Time</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div></div>
@@ -1122,7 +1127,7 @@
         <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Combined Income</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.55 0.12 175)">${fmtMoney(ctx.monthCombinedTotal)}</div></div>
         <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.outstanding)}</div></div>
       </div>
-      <div class="card">
+      <div class="card" style="margin-bottom:24px">
         <div class="card-title">Income Split</div>
         <div style="height:14px;border-radius:8px;overflow:hidden;display:flex;background:oklch(0.91 0.012 150)">
           <div style="width:${ctx.monthFullTimeSharePercent}%;background:oklch(0.55 0.12 175)"></div>
@@ -1132,6 +1137,17 @@
           <div style="display:flex;align-items:center;gap:6px;color:oklch(0.42 0.015 150)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.55 0.12 175)"></span>Full-Time (${ctx.monthFullTimeSharePercent}%)</div>
           <div style="display:flex;align-items:center;gap:6px;color:oklch(0.42 0.015 150)"><span style="width:9px;height:9px;border-radius:50%;background:oklch(0.55 0.14 150)"></span>Side Hustle (${ctx.monthSideHustleSharePercent}%)</div>
         </div>
+      </div>
+      <div class="table-wrap">
+        <div class="t-head" style="grid-template-columns:1fr 1.4fr 2fr 1fr"><div>Date</div><div>Source</div><div>Details</div><div>Amount</div></div>
+        ${combinedRows.map(r => `
+          <div class="t-row" style="grid-template-columns:1fr 1.4fr 2fr 1fr">
+            <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${r.dateLabel}</div>
+            <div><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;padding:3px 9px;border-radius:20px;background:${r.source === 'Full-Time' ? 'oklch(0.92 0.05 175)' : 'oklch(0.92 0.06 150)'};color:${r.source === 'Full-Time' ? 'oklch(0.4 0.1 175)' : 'oklch(0.4 0.13 150)'}">${r.source}</span></div>
+            <div style="font-size:13.5px;font-weight:600">${esc(r.label)}</div>
+            <div style="font-size:13.5px;font-weight:600">${r.amountLabel}</div>
+          </div>`).join('')}
+        ${combinedRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No income recorded in ${esc(ctx.financeMonthLabel)}.</div>` : ''}
       </div>`;
 
     return `
