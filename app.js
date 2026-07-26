@@ -763,6 +763,15 @@
         : (m.total > 0 ? 'oklch(0.86 0.05 150)' : 'oklch(0.93 0.01 150)'),
     }));
 
+    // "Revenue vs Expenses" card on Insights follows whichever month is currently
+    // selected in the Overview chart above it, instead of always being "this month".
+    const selMonthLabel = new Date(selectedMonthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const selMonthRevenue = (fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === selectedMonthKey).reduce((s, f) => s + (Number(f.amount) || 0), 0))
+      + (shoots.filter(s => s.date && s.date.slice(0, 7) === selectedMonthKey).reduce((s, x) => s + (Number(x.paid) || 0), 0));
+    const selMonthExpenses = expenses.filter(e => e.date && e.date.slice(0, 7) === selectedMonthKey).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const selMonthNetProfit = selMonthRevenue - selMonthExpenses;
+    const selMonthChartMax = Math.max(selMonthRevenue, selMonthExpenses, 1);
+
     return {
       view, shoots, navColor, goalCards, thisMonth, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
@@ -774,6 +783,7 @@
       monthShoots, monthSideHustleCollected, monthCombinedTotal, monthFullTimeSharePercent, monthSideHustleSharePercent,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
       overviewBars, overviewYear,
+      selMonthLabel, selMonthRevenue, selMonthExpenses, selMonthNetProfit, selMonthChartMax,
       dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
       userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
       chipModalKey, chipModalData, insightCards, chartMax,
@@ -1560,20 +1570,20 @@
       </div>
     </div>
     <div class="card" style="margin-bottom:16px">
-      <div class="card-title" style="margin-bottom:14px">Revenue vs Expenses</div>
+      <div class="card-title" style="margin-bottom:14px">Revenue vs Expenses — ${esc(ctx.selMonthLabel)}</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">Revenue</span><span style="font-weight:700">${fmtMoney(ctx.monthlyRevenue)}</span></div>
-          <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.monthlyRevenue / ctx.chartMax) * 100)}%;background:oklch(0.55 0.12 175);border-radius:5px"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">Revenue</span><span style="font-weight:700">${fmtMoney(ctx.selMonthRevenue)}</span></div>
+          <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.selMonthRevenue / ctx.selMonthChartMax) * 100)}%;background:oklch(0.55 0.12 175);border-radius:5px"></div></div>
         </div>
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">Expenses</span><span style="font-weight:700">${fmtMoney(ctx.monthTotal)}</span></div>
-          <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.monthTotal / ctx.chartMax) * 100)}%;background:oklch(0.62 0.17 45);border-radius:5px"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:oklch(0.42 0.015 150)">Expenses</span><span style="font-weight:700">${fmtMoney(ctx.selMonthExpenses)}</span></div>
+          <div style="height:10px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round((ctx.selMonthExpenses / ctx.selMonthChartMax) * 100)}%;background:oklch(0.62 0.17 45);border-radius:5px"></div></div>
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid oklch(0 0 0 / 0.06)">
         <span style="font-size:12.5px;font-weight:600;color:oklch(0.42 0.015 150)">Net Profit</span>
-        <span style="font-size:16px;font-weight:700;color:${ctx.netProfit > 0 ? 'oklch(0.45 0.14 150)' : 'oklch(0.58 0.19 25)'}">${fmtMoney(ctx.netProfit)}</span>
+        <span style="font-size:16px;font-weight:700;color:${ctx.selMonthNetProfit > 0 ? 'oklch(0.45 0.14 150)' : 'oklch(0.58 0.19 25)'}">${fmtMoney(ctx.selMonthNetProfit)}</span>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px">
