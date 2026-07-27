@@ -1794,7 +1794,7 @@
     const liveTiers = getLiveTiers(state.packageRates);
     const isCustomPackage = isRealEstate && (d.packageTier || 'custom') === 'custom';
     const isScriptedShootType = isRealEstate && d.packageTier !== 'basic' && d.packageTier !== 'standard';
-    const draftPackageAmount = (!isRealEstate || d.packageTier === 'custom')
+    const draftPackageAmount = (!isRealEstate || (d.packageTier || 'custom') === 'custom')
       ? (Number(d.package) || 0)
       : ((liveTiers.find(t => t.value === d.packageTier) || {}).price || 0);
     const draftAddons = d.addons || {};
@@ -3208,7 +3208,7 @@
         if (!(d.client || '').trim()) { alert('Please enter a client / project name.'); return; }
         const isRealEstate = d.shootType === 'Real Estate';
         const liveTiers = getLiveTiers(state.packageRates);
-        const packageAmount = (!isRealEstate || d.packageTier === 'custom')
+        const packageAmount = (!isRealEstate || (d.packageTier || 'custom') === 'custom')
           ? (Number(d.package) || 0)
           : ((liveTiers.find(t => t.value === d.packageTier) || {}).price || 0);
         const addons = d.addons || {};
