@@ -74,7 +74,7 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
   function formatInvoiceNumber(n) {
-    return `INV-${TODAY_STR.slice(0, 4)}-${String(n).padStart(3, '0')}`;
+    return `SOA-${TODAY_STR.slice(0, 4)}-${String(n).padStart(3, '0')}`;
   }
   function fmtMoney(n) {
     n = Number(n) || 0;
@@ -1569,7 +1569,7 @@
         ${isInvoice ? `
         <div style="border-top:1px solid oklch(0 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
           <div class="row-2">
-            <div class="field"><label>Reference Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
+            <div class="field"><label>Reference Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. SOA-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
             ${docDuePicker}
           </div>
           <div class="field"><label>Line Items Breakdown</label><textarea rows="3" data-bind="docDraft.lineItems" placeholder="One item per line, e.g.&#10;Package fee - ₱10,000&#10;Transport - ₱1,000">${esc(d.lineItems)}</textarea><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Press Enter for a new item — each line becomes its own row in the invoice table.</div></div>
