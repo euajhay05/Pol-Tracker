@@ -3177,6 +3177,12 @@
       }
       const special = el.dataset.special;
       if (special) { applySpecialSideEffect(special, el.value); render(); return; }
+      // Text inputs with data-fmt (money, autocomplete) are already kept fully in sync by the
+      // 'input' listener above on every keystroke, including sanitizing money values (stripping
+      // commas) before storing them. If we also re-apply here on 'change' (which fires on blur —
+      // e.g. the instant "Save Changes" is clicked), we'd overwrite that clean value with the
+      // raw, comma-formatted display text, turning "11,000" into NaN/0 right before submit.
+      if (el.dataset.fmt) return;
       const bind = el.dataset.bind;
       if (bind) { applyBind(bind, el.value); render(); }
     });
