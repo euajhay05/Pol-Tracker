@@ -2339,11 +2339,22 @@
     if (!sh) return;
     const calBase = new Date((sh.date || TODAY_STR) + 'T00:00:00');
     const deadlineCalBase = new Date((sh.deadline || sh.date || TODAY_STR) + 'T00:00:00');
+    // The stored "package" on a Real-Estate/Custom shoot is the GRAND TOTAL — base custom
+    // amount plus add-ons already baked in (save-shoot always does packageAmount + addonsTotal).
+    // But the "Custom Package Amount" field is meant to hold just the base amount — pre-filling
+    // it with the full total would double-count the add-ons the next time this shoot is saved.
+    const isCustomRealEstate = sh.shootType === 'Real Estate' && (sh.packageTier || 'custom') === 'custom';
+    let basePackage = sh.package;
+    if (isCustomRealEstate) {
+      const shAddons = sh.addons || {};
+      const shAddonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (shAddons[ad.key] || 0) * ad.price, 0);
+      basePackage = Math.max(0, (Number(sh.package) || 0) - shAddonsTotal);
+    }
     setState({
       modal: { mode: 'edit', id }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: deadlineCalBase.getFullYear(), shootDeadlineCalMonth: deadlineCalBase.getMonth(),
-      draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh },
+      draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh, package: basePackage },
     });
   }
   function openEditLoan(id) {
