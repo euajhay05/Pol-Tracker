@@ -55,7 +55,7 @@
   const DOC_TYPE_META = {
     contract:  { title: 'Service Agreement / Contract', body: (d, mf = fmtMoney) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", to be delivered on ${d.date || '[Date]'} for a total contract value of ${mf(d.amount)}.` },
     quotation: { title: 'Quotation / Proposal',          body: (d, mf = fmtMoney) => `Quotation prepared for ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}". Proposed rate: ${mf(d.amount)}. Valid until ${d.date || '[Date]'}.` },
-    invoice:   { title: 'Billing Invoice',                body: (d, mf = fmtMoney) => `Invoice billed to ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}. Amount due: ${mf(d.amount)}.` },
+    invoice:   { title: 'Statement of Account',           body: (d, mf = fmtMoney) => `Invoice billed to ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}. Amount due: ${mf(d.amount)}.` },
   };
 
   function todayStr() {
@@ -1569,7 +1569,7 @@
         ${isInvoice ? `
         <div style="border-top:1px solid oklch(0 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
           <div class="row-2">
-            <div class="field"><label>Invoice Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
+            <div class="field"><label>Reference Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. INV-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
             ${docDuePicker}
           </div>
           <div class="field"><label>Line Items Breakdown</label><textarea rows="3" data-bind="docDraft.lineItems" placeholder="One item per line, e.g.&#10;Package fee - ₱10,000&#10;Transport - ₱1,000">${esc(d.lineItems)}</textarea><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Press Enter for a new item — each line becomes its own row in the invoice table.</div></div>
@@ -1592,7 +1592,7 @@
           <div style="text-align:right">
             <div class="sg" style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.02em">${esc(meta.title)}</div>
             <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:3px">Pol Film Productions</div>
-            ${isInvoice ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:2px">Invoice No. ${esc(d.invoiceNumber)}</div>` : ''}
+            ${isInvoice ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:2px">Reference No. ${esc(d.invoiceNumber)}</div>` : ''}
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
@@ -2792,7 +2792,7 @@
     doc.text(meta.title.toUpperCase(), rightX, badgeY + 16, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY);
     doc.text('Pol Film Productions', rightX, badgeY + 30, { align: 'right' });
-    if (isInvoice) doc.text(`Invoice No. ${d.invoiceNumber || '—'}`, rightX, badgeY + 43, { align: 'right' });
+    if (isInvoice) doc.text(`Reference No. ${d.invoiceNumber || '—'}`, rightX, badgeY + 43, { align: 'right' });
 
     y = badgeY + badgeSize + 28;
 
