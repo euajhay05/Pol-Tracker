@@ -138,6 +138,11 @@
     const d = new Date(dstr + 'T00:00:00');
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
+  function fmtDateShortYear(dstr) {
+    if (!dstr) return '—';
+    const d = new Date(dstr + 'T00:00:00');
+    return isNaN(d) ? dstr : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
   function fmtTime(tstr) {
     if (!tstr) return 'TBD';
     const [h, m] = tstr.split(':').map(Number);
@@ -1597,11 +1602,11 @@
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
           ${isInvoice ? `
-            <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Issue Date</div><div style="font-size:12.5px;font-weight:700">${fmtDate(d.date)}</div></div>
-            <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Due Date</div><div style="font-size:12.5px;font-weight:700">${fmtDate(d.dueDate)}</div></div>
+            <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Issue Date</div><div style="font-size:12.5px;font-weight:700">${fmtDateShortYear(d.date)}</div></div>
+            <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Due Date</div><div style="font-size:12.5px;font-weight:700">${fmtDateShortYear(d.dueDate)}</div></div>
             <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Payment Status</div><div style="font-size:12.5px;font-weight:700;color:${paymentStatusColor}">${esc((d.paymentStatus || 'Unpaid').toUpperCase())}</div></div>
           ` : `
-            <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Issue Date</div><div style="font-size:12.5px;font-weight:700">${fmtDate(d.date)}</div></div>
+            <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Issue Date</div><div style="font-size:12.5px;font-weight:700">${fmtDateShortYear(d.date)}</div></div>
             <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Project / Service</div><div style="font-size:12.5px;font-weight:700">${esc(d.description) || '—'}</div></div>
             <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Document Type</div><div style="font-size:12.5px;font-weight:700">${docType === 'quotation' ? 'Quotation' : 'Contract'}</div></div>
           `}
@@ -2817,11 +2822,11 @@
     };
     if (isInvoice) {
       const statusColor = d.paymentStatus === 'Paid' ? BRAND : d.paymentStatus === 'Partial' ? [180, 130, 20] : [180, 45, 40];
-      metaField('ISSUE DATE', fmtDateLong(d.date), 0);
-      metaField('DUE DATE', fmtDateLong(d.dueDate), metaColW);
+      metaField('ISSUE DATE', fmtDateShortYear(d.date), 0);
+      metaField('DUE DATE', fmtDateShortYear(d.dueDate), metaColW);
       metaField('PAYMENT STATUS', (d.paymentStatus || 'Unpaid').toUpperCase(), metaColW * 2, statusColor);
     } else {
-      metaField('ISSUE DATE', fmtDateLong(d.date), 0);
+      metaField('ISSUE DATE', fmtDateShortYear(d.date), 0);
       metaField('PROJECT / SERVICE', truncate(sanitizePeso(d.description) || '—', metaColW - 16), metaColW);
       metaField('DOCUMENT TYPE', docType === 'quotation' ? 'Quotation' : 'Contract', metaColW * 2);
     }
