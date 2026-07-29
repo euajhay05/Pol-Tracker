@@ -2528,25 +2528,43 @@
         break;
       }
 
+      // The top month picker, the big calendar below it, and the Monthly Report chart used to
+      // track three separate month/year values — switching one didn't move the others, so the
+      // calendar could silently be showing a totally different month than the picker said.
+      // They now all move together through this one helper.
       case 'expenses-month-prev': setState(s => {
         const [y, m] = (s.expensesMonthKey || THIS_MONTH_KEY).split('-').map(Number);
         const d = new Date(y, m - 2, 1);
-        return { expensesMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
+        const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return { expensesMonthKey: mk, expensesDayCalYear: d.getFullYear(), expensesDayCalMonth: d.getMonth(), expensesReportSelectedMonth: mk };
       }); break;
       case 'expenses-month-next': setState(s => {
         const [y, m] = (s.expensesMonthKey || THIS_MONTH_KEY).split('-').map(Number);
         const d = new Date(y, m, 1);
-        return { expensesMonthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` };
+        const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return { expensesMonthKey: mk, expensesDayCalYear: d.getFullYear(), expensesDayCalMonth: d.getMonth(), expensesReportSelectedMonth: mk };
       }); break;
-      case 'expenses-month-today': setState({ expensesMonthKey: THIS_MONTH_KEY }); break;
+      case 'expenses-month-today': setState({ expensesMonthKey: THIS_MONTH_KEY, expensesDayCalYear: TODAY.getFullYear(), expensesDayCalMonth: TODAY.getMonth(), expensesReportSelectedMonth: THIS_MONTH_KEY }); break;
 
       case 'expenses-day-today': setState({ expensesSelectedDate: TODAY_STR }); break;
       case 'expenses-list-toggle': setState(s => ({ expensesListOpen: !s.expensesListOpen })); break;
-      case 'expenses-day-cal-prev': setState(s => { let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
-      case 'expenses-day-cal-next': setState(s => { let m = s.expensesDayCalMonth + 1, y = s.expensesDayCalYear; if (m > 11) { m = 0; y++; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
+      case 'expenses-day-cal-prev': setState(s => {
+        let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; }
+        const mk = `${y}-${String(m + 1).padStart(2, '0')}`;
+        return { expensesDayCalMonth: m, expensesDayCalYear: y, expensesMonthKey: mk, expensesReportSelectedMonth: mk };
+      }); break;
+      case 'expenses-day-cal-next': setState(s => {
+        let m = s.expensesDayCalMonth + 1, y = s.expensesDayCalYear; if (m > 11) { m = 0; y++; }
+        const mk = `${y}-${String(m + 1).padStart(2, '0')}`;
+        return { expensesDayCalMonth: m, expensesDayCalYear: y, expensesMonthKey: mk, expensesReportSelectedMonth: mk };
+      }); break;
       case 'expenses-report-year-prev': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) - 1 })); break;
       case 'expenses-report-year-next': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) + 1 })); break;
-      case 'expenses-report-month-pick': setState({ expensesMonthKey: el.dataset.month, expensesReportSelectedMonth: el.dataset.month }); break;
+      case 'expenses-report-month-pick': {
+        const [y, m] = el.dataset.month.split('-').map(Number);
+        setState({ expensesMonthKey: el.dataset.month, expensesReportSelectedMonth: el.dataset.month, expensesDayCalYear: y, expensesDayCalMonth: m - 1 });
+        break;
+      }
       case 'expenses-report-export': {
         // One row per actual expense (not just per-month totals) so the file shows exactly
         // what was spent that month, with a subtotal after each month for quick scanning.
