@@ -392,6 +392,7 @@
       dashMonthKey: THIS_MONTH_KEY,
       modal: null,
       draft: null,
+      draftDateLocked: false,
       shootAddonsOpen: false,
       shootConfirmCloseOpen: false,
       shootDatePickerOpen: false,
@@ -1936,10 +1937,15 @@
           <div class="row-2">
             <div class="field" style="position:relative">
               <label>Date</label>
+              ${state.draftDateLocked ? `
+              <div style="width:100%;box-sizing:border-box;background:var(--card2);border:1px solid var(--border2);border-radius:9px;padding:10px 12px;color:oklch(0.4 0.02 150);font-size:14px;display:flex;align-items:center;justify-content:space-between">
+                <span>${shootDateDisplayLabel}</span>
+                <span data-action="shoot-date-unlock" style="cursor:pointer;font-size:11px;font-weight:600;color:oklch(0.45 0.14 150);text-decoration:underline">Change</span>
+              </div>` : `
               <button type="button" data-action="date-picker-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
                 <span>${shootDateDisplayLabel}</span>
-              </button>
-              ${state.shootDatePickerOpen ? `
+              </button>`}
+              ${!state.draftDateLocked && state.shootDatePickerOpen ? `
               <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
                   <div class="sg" style="font-weight:700;font-size:15px">${pickerMonthLabel}</div>
@@ -2401,13 +2407,14 @@
 
   /* ---------------- actions ---------------- */
 
-  function openAddShoot(presetDate) {
+  function openAddShoot(presetDate, lockDate) {
     const initialDate = presetDate || TODAY_STR;
     const calBase = new Date(initialDate + 'T00:00:00');
     setState({
       modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: calBase.getFullYear(), shootDeadlineCalMonth: calBase.getMonth(),
+      draftDateLocked: !!lockDate,
       draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
     });
   }
@@ -2431,6 +2438,7 @@
       modal: { mode: 'edit', id }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: deadlineCalBase.getFullYear(), shootDeadlineCalMonth: deadlineCalBase.getMonth(),
+      draftDateLocked: false,
       draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh, package: basePackage },
     });
   }
@@ -2476,7 +2484,7 @@
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
 
       case 'shoot-add-open': openAddShoot(); break;
-      case 'shoot-add-open-for-date': openAddShoot(state.selectedDate); break;
+      case 'shoot-add-open-for-date': openAddShoot(state.selectedDate, true); break;
       case 'shoot-edit': openEditShoot(id); break;
       case 'shoot-delete':
         if (!confirm(`Are you sure you want to delete the shoot "${state.draft.client || 'this shoot'}"? This cannot be undone.`)) break;
@@ -2489,6 +2497,7 @@
       case 'shoot-addon-toggle': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) > 0 ? 0 : 1 } } })); break;
       case 'shoot-milestone-pick': setState(s => ({ draft: { ...s.draft, paid: Number(el.dataset.amount) || 0 } })); break;
       case 'date-picker-toggle': setState(s => ({ shootDatePickerOpen: !s.shootDatePickerOpen, timePickerOpen: false })); break;
+      case 'shoot-date-unlock': setState({ draftDateLocked: false }); break;
       case 'time-picker-toggle': setState(s => ({ timePickerOpen: !s.timePickerOpen, shootDatePickerOpen: false })); break;
       case 'shoot-date-cal-prev': setState(s => { let m = s.shootDateCalMonth - 1, y = s.shootDateCalYear; if (m < 0) { m = 11; y--; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
       case 'shoot-date-cal-next': setState(s => { let m = s.shootDateCalMonth + 1, y = s.shootDateCalYear; if (m > 11) { m = 0; y++; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
