@@ -255,7 +255,10 @@
         bg: isSelected ? 'oklch(0.55 0.14 150 / 0.22)' : (isToday ? 'oklch(0 0 0 / 0.06)' : 'oklch(0.97 0.006 150)'),
         border: isSelected ? 'oklch(0.55 0.14 150 / 0.6)' : 'oklch(0 0 0 / 0.05)',
         textColor: isFuture ? 'oklch(0.75 0.01 150)' : (isToday ? 'oklch(0.6 0.15 150)' : 'oklch(0.35 0.015 150)'),
-        dots: dayShoots.slice(0, 4).map(s => statusMeta(s.status).color),
+        // Shown directly on the cell instead of status dots — client name + location, so you
+        // can tell what's booked that day without needing to click into the side panel first.
+        shootItems: dayShoots.slice(0, 2).map(s => ({ client: s.client || 'Untitled', location: s.location || '', color: statusMeta(s.status).color })),
+        extraShootCount: Math.max(0, dayShoots.length - 2),
       });
     }
     return cells;
@@ -1137,10 +1140,15 @@
           <div class="cal-grid">
             ${ctx.calendarCells.map(c => c.blank
               ? `<div></div>`
-              : `<div class="cal-cell" style="background:${c.bg};border:1px solid ${c.border}" data-action="cal-select" data-date="${c.dateStr}">
+              : `<div class="cal-cell" style="background:${c.bg};border:1px solid ${c.border};align-items:stretch;text-align:left;overflow:hidden" data-action="cal-select" data-date="${c.dateStr}">
                   <div style="font-size:12px;font-weight:600;color:${c.textColor}">${c.dayNum}</div>
-                  <div style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center">
-                    ${c.dots.map(color => `<div style="width:5px;height:5px;border-radius:50%;background:${color}"></div>`).join('')}
+                  <div style="display:flex;flex-direction:column;gap:2px;overflow:hidden">
+                    ${c.shootItems.map(si => `
+                      <div style="font-size:9px;line-height:1.25;overflow:hidden">
+                        <div style="font-weight:700;color:${si.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(si.client)}</div>
+                        ${si.location ? `<div style="color:oklch(0.55 0.015 150);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(si.location)}</div>` : ''}
+                      </div>`).join('')}
+                    ${c.extraShootCount > 0 ? `<div style="font-size:9px;font-weight:700;color:oklch(0.5 0.015 150)">+${c.extraShootCount} more</div>` : ''}
                   </div>
                 </div>`).join('')}
           </div>
