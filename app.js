@@ -42,6 +42,7 @@
   const USD_TO_PHP = 58;
   const SHOOT_TYPES = ['Real Estate', 'General Project'];
   const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const LEAD_STATUSES = ['New Lead', 'Contacted', 'Proposal Sent', 'Booked', 'Client', 'Lost'];
   const LEAD_STATUS_META = {
     'New Lead':      { color: 'oklch(0.5 0.16 235)',  bg: 'oklch(0.55 0.15 235 / 0.16)' },
@@ -405,6 +406,7 @@
       expensesDayCalYear: TODAY.getFullYear(),
       expensesDayCalMonth: TODAY.getMonth(),
       expensesReportYear: TODAY.getFullYear(),
+      expensesReportSelectedMonth: THIS_MONTH_KEY,
       loanModal: null,
       loanDraft: null,
       loanPaymentModal: null,
@@ -673,19 +675,31 @@
     const expensesCalMonthLabel = new Date(state.expensesDayCalYear, state.expensesDayCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const expensesCalCells = buildExpenseCalendarCells(state.expensesDayCalYear, state.expensesDayCalMonth, expenses, expensesSelectedDate);
 
-    // Simple per-month total list for a given year — a quick "monthly report" view, separate
-    // from the day-level calendar above, so Pol can see the whole year's spending at a glance.
+    // Per-month bar chart for a given year — a quick "monthly report" view, separate from the
+    // day-level calendar above, so Pol can see the whole year's spending pattern at a glance.
     const expensesReportYear = state.expensesReportYear || TODAY.getFullYear();
-    const expensesReportMonths = Array.from({ length: 12 }, (_, i) => {
+    const expensesReportSelectedMonth = state.expensesReportSelectedMonth || THIS_MONTH_KEY;
+    const expensesReportMonthsRaw = Array.from({ length: 12 }, (_, i) => {
       const mk = `${expensesReportYear}-${String(i + 1).padStart(2, '0')}`;
       const total = expenses.filter(e => e.date && e.date.slice(0, 7) === mk).reduce((s, e) => s + (Number(e.amount) || 0), 0);
       return {
         monthKey: mk,
         monthLabel: new Date(expensesReportYear, i, 1).toLocaleDateString('en-US', { month: 'long' }),
-        total, totalLabel: fmtMoney(total),
+        shortLabel: MONTH_SHORT_LABELS[i],
+        total,
         isCurrentMonth: mk === THIS_MONTH_KEY,
+        isSelected: mk === expensesReportSelectedMonth,
       };
     });
+    const maxExpensesReportMonth = Math.max(...expensesReportMonthsRaw.map(m => m.total), 1);
+    const expensesReportMonths = expensesReportMonthsRaw.map(m => ({
+      ...m,
+      totalLabel: fmtMoney(m.total),
+      heightPx: m.total > 0 ? Math.max(6, Math.round((m.total / maxExpensesReportMonth) * 130)) : 4,
+      fill: m.isSelected
+        ? 'linear-gradient(180deg, oklch(0.65 0.18 30), oklch(0.5 0.18 25))'
+        : (m.total > 0 ? 'oklch(0.88 0.05 25)' : 'oklch(0.93 0.01 150)'),
+    }));
     const expensesReportYearTotal = expensesReportMonths.reduce((s, m) => s + m.total, 0);
 
     const monthLabel = new Date(state.calendarYear, state.calendarMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -815,7 +829,6 @@
 
     // Overview chart: combined earnings (full-time + side hustle collected) per month,
     // for the currently-selected year, shown as a 12-bar chart on the Insights page.
-    const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const overviewYear = state.insightsChartYear || TODAY.getFullYear();
     const selectedMonthKey = state.insightsChartSelectedMonth || THIS_MONTH_KEY;
     const earningsByMonth = MONTH_SHORT_LABELS.map((label, i) => {
@@ -1385,22 +1398,26 @@
       ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in ${esc(ctx.expensesMonthLabel)}.</div>` : ''}
     </div>
     <div class="card" style="margin-top:24px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="card-title" style="margin-bottom:0">Monthly Report</div>
         <div style="display:flex;align-items:center;gap:10px">
-          <button type="button" class="btn-ghost" style="padding:4px 8px;border-radius:8px;font-size:14px" data-action="expenses-report-year-prev">‹</button>
-          <div class="sg" style="font-weight:700;font-size:14px;min-width:44px;text-align:center">${ctx.expensesReportYear}</div>
-          <button type="button" class="btn-ghost" style="padding:4px 8px;border-radius:8px;font-size:14px" data-action="expenses-report-year-next">›</button>
+          <div style="display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:10px;padding:6px 10px">
+            <button type="button" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px" data-action="expenses-report-year-prev">‹</button>
+            <div class="sg" style="font-weight:700;font-size:12.5px;min-width:34px;text-align:center">${ctx.expensesReportYear}</div>
+            <button type="button" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px" data-action="expenses-report-year-next">›</button>
+          </div>
+          <button type="button" class="btn-telegram" style="padding:7px 12px;font-size:12px" data-action="expenses-report-export" title="Download this year's monthly totals as a CSV">⬇ Export</button>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:150px;padding:0 2px">
         ${ctx.expensesReportMonths.map(m => `
-          <button type="button" data-action="expenses-report-month-pick" data-month="${m.monthKey}" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:10px 8px;border-radius:8px;background:${m.isCurrentMonth ? 'oklch(0.55 0.14 150 / 0.1)' : 'transparent'}">
-            <div style="font-size:13.5px;font-weight:${m.isCurrentMonth ? '700' : '500'};color:${m.isCurrentMonth ? 'oklch(0.4 0.13 150)' : 'oklch(0.3 0.02 150)'}">${m.monthLabel}${m.isCurrentMonth ? ' · This Month' : ''}</div>
-            <div style="font-size:13.5px;font-weight:700;color:${m.total > 0 ? 'oklch(0.3 0.02 150)' : 'oklch(0.6 0.015 150)'}">${m.totalLabel}</div>
+          <button type="button" data-action="expenses-report-month-pick" data-month="${m.monthKey}" title="${esc(m.monthLabel)} ${ctx.expensesReportYear}: ${m.totalLabel}" style="all:unset;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative;cursor:pointer">
+            ${m.isSelected ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.5 0.18 25);color:oklch(1 0 0);font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap">${m.totalLabel}</div>` : ''}
+            <div style="width:60%;height:${m.heightPx}px;border-radius:6px 6px 0 0;background:${m.fill};flex:none"></div>
+            <div style="font-size:11px;font-weight:600;color:${m.isSelected ? 'oklch(0.5 0.18 25)' : (m.isCurrentMonth ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)')}">${m.shortLabel}</div>
           </button>`).join('')}
       </div>
-      <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:14px;border-top:1px solid var(--border2)">
+      <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--border2)">
         <div style="font-size:13px;font-weight:700;color:oklch(0.35 0.02 150)">Total for ${ctx.expensesReportYear}</div>
         <div class="sg" style="font-size:15px;font-weight:700">${fmtMoney(ctx.expensesReportYearTotal)}</div>
       </div>
@@ -2527,7 +2544,18 @@
       case 'expenses-day-cal-next': setState(s => { let m = s.expensesDayCalMonth + 1, y = s.expensesDayCalYear; if (m > 11) { m = 0; y++; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
       case 'expenses-report-year-prev': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) - 1 })); break;
       case 'expenses-report-year-next': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) + 1 })); break;
-      case 'expenses-report-month-pick': setState({ expensesMonthKey: el.dataset.month }); break;
+      case 'expenses-report-month-pick': setState({ expensesMonthKey: el.dataset.month, expensesReportSelectedMonth: el.dataset.month }); break;
+      case 'expenses-report-export': {
+        const year = state.expensesReportYear || TODAY.getFullYear();
+        const rows = [['Month', 'Total Spent (PHP)']];
+        for (let i = 0; i < 12; i++) {
+          const mk = `${year}-${String(i + 1).padStart(2, '0')}`;
+          const total = state.expenses.filter(e => e.date && e.date.slice(0, 7) === mk).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+          rows.push([MONTH_SHORT_LABELS[i] + ' ' + year, total]);
+        }
+        downloadCSV(`pol-tracker-monthly-expense-report-${year}.csv`, rows.map(r => r.map(csvCell)));
+        break;
+      }
       case 'expenses-day-pick': setState({ expensesSelectedDate: el.dataset.date }); break;
 
       case 'export-data-csv': {
