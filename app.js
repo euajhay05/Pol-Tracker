@@ -255,8 +255,11 @@
         bg: isSelected ? 'oklch(0.55 0.14 150 / 0.22)' : (isToday ? 'oklch(0 0 0 / 0.06)' : 'oklch(0.97 0.006 150)'),
         border: isSelected ? 'oklch(0.55 0.14 150 / 0.6)' : 'oklch(0 0 0 / 0.05)',
         textColor: isFuture ? 'oklch(0.75 0.01 150)' : (isToday ? 'oklch(0.6 0.15 150)' : 'oklch(0.35 0.015 150)'),
-        // Shown directly on the cell instead of status dots — client name + location, so you
-        // can tell what's booked that day without needing to click into the side panel first.
+        // Two representations of the same day's shoots: `dots` (small colored dots) is still
+        // used by the compact date-picker popover inside the Shoot modal, where there's no room
+        // for text. `shootItems`/`extraShootCount` (client name + location) is used by the big
+        // Shoots-page calendar, which has room to show real details instead of just dots.
+        dots: dayShoots.slice(0, 4).map(s => statusMeta(s.status).color),
         shootItems: dayShoots.slice(0, 2).map(s => ({ client: s.client || 'Untitled', location: s.location || '', color: statusMeta(s.status).color })),
         extraShootCount: Math.max(0, dayShoots.length - 2),
       });
