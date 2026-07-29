@@ -1493,17 +1493,15 @@
       ${searchClear}
     </div>
     <div class="table-wrap">
-      <div class="t-head" style="grid-template-columns:1.6fr 1.2fr 1fr 1fr 0.6fr"><div>Name</div><div>Contact</div><div>Status</div><div>Follow-up</div><div></div></div>
+      <div class="t-head" style="grid-template-columns:1.8fr 1.4fr 1fr"><div>Name</div><div>Contact</div><div>Status</div></div>
       ${ctx.clientRows.map(c => `
-        <div class="t-row" style="grid-template-columns:1.6fr 1.2fr 1fr 1fr 0.6fr">
-          <div style="font-weight:600;font-size:14px;cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">${esc(c.name)}</div>
-          <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">
+        <div class="t-row" style="grid-template-columns:1.8fr 1.4fr 1fr;cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">
+          <div style="font-weight:600;font-size:14px">${esc(c.name)}</div>
+          <div>
             <div style="font-size:12.5px;color:oklch(0.4 0.015 150)">${esc(c.phone)}</div>
             <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:1px">${esc(c.email)}</div>
           </div>
-          <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}">${badge(c.leadStatus, c.statusColor, c.statusBg)}</div>
-          <div style="cursor:pointer" data-action="client-edit" data-id="${esc(c.id)}"><div style="font-size:12.5px;font-weight:${c.followUpOverdue ? '700' : '400'};color:${c.followUpOverdue ? 'oklch(0.58 0.19 25)' : 'oklch(0.45 0.015 150)'}">${c.followUpOverdue ? '⚠ ' : ''}${c.followUpLabel}</div></div>
-          <button type="button" style="all:unset;cursor:pointer;font-size:11.5px;color:oklch(0.55 0.14 150);text-decoration:underline" data-action="client-view-shoots" data-id="${esc(c.id)}">${esc(c.shootCountLabel)}</button>
+          <div>${badge(c.leadStatus, c.statusColor, c.statusBg)}</div>
         </div>`).join('')}
       ${ctx.clientRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No clients match your search.</div>` : ''}
     </div>`;
