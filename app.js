@@ -404,6 +404,7 @@
       expensesSelectedDate: TODAY_STR,
       expensesDayCalYear: TODAY.getFullYear(),
       expensesDayCalMonth: TODAY.getMonth(),
+      expensesReportYear: TODAY.getFullYear(),
       loanModal: null,
       loanDraft: null,
       loanPaymentModal: null,
@@ -672,6 +673,21 @@
     const expensesCalMonthLabel = new Date(state.expensesDayCalYear, state.expensesDayCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const expensesCalCells = buildExpenseCalendarCells(state.expensesDayCalYear, state.expensesDayCalMonth, expenses, expensesSelectedDate);
 
+    // Simple per-month total list for a given year — a quick "monthly report" view, separate
+    // from the day-level calendar above, so Pol can see the whole year's spending at a glance.
+    const expensesReportYear = state.expensesReportYear || TODAY.getFullYear();
+    const expensesReportMonths = Array.from({ length: 12 }, (_, i) => {
+      const mk = `${expensesReportYear}-${String(i + 1).padStart(2, '0')}`;
+      const total = expenses.filter(e => e.date && e.date.slice(0, 7) === mk).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      return {
+        monthKey: mk,
+        monthLabel: new Date(expensesReportYear, i, 1).toLocaleDateString('en-US', { month: 'long' }),
+        total, totalLabel: fmtMoney(total),
+        isCurrentMonth: mk === THIS_MONTH_KEY,
+      };
+    });
+    const expensesReportYearTotal = expensesReportMonths.reduce((s, m) => s + m.total, 0);
+
     const monthLabel = new Date(state.calendarYear, state.calendarMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const calendarCells = buildCalendarCells(state.calendarYear, state.calendarMonth, shoots, state.selectedDate);
     const selectedDateShoots = shoots.filter(s => s.date === state.selectedDate);
@@ -859,6 +875,7 @@
       expensesMonthKey, expensesMonthLabel, monthExpensesTotal,
       expensesSelectedDate, expensesSelectedDayLabel, expensesSelectedDayTotal, expensesSelectedDayRows,
       expensesCalMonthLabel, expensesCalCells,
+      expensesReportYear, expensesReportMonths, expensesReportYearTotal,
       totalFullTime, monthFullTime, fullTimeRows, combinedTotal, fullTimeSharePercent, sideHustleSharePercent,
       financeMonthKey, financeMonthLabel, ftMonthTotal, ftMonthRows,
       monthShoots, monthSideHustleCollected, monthCombinedTotal, monthFullTimeSharePercent, monthSideHustleSharePercent,
@@ -1366,6 +1383,27 @@
           <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
         </div>`).join('')}
       ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in ${esc(ctx.expensesMonthLabel)}.</div>` : ''}
+    </div>
+    <div class="card" style="margin-top:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">Monthly Report</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button type="button" class="btn-ghost" style="padding:4px 8px;border-radius:8px;font-size:14px" data-action="expenses-report-year-prev">‹</button>
+          <div class="sg" style="font-weight:700;font-size:14px;min-width:44px;text-align:center">${ctx.expensesReportYear}</div>
+          <button type="button" class="btn-ghost" style="padding:4px 8px;border-radius:8px;font-size:14px" data-action="expenses-report-year-next">›</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        ${ctx.expensesReportMonths.map(m => `
+          <button type="button" data-action="expenses-report-month-pick" data-month="${m.monthKey}" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:10px 8px;border-radius:8px;background:${m.isCurrentMonth ? 'oklch(0.55 0.14 150 / 0.1)' : 'transparent'}">
+            <div style="font-size:13.5px;font-weight:${m.isCurrentMonth ? '700' : '500'};color:${m.isCurrentMonth ? 'oklch(0.4 0.13 150)' : 'oklch(0.3 0.02 150)'}">${m.monthLabel}${m.isCurrentMonth ? ' · This Month' : ''}</div>
+            <div style="font-size:13.5px;font-weight:700;color:${m.total > 0 ? 'oklch(0.3 0.02 150)' : 'oklch(0.6 0.015 150)'}">${m.totalLabel}</div>
+          </button>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:14px;border-top:1px solid var(--border2)">
+        <div style="font-size:13px;font-weight:700;color:oklch(0.35 0.02 150)">Total for ${ctx.expensesReportYear}</div>
+        <div class="sg" style="font-size:15px;font-weight:700">${fmtMoney(ctx.expensesReportYearTotal)}</div>
+      </div>
     </div>`;
   }
 
@@ -2487,6 +2525,9 @@
       case 'expenses-day-today': setState({ expensesSelectedDate: TODAY_STR }); break;
       case 'expenses-day-cal-prev': setState(s => { let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
       case 'expenses-day-cal-next': setState(s => { let m = s.expensesDayCalMonth + 1, y = s.expensesDayCalYear; if (m > 11) { m = 0; y++; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
+      case 'expenses-report-year-prev': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) - 1 })); break;
+      case 'expenses-report-year-next': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) + 1 })); break;
+      case 'expenses-report-month-pick': setState({ expensesMonthKey: el.dataset.month }); break;
       case 'expenses-day-pick': setState({ expensesSelectedDate: el.dataset.date }); break;
 
       case 'export-data-csv': {
