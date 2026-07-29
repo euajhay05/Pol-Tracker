@@ -1376,6 +1376,7 @@
       <div><div class="page-title sg">Expenses</div><div class="page-sub">Everything you've spent, logged via Telegram or manually</div></div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         ${expensesMonthPicker}
+        <button type="button" class="btn-ghost" style="padding:9px 14px;border-radius:9px;background:var(--card2);font-size:13px;font-weight:600;color:oklch(0.35 0.02 150)" data-action="expenses-report-export" title="Download the year's itemized expenses as a CSV">⬇ Export</button>
         <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
@@ -1403,13 +1404,10 @@
     <div class="card" style="margin-top:24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="card-title" style="margin-bottom:0">Monthly Report</div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:10px;padding:6px 10px">
-            <button type="button" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px" data-action="expenses-report-year-prev">‹</button>
-            <div class="sg" style="font-weight:700;font-size:12.5px;min-width:34px;text-align:center">${ctx.expensesReportYear}</div>
-            <button type="button" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px" data-action="expenses-report-year-next">›</button>
-          </div>
-          <button type="button" class="btn-telegram" style="padding:7px 12px;font-size:12px" data-action="expenses-report-export" title="Download this year's monthly totals as a CSV">⬇ Export</button>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:10px;padding:6px 10px">
+          <button type="button" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px" data-action="expenses-report-year-prev">‹</button>
+          <div class="sg" style="font-weight:700;font-size:12.5px;min-width:34px;text-align:center">${ctx.expensesReportYear}</div>
+          <button type="button" style="all:unset;cursor:pointer;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px" data-action="expenses-report-year-next">›</button>
         </div>
       </div>
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:150px;padding:0 2px">
@@ -2550,13 +2548,27 @@
       case 'expenses-report-year-next': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) + 1 })); break;
       case 'expenses-report-month-pick': setState({ expensesMonthKey: el.dataset.month, expensesReportSelectedMonth: el.dataset.month }); break;
       case 'expenses-report-export': {
+        // One row per actual expense (not just per-month totals) so the file shows exactly
+        // what was spent that month, with a subtotal after each month for quick scanning.
         const year = state.expensesReportYear || TODAY.getFullYear();
-        const rows = [['Month', 'Total Spent (PHP)']];
+        const rows = [['Month', 'Date', 'Description', 'Amount (PHP)']];
+        let yearTotal = 0;
         for (let i = 0; i < 12; i++) {
           const mk = `${year}-${String(i + 1).padStart(2, '0')}`;
-          const total = state.expenses.filter(e => e.date && e.date.slice(0, 7) === mk).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-          rows.push([MONTH_SHORT_LABELS[i] + ' ' + year, total]);
+          const monthName = MONTH_SHORT_LABELS[i] + ' ' + year;
+          const monthRows = state.expenses.filter(e => e.date && e.date.slice(0, 7) === mk).sort((a, b) => a.date.localeCompare(b.date));
+          if (monthRows.length === 0) continue;
+          let monthTotal = 0;
+          monthRows.forEach(e => {
+            const amt = Number(e.amount) || 0;
+            monthTotal += amt;
+            rows.push([monthName, e.date, e.description || '', amt]);
+          });
+          rows.push(['', '', monthName + ' Subtotal', monthTotal]);
+          rows.push(['', '', '', '']);
+          yearTotal += monthTotal;
         }
+        rows.push(['', '', `${year} Total`, yearTotal]);
         downloadCSV(`pol-tracker-monthly-expense-report-${year}.csv`, rows.map(r => r.map(csvCell)));
         break;
       }
