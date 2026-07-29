@@ -44,6 +44,11 @@
   const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const LEAD_STATUSES = ['New Lead', 'Contacted', 'Proposal Sent', 'Booked', 'Client', 'Lost'];
+  // Display-only labels — the stored value stays 'Client' (so old Supabase records and all the
+  // leadStatus === 'Client' checks throughout the app keep working), but "Client" read confusingly
+  // next to a page that's already called "Clients." Shown as "Completed" instead, everywhere.
+  const LEAD_STATUS_LABELS = { Client: 'Completed' };
+  function leadStatusLabel(v) { return LEAD_STATUS_LABELS[v] || v; }
   const LEAD_STATUS_META = {
     'New Lead':      { color: 'oklch(0.5 0.16 235)',  bg: 'oklch(0.55 0.15 235 / 0.16)' },
     'Contacted':     { color: 'oklch(0.58 0.16 80)',  bg: 'oklch(0.62 0.15 80 / 0.16)' },
@@ -806,7 +811,7 @@
     const CHIP_MODAL_META = {
       thisMonth: { title: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, items: dashMonthShoots.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
       completed: { title: 'Completed Shoots', items: completed.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
-      activeClients: { title: 'Active Clients', items: state.clients.filter(c => c.leadStatus === 'Booked' || c.leadStatus === 'Client').map(c => ({ primary: c.name, secondary: c.leadStatus })) },
+      activeClients: { title: 'Active Clients', items: state.clients.filter(c => c.leadStatus === 'Booked' || c.leadStatus === 'Client').map(c => ({ primary: c.name, secondary: leadStatusLabel(c.leadStatus) })) },
       outstandingBalances: {
         title: 'Outstanding Balances',
         items: shoots
@@ -1501,7 +1506,7 @@
             <div style="font-size:12.5px;color:oklch(0.4 0.015 150)">${esc(c.phone)}</div>
             <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:1px">${esc(c.email)}</div>
           </div>
-          <div>${badge(c.leadStatus, c.statusColor, c.statusBg)}</div>
+          <div>${badge(leadStatusLabel(c.leadStatus), c.statusColor, c.statusBg)}</div>
         </div>`).join('')}
       ${ctx.clientRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No clients match your search.</div>` : ''}
     </div>`;
@@ -2303,7 +2308,7 @@
           </div>
           <div class="row-2">
             <div class="field"><label>Lead Status</label>
-              <select data-bind="clientDraft.leadStatus">${LEAD_STATUSES.map(v => `<option value="${v}" ${d.leadStatus === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
+              <select data-bind="clientDraft.leadStatus">${LEAD_STATUSES.map(v => `<option value="${v}" ${d.leadStatus === v ? 'selected' : ''}>${leadStatusLabel(v)}</option>`).join('')}</select>
             </div>
             <div class="field"><label>Follow-up Date</label><input type="date" value="${esc(d.followUpDate)}" data-bind="clientDraft.followUpDate"/></div>
           </div>
