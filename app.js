@@ -1154,8 +1154,10 @@
           </div>
         </div>
         <div style="width:280px;flex:none" class="card">
-          <div class="card-title" style="margin-bottom:14px">${state.selectedDate ? fmtDate(state.selectedDate) : 'Select a date'}</div>
-          <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+            <div class="card-title" style="margin-bottom:0">${state.selectedDate ? fmtDate(state.selectedDate) : 'Select a date'}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
             ${ctx.selectedDateShoots.map(s => `
               <div style="background:var(--card2);border-radius:10px;padding:11px;cursor:pointer" data-action="shoot-edit" data-id="${esc(s.id)}">
                 <div style="font-weight:600;font-size:13.5px;margin-bottom:3px">${esc(s.client)}</div>
@@ -1163,6 +1165,7 @@
               </div>`).join('')}
             ${ctx.selectedDateShoots.length === 0 ? `<div style="color:oklch(0.55 0.015 150);font-size:13px">No shoots this day.</div>` : ''}
           </div>
+          ${state.selectedDate ? `<button type="button" class="btn-primary" style="width:100%;box-sizing:border-box;text-align:center" data-action="shoot-add-open-for-date">+ New Shoot on ${fmtDate(state.selectedDate)}</button>` : ''}
         </div>
       </div>`;
 
@@ -2395,12 +2398,14 @@
 
   /* ---------------- actions ---------------- */
 
-  function openAddShoot() {
+  function openAddShoot(presetDate) {
+    const initialDate = presetDate || TODAY_STR;
+    const calBase = new Date(initialDate + 'T00:00:00');
     setState({
       modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
-      shootDateCalYear: TODAY.getFullYear(), shootDateCalMonth: TODAY.getMonth(),
-      shootDeadlineCalYear: TODAY.getFullYear(), shootDeadlineCalMonth: TODAY.getMonth(),
-      draft: { id: null, client: '', location: '', date: TODAY_STR, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
+      shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
+      shootDeadlineCalYear: calBase.getFullYear(), shootDeadlineCalMonth: calBase.getMonth(),
+      draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
     });
   }
   function openEditShoot(id) {
@@ -2468,6 +2473,7 @@
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
 
       case 'shoot-add-open': openAddShoot(); break;
+      case 'shoot-add-open-for-date': openAddShoot(state.selectedDate); break;
       case 'shoot-edit': openEditShoot(id); break;
       case 'shoot-delete':
         if (!confirm(`Are you sure you want to delete the shoot "${state.draft.client || 'this shoot'}"? This cannot be undone.`)) break;
