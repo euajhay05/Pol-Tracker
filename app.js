@@ -407,6 +407,7 @@
       expensesDayCalMonth: TODAY.getMonth(),
       expensesReportYear: TODAY.getFullYear(),
       expensesReportSelectedMonth: THIS_MONTH_KEY,
+      expensesListOpen: false,
       loanModal: null,
       loanDraft: null,
       loanPaymentModal: null,
@@ -1378,10 +1379,12 @@
         <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-      <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${ctx.expensesMonthLabel}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthExpensesTotal)}</div></div>
-    </div>
     ${expensesCalendarSection}
+    <button type="button" data-action="expenses-list-toggle" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;background:var(--panel2);border-radius:12px;padding:12px 16px;margin-bottom:${state.expensesListOpen ? '16' : '24'}px">
+      <span style="font-size:13px;font-weight:700;color:oklch(0.3 0.02 150)">${state.expensesListOpen ? '▾' : '▸'} Full list — ${esc(ctx.expensesMonthLabel)} (${ctx.filteredExpenseRows.length})</span>
+      <span style="font-size:13px;font-weight:700;color:oklch(0.4 0.02 150)">${fmtMoney(ctx.monthExpensesTotal)}</span>
+    </button>
+    ${state.expensesListOpen ? `
     <div class="search-wrap">
       <input type="text" value="${esc(state.expensesSearch)}" data-bind="expensesSearch" placeholder="Search expenses..."/>
       ${searchClear}
@@ -1396,7 +1399,7 @@
           <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
         </div>`).join('')}
       ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in ${esc(ctx.expensesMonthLabel)}.</div>` : ''}
-    </div>
+    </div>` : ''}
     <div class="card" style="margin-top:24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="card-title" style="margin-bottom:0">Monthly Report</div>
@@ -2540,6 +2543,7 @@
       case 'expenses-month-today': setState({ expensesMonthKey: THIS_MONTH_KEY }); break;
 
       case 'expenses-day-today': setState({ expensesSelectedDate: TODAY_STR }); break;
+      case 'expenses-list-toggle': setState(s => ({ expensesListOpen: !s.expensesListOpen })); break;
       case 'expenses-day-cal-prev': setState(s => { let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
       case 'expenses-day-cal-next': setState(s => { let m = s.expensesDayCalMonth + 1, y = s.expensesDayCalYear; if (m > 11) { m = 0; y++; } return { expensesDayCalMonth: m, expensesDayCalYear: y }; }); break;
       case 'expenses-report-year-prev': setState(s => ({ expensesReportYear: (s.expensesReportYear || TODAY.getFullYear()) - 1 })); break;
