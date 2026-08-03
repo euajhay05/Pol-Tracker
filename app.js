@@ -2271,16 +2271,22 @@
             <button type="button" data-action="goal-fund-mode" data-mode="withdraw" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;background:${mode === 'withdraw' ? 'oklch(0.58 0.19 25)' : 'oklch(0.91 0.012 150)'};color:${mode === 'withdraw' ? 'oklch(1 0 0)' : 'oklch(0.4 0.02 150)'}">Withdraw</button>
           </div>
           <div class="field"><label>Amount (${currencySymbol})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="goalFundDraft.amount" data-fmt="money" placeholder="0" autofocus required/></div>
+          ${mode === 'withdraw' ? `<div class="field"><label>Reason for Withdrawal</label><input type="text" value="${esc(d.reason)}" data-bind="goalFundDraft.reason" placeholder="e.g. Emergency repair, bills, etc." required/></div>` : ''}
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New total: <strong>${currencySymbol}${previewCurrent.toLocaleString('en-US')}</strong></div>
           ${history.length > 0 ? `
           <div style="border-top:1px solid var(--border2);padding-top:12px">
             <div style="font-size:11.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:8px">Contribution History</div>
             <div style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto">
               ${history.map(h => `
-                <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card2);border-radius:8px;padding:7px 10px">
-                  <div style="font-size:12px;color:oklch(0.45 0.015 150)">${fmtDate(h.date)}</div>
-                  <div style="font-size:12.5px;font-weight:600;color:${h.mode === 'withdraw' ? 'oklch(0.58 0.19 25)' : 'inherit'}">${h.mode === 'withdraw' ? '−' : '+'}${currencySymbol}${(Number(h.amount) || 0).toLocaleString('en-US')}</div>
-                  <button type="button" data-action="goal-fund-history-delete" data-hist-id="${esc(h.id)}" style="all:unset;cursor:pointer;color:oklch(0.5 0.015 150);font-size:12px;padding:2px 4px" title="Remove this entry">✕</button>
+                <div style="background:var(--card2);border-radius:8px;padding:7px 10px">
+                  <div style="display:flex;align-items:center;justify-content:space-between">
+                    <div style="font-size:12px;color:oklch(0.45 0.015 150)">${fmtDate(h.date)}</div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div style="font-size:12.5px;font-weight:600;color:${h.mode === 'withdraw' ? 'oklch(0.58 0.19 25)' : 'inherit'}">${h.mode === 'withdraw' ? '−' : '+'}${currencySymbol}${(Number(h.amount) || 0).toLocaleString('en-US')}</div>
+                      <button type="button" data-action="goal-fund-history-delete" data-hist-id="${esc(h.id)}" style="all:unset;cursor:pointer;color:oklch(0.5 0.015 150);font-size:12px;padding:2px 4px" title="Remove this entry">✕</button>
+                    </div>
+                  </div>
+                  ${h.mode === 'withdraw' && h.reason ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:2px">${esc(h.reason)}</div>` : ''}
                 </div>`).join('')}
             </div>
           </div>` : ''}
@@ -2708,7 +2714,7 @@
         if (!confirm(`Are you sure you want to delete the goal "${state.goalDraft.name || 'this goal'}"? This cannot be undone.`)) break;
         setState(s => ({ goals: s.goals.filter(g => g.id !== s.goalDraft.id), goalModal: null, goalDraft: null }));
         break;
-      case 'goal-fund-open': setState({ goalFundModal: { id }, goalFundDraft: { mode: 'deposit', amount: '' } }); break;
+      case 'goal-fund-open': setState({ goalFundModal: { id }, goalFundDraft: { mode: 'deposit', amount: '', reason: '' } }); break;
       case 'goal-fund-mode': setState(s => ({ goalFundDraft: { ...s.goalFundDraft, mode: el.dataset.mode } })); break;
       case 'goal-fund-history-delete': {
         if (!confirm('Remove this logged entry? Its effect on the saved total will be reversed.')) break;
@@ -3434,6 +3440,7 @@
         const fd = state.goalFundDraft;
         const amt = Number(fd.amount) || 0;
         if (amt <= 0) { alert('Please enter an amount.'); return; }
+        if (fd.mode === 'withdraw' && !(fd.reason || '').trim()) { alert('Please enter a reason for this withdrawal.'); return; }
         if (state.goalFundModal) {
           const targetId = state.goalFundModal.id;
           setState(s => {
@@ -3442,7 +3449,7 @@
             const phpAmt = g.currency === 'USD' ? amt * USD_TO_PHP : amt;
             const delta = fd.mode === 'withdraw' ? -phpAmt : phpAmt;
             const newCurrent = Math.max(0, (Number(g.current) || 0) + delta);
-            const historyEntry = { id: 'gf' + Date.now(), date: TODAY_STR, amount: amt, phpAmount: phpAmt, mode: fd.mode || 'deposit' };
+            const historyEntry = { id: 'gf' + Date.now(), date: TODAY_STR, amount: amt, phpAmount: phpAmt, mode: fd.mode || 'deposit', reason: fd.mode === 'withdraw' ? (fd.reason || '').trim() : '' };
             return {
               goals: s.goals.map(x => x.id === targetId ? { ...x, current: newCurrent, fundHistory: [...(x.fundHistory || []), historyEntry] } : x),
               goalFundModal: null, goalFundDraft: null,
