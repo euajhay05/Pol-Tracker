@@ -3405,7 +3405,9 @@
       } else if (action === 'save-loan') {
         const d = state.loanDraft;
         if (!(d.lender || '').trim() || !d.amount) { alert('Please enter a lender / source name and a loan amount.'); return; }
-        const cleaned = { ...d, amount: Number(d.amount) || 0, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: Number(d.remainingBalance) || 0, dueDay: d.dueDay ? Number(d.dueDay) : null };
+        const loanAmountNum = Number(d.amount) || 0;
+        const remainingBalanceNum = (d.remainingBalance === '' || d.remainingBalance === null || d.remainingBalance === undefined) ? loanAmountNum : (Number(d.remainingBalance) || 0);
+        const cleaned = { ...d, amount: loanAmountNum, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: remainingBalanceNum, dueDay: d.dueDay ? Number(d.dueDay) : null };
         delete cleaned.dueDate;
         setState(s => s.loanModal.mode === 'add'
           ? { loans: [...s.loans, { ...cleaned, id: 'ln' + Date.now() }], loanModal: null, loanDraft: null }
