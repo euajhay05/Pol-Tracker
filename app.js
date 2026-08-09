@@ -655,7 +655,9 @@
     const dashMonthLabel = new Date(dashMonthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     const completed = shoots.filter(s => s.status === 'posted');
-    const outstanding = shoots.reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
+    // "Pending" / outstanding counts only confirmed shoots (Booked onward) —
+    // Not-confirmed (tentative) shoots are excluded until they're actually booked.
+    const outstanding = shoots.filter(s => s.status !== 'tentative').reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
 
     // Dashboard-card-specific: follows the dashMonthKey month switcher.
     const dashMonthShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashMonthKey);
