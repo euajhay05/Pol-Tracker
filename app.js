@@ -511,6 +511,35 @@
     const rows = await res.json();
     return rows[0] || null;
   }
+
+  // --- offline (view-only) support ---
+  const DATA_CACHE_KEY = 'shoottracker_data_cache';
+  function saveDataCache(remote) {
+    try { localStorage.setItem(DATA_CACHE_KEY, JSON.stringify(remote)); } catch (e) { /* storage full/unavailable */ }
+  }
+  function loadDataCache() {
+    try { const raw = localStorage.getItem(DATA_CACHE_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+  }
+  // Copy a persisted-columns object (from the server OR the offline cache) into state,
+  // applying the same normalizations used on load.
+  function applyPersistedData(remote) {
+    PERSIST_KEYS.forEach(k => {
+      let val = remote[PERSIST_COLUMNS[k]];
+      if (val == null) return;
+      if (k === 'shoots') {
+        val = val.map(sh => ({
+          ...sh,
+          status: normalizeShootStatus(sh.status),
+          scriptStatus: normalizeScriptStatus(sh.scriptStatus),
+          shootType: normalizeShootType(sh.shootType),
+        }));
+      } else if (k === 'goals') {
+        val = val.map(g => ({ currency: 'PHP', ...g }));
+      }
+      state = { ...state, [k]: val };
+    });
+  }
+
   // Persists only the PERSIST_KEYS that actually changed, each to its own column —
   // this way a change to one entity (e.g. clients) can never clobber another (e.g. loans)
   // even if two tabs/devices save at nearly the same time.
@@ -525,6 +554,7 @@
   }
 
   let state = defaultState();
+  let offlineMode = false;
   let draggingId = null;
   let dashboardCountUpDone = false;
   let dashboardCountUpMonthKey = null;
@@ -549,8 +579,14 @@
 
   function setState(patch) {
     const partial = typeof patch === 'function' ? patch(state) : patch;
-    state = { ...state, ...partial };
     const changedKeys = PERSIST_KEYS.filter(k => k in partial);
+    // Offline = view-only. Block any change that would touch saved data, so we never
+    // show a "saved" edit that didn't actually reach the cloud (or overwrite fresh data).
+    if (offlineMode && changedKeys.length) {
+      alert("You're offline — editing is disabled. Reconnect to the internet to make changes.");
+      return;
+    }
+    state = { ...state, ...partial };
     if (changedKeys.length) persist(changedKeys);
     render();
   }
@@ -2426,6 +2462,7 @@
     const pageFn = pageMap[state.view] || viewDashboard;
 
     const html = `
+      ${offlineMode ? `<div style="position:sticky;top:0;z-index:100;background:oklch(0.62 0.17 45);color:#fff;padding:9px 14px;text-align:center;font-size:12.5px;font-weight:600">⚠ Offline — showing your last saved data. Editing is disabled until you reconnect.</div>` : ''}
       <div class="app-shell">
         ${renderSidebar()}
         <main class="main">${pageFn(ctx)}</main>
@@ -3580,24 +3617,10 @@
 
     try {
       const remote = await fetchRemoteState();
+      offlineMode = false;
       if (remote) {
-        // null/undefined = column never saved to yet (show empty); an actual [] means
-        // someone intentionally emptied that list, which must be respected, not overwritten.
-        PERSIST_KEYS.forEach(k => {
-          let val = remote[PERSIST_COLUMNS[k]];
-          if (val == null) return;
-          if (k === 'shoots') {
-            val = val.map(sh => ({
-              ...sh,
-              status: normalizeShootStatus(sh.status),
-              scriptStatus: normalizeScriptStatus(sh.scriptStatus),
-              shootType: normalizeShootType(sh.shootType),
-            }));
-          } else if (k === 'goals') {
-            val = val.map(g => ({ currency: 'PHP', ...g }));
-          }
-          state = { ...state, [k]: val };
-        });
+        applyPersistedData(remote);
+        saveDataCache(remote); // keep a local copy so the app can show data offline (view-only)
         // Self-heal: clients whose linked shoot(s) are already Completed but who are
         // still stuck in an earlier leads-pipeline status (e.g. "Booked") get bumped
         // to "Client" once, and the correction is persisted so it doesn't recur.
@@ -3621,21 +3644,28 @@
       }
     } catch (e) {
       console.error('Failed to load your data', e);
-      // Don't silently fall back to empty data — if the user edits while the real
-      // data failed to load, a save would overwrite their real records with blanks.
-      // Show a blocking error with Retry instead, and stop before rendering the app.
-      const errApp = document.getElementById('app');
-      errApp.innerHTML = `
-        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
-          <div style="width:360px;max-width:100%;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:12px;text-align:center">
-            <div class="sg" style="font-weight:700;font-size:16px">Couldn't load your data</div>
-            <div style="color:var(--text-dim);font-size:13px;line-height:1.55">Check your internet connection, then tap Retry. <b>Please don't add or edit anything until your data loads</b> — doing so could overwrite your saved records.</div>
-            <button type="button" id="retry-load" class="btn-primary" style="text-align:center">Retry</button>
-          </div>
-        </div>`;
-      const retryBtn = document.getElementById('retry-load');
-      if (retryBtn) retryBtn.addEventListener('click', () => location.reload());
-      return;
+      // If a copy was saved during a previous online session, show it in OFFLINE
+      // (view-only) mode instead of a dead end. Editing is blocked in setState().
+      const cached = loadDataCache();
+      if (cached) {
+        offlineMode = true;
+        applyPersistedData(cached);
+      } else {
+        // No cache yet — don't silently show empty data, since a save could overwrite
+        // real records with blanks. Show a blocking error with Retry instead.
+        const errApp = document.getElementById('app');
+        errApp.innerHTML = `
+          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
+            <div style="width:360px;max-width:100%;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:12px;text-align:center">
+              <div class="sg" style="font-weight:700;font-size:16px">Couldn't load your data</div>
+              <div style="color:var(--text-dim);font-size:13px;line-height:1.55">Check your internet connection, then tap Retry. <b>Please don't add or edit anything until your data loads</b> — doing so could overwrite your saved records.</div>
+              <button type="button" id="retry-load" class="btn-primary" style="text-align:center">Retry</button>
+            </div>
+          </div>`;
+        const retryBtn = document.getElementById('retry-load');
+        if (retryBtn) retryBtn.addEventListener('click', () => location.reload());
+        return;
+      }
     }
 
     // Restore last-viewed page (per-device) so a refresh doesn't bounce you back to Dashboard.
