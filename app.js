@@ -3576,7 +3576,22 @@
         }
       }
     } catch (e) {
-      console.error('Failed to load shared data, showing local defaults', e);
+      console.error('Failed to load your data', e);
+      // Don't silently fall back to empty data — if the user edits while the real
+      // data failed to load, a save would overwrite their real records with blanks.
+      // Show a blocking error with Retry instead, and stop before rendering the app.
+      const errApp = document.getElementById('app');
+      errApp.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
+          <div style="width:360px;max-width:100%;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:12px;text-align:center">
+            <div class="sg" style="font-weight:700;font-size:16px">Couldn't load your data</div>
+            <div style="color:var(--text-dim);font-size:13px;line-height:1.55">Check your internet connection, then tap Retry. <b>Please don't add or edit anything until your data loads</b> — doing so could overwrite your saved records.</div>
+            <button type="button" id="retry-load" class="btn-primary" style="text-align:center">Retry</button>
+          </div>
+        </div>`;
+      const retryBtn = document.getElementById('retry-load');
+      if (retryBtn) retryBtn.addEventListener('click', () => location.reload());
+      return;
     }
 
     // Restore last-viewed page (per-device) so a refresh doesn't bounce you back to Dashboard.
