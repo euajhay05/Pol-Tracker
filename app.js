@@ -1834,6 +1834,7 @@
     <div class="page-head">
       <div><div class="page-title sg">Insights</div><div class="page-sub">AI-generated analysis of your business</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn-primary" data-action="monthly-report" title="Generate a clean PDF summary of this month (shoots, revenue, expenses, net)">📄 Monthly Report</button>
         <button type="button" class="btn-telegram" data-action="export-data-csv" title="Download separate CSV files for Shoots, Expenses, Income, Clients, Loans, and Goals">⬇ Export Data</button>
         <button type="button" class="btn-telegram" data-action="backup-download" title="Download a full backup (single JSON file) of ALL your data">⬇ Backup</button>
         <button type="button" class="btn-telegram" data-action="backup-restore" title="Restore all data from a backup file — replaces your current data">⬆ Restore</button>
@@ -2777,6 +2778,7 @@
         URL.revokeObjectURL(url);
         break;
       }
+      case 'monthly-report': { generateMonthlyReportPdf(); break; }
       case 'backup-restore': {
         const input = document.createElement('input');
         input.type = 'file';
@@ -2949,6 +2951,110 @@
     else if (which === 'goalfund') setState({ goalFundModal: null, goalFundDraft: null });
     else if (which === 'client') setState({ clientModal: null, clientDraft: null });
     else if (which === 'chip') setState({ chipModal: null });
+  }
+
+  // One-click "boss-ready" PDF: a full summary of the current month —
+  // shoots by status, revenue (booked vs collected), outstanding, expenses, and net.
+  function generateMonthlyReportPdf() {
+    const jspdf = window.jspdf;
+    if (!jspdf || !jspdf.jsPDF) { window.print(); return; }
+    const { jsPDF } = jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+
+    const PAGE_W = 612, PAGE_H = 792;
+    const marginX = 56, rightX = PAGE_W - marginX;
+    const BRAND = [31, 107, 64], INK = [30, 32, 30], GRAY = [110, 115, 110], LINE = [222, 228, 222];
+    let y = 0;
+    const ensureSpace = (needed) => { if (y + needed > PAGE_H - 56) { doc.addPage(); y = 56; } };
+    // Helvetica has no ₱ glyph — use a plain "PHP " prefix so widths measure correctly.
+    const money = (n) => 'PHP ' + (Number(n) || 0).toLocaleString('en-PH');
+
+    const monthKey = THIS_MONTH_KEY;
+    const monthLabel = new Date(monthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const monthShoots = state.shoots.filter(s => s.date && s.date.slice(0, 7) === monthKey);
+    const statusCounts = {};
+    monthShoots.forEach(s => { const st = normalizeShootStatus(s.status); statusCounts[st] = (statusCounts[st] || 0) + 1; });
+    const booked = monthShoots.reduce((a, s) => a + (Number(s.package) || 0), 0);
+    const collected = monthShoots.reduce((a, s) => a + (Number(s.paid) || 0), 0);
+    const outstanding = monthShoots.reduce((a, s) => a + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
+    const expenses = state.expenses.filter(e => e.date && e.date.slice(0, 7) === monthKey).reduce((a, e) => a + (Number(e.amount) || 0), 0);
+    const net = collected - expenses;
+
+    // Header
+    y = 56;
+    doc.setTextColor(BRAND[0], BRAND[1], BRAND[2]); doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+    doc.text('Monthly Summary', marginX, y);
+    y += 20;
+    doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+    doc.text(`${monthLabel}  ·  Pol Film Productions`, marginX, y);
+    y += 14;
+    doc.setFontSize(9);
+    doc.text('Generated ' + new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }), marginX, y);
+    y += 12;
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.line(marginX, y, rightX, y);
+    y += 26;
+
+    const sectionTitle = (t) => { ensureSpace(30); doc.setTextColor(INK[0], INK[1], INK[2]); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(t, marginX, y); y += 17; };
+    const kv = (label, value, opts) => {
+      opts = opts || {};
+      ensureSpace(18);
+      doc.setFont('helvetica', opts.bold ? 'bold' : 'normal'); doc.setFontSize(opts.bold ? 12 : 11);
+      const col = opts.brand ? BRAND : INK;
+      doc.setTextColor(col[0], col[1], col[2]);
+      doc.text(String(label), marginX, y);
+      doc.text(String(value), rightX, y, { align: 'right' });
+      y += opts.bold ? 20 : 16;
+    };
+
+    // Financial overview
+    sectionTitle('Financial Overview');
+    kv('Revenue booked', money(booked));
+    kv('Collected (paid)', money(collected));
+    kv('Outstanding balance', money(outstanding));
+    kv('Expenses', money(expenses));
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.line(marginX, y - 2, rightX, y - 2); y += 12;
+    kv('Net (collected − expenses)', money(net), { bold: true, brand: true });
+    y += 14;
+
+    // Shoots by status
+    sectionTitle('Shoots this month — ' + monthShoots.length + ' total');
+    if (!monthShoots.length) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+      doc.text('No dated shoots this month.', marginX, y); y += 16;
+    } else {
+      STATUS_META.forEach(sm => { if (statusCounts[sm.value]) kv(sm.label, String(statusCounts[sm.value])); });
+    }
+    y += 12;
+
+    // Shoot details table
+    if (monthShoots.length) {
+      sectionTitle('Shoot Details');
+      const cName = marginX, cStatus = marginX + 205, cPkg = 404, cPaid = 480, cBal = rightX;
+      ensureSpace(20);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+      doc.text('CLIENT / PROJECT', cName, y);
+      doc.text('STATUS', cStatus, y);
+      doc.text('PACKAGE', cPkg, y, { align: 'right' });
+      doc.text('PAID', cPaid, y, { align: 'right' });
+      doc.text('BALANCE', cBal, y, { align: 'right' });
+      y += 10; doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.line(marginX, y, rightX, y); y += 14;
+      monthShoots.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(s => {
+        ensureSpace(16);
+        const bal = Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(INK[0], INK[1], INK[2]);
+        const name = String(s.client || 'Untitled');
+        doc.text(name.length > 30 ? name.slice(0, 29) + '…' : name, cName, y);
+        doc.setFontSize(9); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+        doc.text(statusMeta(s.status).label, cStatus, y);
+        doc.setFontSize(10); doc.setTextColor(INK[0], INK[1], INK[2]);
+        doc.text(money(s.package || 0), cPkg, y, { align: 'right' });
+        doc.text(money(s.paid || 0), cPaid, y, { align: 'right' });
+        doc.text(money(bal), cBal, y, { align: 'right' });
+        y += 15;
+      });
+    }
+
+    doc.save(`pol-tracker-monthly-summary-${monthKey}.pdf`);
   }
 
   function generateDocPdf(overrideType, overrideDraft) {
