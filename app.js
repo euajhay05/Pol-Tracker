@@ -1797,7 +1797,11 @@
     return `
     <div class="page-head">
       <div><div class="page-title sg">Insights</div><div class="page-sub">AI-generated analysis of your business</div></div>
-      <button type="button" class="btn-telegram" data-action="export-data-csv" title="Download separate CSV files for Shoots, Expenses, Income, Clients, Loans, and Goals">⬇ Export Data</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn-telegram" data-action="export-data-csv" title="Download separate CSV files for Shoots, Expenses, Income, Clients, Loans, and Goals">⬇ Export Data</button>
+        <button type="button" class="btn-telegram" data-action="backup-download" title="Download a full backup (single JSON file) of ALL your data">⬇ Backup</button>
+        <button type="button" class="btn-telegram" data-action="backup-restore" title="Restore all data from a backup file — replaces your current data">⬆ Restore</button>
+      </div>
     </div>
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
@@ -2720,6 +2724,46 @@
         files.forEach(([name, rows], i) => {
           setTimeout(() => downloadCSV(`pol-tracker-${name}-${TODAY_STR}.csv`, rows), i * 150);
         });
+        break;
+      }
+
+      case 'backup-download': {
+        // One JSON file holding every data collection — a true backup you can restore from.
+        const data = {};
+        PERSIST_KEYS.forEach(k => { data[k] = state[k]; });
+        const payload = { app: 'pol-tracker', version: 1, exportedAt: new Date().toISOString(), data };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `pol-tracker-backup-${TODAY_STR}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        break;
+      }
+      case 'backup-restore': {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json,.json';
+        input.addEventListener('change', () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            let parsed;
+            try { parsed = JSON.parse(reader.result); }
+            catch (err) { alert("That file isn't a valid backup — couldn't read it."); return; }
+            const data = (parsed && parsed.data) ? parsed.data : parsed;
+            const keysPresent = PERSIST_KEYS.filter(k => data && (k in data));
+            if (!keysPresent.length) { alert("That file doesn't look like a Pol Tracker backup."); return; }
+            if (!confirm('Restore from this backup? This will REPLACE all your current data with the contents of the backup. This cannot be undone.')) return;
+            const patch = {};
+            keysPresent.forEach(k => { patch[k] = data[k]; });
+            setState(patch);
+            alert('Backup restored successfully.');
+          };
+          reader.readAsText(file);
+        });
+        input.click();
         break;
       }
 
