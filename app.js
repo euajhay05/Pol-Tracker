@@ -320,27 +320,84 @@
     return cells;
   }
 
-  /* ---------------- access lock ---------------- */
+  /* ---------------- Supabase config ---------------- */
 
-  const LOCK_PASSWORD_HASH = 'd8b801bcbd0a8be19c2454a45d6600e22e02c81ef8a90e1046a66cd022b0631e';
-  const UNLOCK_AT_KEY = 'shoottracker_unlocked_at';
-  const UNLOCK_GRACE_MS = 5 * 60 * 1000; // stay unlocked across refreshes for 5 minutes after login
+  const SUPABASE_URL = 'https://lufmszmhflmecvpislwy.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_z8a0uQ0ri_txFoxzPvYV2A_4xRG44N-';
+  const SUPABASE_ROW_URL = `${SUPABASE_URL}/rest/v1/tracker_state?id=eq.1`;
 
-  async function sha256Hex(str) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  function isWithinUnlockGrace() {
+  /* ---------------- auth (real Supabase email + password login) ---------------- */
+
+  const AUTH_TOKEN_KEY = 'shoottracker_access_token';
+  const AUTH_REFRESH_KEY = 'shoottracker_refresh_token';
+  const AUTH_EXPIRES_KEY = 'shoottracker_expires_at';
+  let accessToken = null;
+
+  function saveSession(sess) {
+    accessToken = sess.access_token || null;
     try {
-      const at = Number(localStorage.getItem(UNLOCK_AT_KEY));
-      return at > 0 && (Date.now() - at) < UNLOCK_GRACE_MS;
-    } catch (e) { return false; }
+      localStorage.setItem(AUTH_TOKEN_KEY, sess.access_token);
+      localStorage.setItem(AUTH_REFRESH_KEY, sess.refresh_token);
+      localStorage.setItem(AUTH_EXPIRES_KEY, String(Date.now() + ((sess.expires_in || 3600) * 1000)));
+    } catch (e) { /* storage unavailable */ }
   }
-  function markUnlocked() {
-    try { localStorage.setItem(UNLOCK_AT_KEY, String(Date.now())); } catch (e) { /* storage unavailable */ }
+  function clearSession() {
+    accessToken = null;
+    try {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_REFRESH_KEY);
+      localStorage.removeItem(AUTH_EXPIRES_KEY);
+    } catch (e) { /* storage unavailable */ }
   }
-  function clearUnlocked() {
-    try { localStorage.removeItem(UNLOCK_AT_KEY); } catch (e) { /* storage unavailable */ }
+  // kept so the existing 'logout' action keeps working
+  function clearUnlocked() { clearSession(); }
+
+  async function signIn(email, password) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error('Invalid login');
+    saveSession(await res.json());
+  }
+  async function refreshSession() {
+    let rt = null;
+    try { rt = localStorage.getItem(AUTH_REFRESH_KEY); } catch (e) { /* storage unavailable */ }
+    if (!rt) return false;
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: rt }),
+    });
+    if (!res.ok) { clearSession(); return false; }
+    saveSession(await res.json());
+    return true;
+  }
+  // True if we already hold a valid (or refreshable) session, so a refresh keeps you logged in.
+  async function ensureSession() {
+    let token = null, exp = 0;
+    try {
+      token = localStorage.getItem(AUTH_TOKEN_KEY);
+      exp = Number(localStorage.getItem(AUTH_EXPIRES_KEY));
+    } catch (e) { /* storage unavailable */ }
+    if (token && exp && Date.now() < exp - 60000) { accessToken = token; return true; }
+    return await refreshSession();
+  }
+  // Every Supabase REST call goes through here, sending the logged-in user's token
+  // (not the public key) and auto-refreshing once if the token has expired.
+  async function authedFetch(url, opts = {}) {
+    const build = () => ({
+      ...opts,
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${accessToken || SUPABASE_KEY}`,
+        ...(opts.headers || {}),
+      },
+    });
+    let res = await fetch(url, build());
+    if (res.status === 401 && await refreshSession()) res = await fetch(url, build());
+    return res;
   }
 
   function renderLockScreen(showError) {
@@ -351,32 +408,32 @@
           <div style="display:flex;justify-content:center;margin-bottom:2px"><div class="logo-badge">pol.</div></div>
           <div class="sg" style="font-weight:700;font-size:16px;text-align:center">Pol Tracker</div>
           <div class="field">
+            <label>Email</label>
+            <input type="email" id="lock-email" placeholder="you@email.com" autocomplete="username"/>
+          </div>
+          <div class="field">
             <label>Password</label>
             <input type="password" id="lock-password" placeholder="Enter password" autocomplete="current-password"/>
           </div>
-          ${showError ? `<div style="color:oklch(0.58 0.19 25);font-size:12.5px">Incorrect password. Please try again.</div>` : ''}
-          <button type="submit" class="btn-primary" style="text-align:center">Unlock</button>
+          ${showError ? `<div style="color:oklch(0.58 0.19 25);font-size:12.5px">Incorrect email or password. Please try again.</div>` : ''}
+          <button type="submit" class="btn-primary" style="text-align:center">Sign in</button>
         </form>
       </div>`;
+    const emailInput = document.getElementById('lock-email');
     const input = document.getElementById('lock-password');
-    input.focus();
+    emailInput.focus();
     document.getElementById('lock-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const hash = await sha256Hex(input.value);
-      if (hash === LOCK_PASSWORD_HASH) {
-        markUnlocked();
+      try {
+        await signIn(emailInput.value.trim(), input.value);
         init();
-      } else {
+      } catch (err) {
         renderLockScreen(true);
       }
     });
   }
 
   /* ---------------- state ---------------- */
-
-  const SUPABASE_URL = 'https://lufmszmhflmecvpislwy.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_z8a0uQ0ri_txFoxzPvYV2A_4xRG44N-';
-  const SUPABASE_ROW_URL = `${SUPABASE_URL}/rest/v1/tracker_state?id=eq.1`;
 
   function defaultState() {
     return {
@@ -449,9 +506,7 @@
 
   async function fetchRemoteState() {
     const cols = Object.values(PERSIST_COLUMNS).join(',');
-    const res = await fetch(`${SUPABASE_ROW_URL}&select=${cols}`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-    });
+    const res = await authedFetch(`${SUPABASE_ROW_URL}&select=${cols}`);
     if (!res.ok) throw new Error('Failed to load remote state: ' + res.status);
     const rows = await res.json();
     return rows[0] || null;
@@ -462,14 +517,9 @@
   function persist(changedKeys) {
     const payload = {};
     changedKeys.forEach(k => { payload[PERSIST_COLUMNS[k]] = state[k]; });
-    fetch(SUPABASE_ROW_URL, {
+    authedFetch(SUPABASE_ROW_URL, {
       method: 'PATCH',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
+      headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify(payload),
     }).catch(e => console.error('Save failed', e));
   }
@@ -3539,8 +3589,8 @@
     render();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    if (isWithinUnlockGrace()) init();
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (await ensureSession()) init();
     else renderLockScreen(false);
   });
 })();
