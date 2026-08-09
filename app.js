@@ -540,17 +540,65 @@
     });
   }
 
+  // --- save indicator (Saving… / Saved / Save failed — Retry) ---
+  let saveIndicatorTimer = null;
+  let lastFailedKeys = null;
+  function ensureSaveIndicatorEl() {
+    let el = document.getElementById('save-indicator');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'save-indicator';
+      el.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2000;font-size:12.5px;font-weight:600;padding:8px 12px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.16);display:none;align-items:center;gap:6px;font-family:Inter,system-ui,sans-serif';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function showSaveStatus(kind) {
+    const el = ensureSaveIndicatorEl();
+    if (saveIndicatorTimer) { clearTimeout(saveIndicatorTimer); saveIndicatorTimer = null; }
+    el.style.display = 'flex';
+    if (kind === 'saving') {
+      el.style.background = 'oklch(0.95 0.015 150)'; el.style.color = 'oklch(0.42 0.02 150)';
+      el.textContent = 'Saving…';
+    } else if (kind === 'saved') {
+      el.style.background = 'oklch(0.92 0.08 150)'; el.style.color = 'oklch(0.36 0.13 150)';
+      el.textContent = '✓ Saved';
+      saveIndicatorTimer = setTimeout(() => { el.style.display = 'none'; }, 1600);
+    } else if (kind === 'error') {
+      el.style.background = 'oklch(0.62 0.19 25)'; el.style.color = '#fff';
+      el.innerHTML = '⚠ Save failed <button type="button" id="save-retry" style="all:unset;cursor:pointer;text-decoration:underline;margin-left:4px;font-weight:700">Retry</button>';
+      const btn = document.getElementById('save-retry');
+      if (btn) btn.addEventListener('click', () => { if (lastFailedKeys) persist(lastFailedKeys); });
+    }
+  }
+
   // Persists only the PERSIST_KEYS that actually changed, each to its own column —
   // this way a change to one entity (e.g. clients) can never clobber another (e.g. loans)
-  // even if two tabs/devices save at nearly the same time.
-  function persist(changedKeys) {
+  // even if two tabs/devices save at nearly the same time. Retries twice on failure,
+  // and shows a Saving…/Saved/Save failed indicator so a silent failure can't hide.
+  async function persist(changedKeys, attempt) {
+    attempt = attempt || 0;
     const payload = {};
     changedKeys.forEach(k => { payload[PERSIST_COLUMNS[k]] = state[k]; });
-    authedFetch(SUPABASE_ROW_URL, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify(payload),
-    }).catch(e => console.error('Save failed', e));
+    showSaveStatus('saving');
+    try {
+      const res = await authedFetch(SUPABASE_ROW_URL, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      lastFailedKeys = null;
+      showSaveStatus('saved');
+    } catch (e) {
+      console.error('Save failed', e);
+      if (attempt < 2) {
+        setTimeout(() => persist(changedKeys, attempt + 1), 1500 * (attempt + 1));
+      } else {
+        lastFailedKeys = changedKeys;
+        showSaveStatus('error');
+      }
+    }
   }
 
   let state = defaultState();
