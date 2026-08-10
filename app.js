@@ -494,6 +494,7 @@
       docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '' },
       documents: [],
       docsHistoryOpen: false,
+      editingDocId: null,
       insightsChartYear: TODAY.getFullYear(),
       insightsChartSelectedMonth: THIS_MONTH_KEY,
       chipModal: null,
@@ -1743,6 +1744,7 @@
               <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-top:3px">${esc(rd.description || '')} · ${fmtDate(rd.date)} · ${fmtMoney(rd.amount)}${rIsInvoice ? ' · ' + esc(rd.paymentStatus) : ''}</div>
             </div>
             <div style="display:flex;gap:8px;flex:none">
+              <button type="button" data-action="doc-history-edit" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.93 0.03 250);color:oklch(0.45 0.13 260);font-size:12.5px;font-weight:700">Edit</button>
               <button type="button" data-action="doc-history-download" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150);font-size:12.5px;font-weight:700">Download</button>
               <button type="button" data-action="doc-history-delete" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.92 0.08 25);color:oklch(0.5 0.19 25);font-size:12.5px;font-weight:700">Delete</button>
             </div>
@@ -1797,7 +1799,15 @@
             </select>
           </div>
         </div>` : ''}
+        ${state.editingDocId ? `
+        <div style="font-size:12px;color:oklch(0.45 0.13 260);background:oklch(0.96 0.03 260);border:1px solid oklch(0.86 0.05 260);padding:8px 11px;border-radius:9px;margin-top:4px">✎ Editing this ${meta.title.toLowerCase()}${isInvoice ? ` (#${esc(d.invoiceNumber)})` : ''} — “Update” saves it back to the same record (no new copy).</div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button type="button" class="btn-primary" style="flex:1;text-align:center" data-action="doc-generate">Update ${meta.title}</button>
+          <button type="button" class="btn-ghost" style="text-align:center;background:var(--card2);padding:0 16px" data-action="doc-cancel-edit">Cancel</button>
+        </div>
+        ` : `
         <button type="button" class="btn-primary" style="text-align:center;margin-top:4px" data-action="doc-generate">Generate ${meta.title}</button>
+        `}
       </div>
       <div id="doc-preview-panel" style="background:#fff;color:oklch(0.22 0.02 150);border-radius:16px;padding:32px;min-height:360px;border:1px solid oklch(0 0 0 / 0.06)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px">
@@ -2934,16 +2944,40 @@
       case 'doc-generate':
         if (!(state.docDraft.clientName || '').trim()) { alert('Please enter a client name before generating.'); break; }
         generateDocPdf();
-        setState(s => ({
-          documents: [...s.documents, { id: 'doc' + Date.now(), type: s.docType, createdAt: new Date().toISOString(), draft: { ...s.docDraft } }],
-        }));
-        if (state.docType === 'invoice') {
-          setState(s => {
-            const nextCounter = s.invoiceCounter + 1;
-            localStorage.setItem('shoottracker_invoice_counter', String(nextCounter));
-            return { invoiceCounter: nextCounter, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(nextCounter) } };
-          });
+        if (state.editingDocId) {
+          // Editing an existing document — update it in place. Same id and reference
+          // number, no duplicate, and the invoice counter is NOT advanced.
+          const editId = state.editingDocId;
+          setState(s => ({
+            documents: s.documents.map(r => r.id === editId
+              ? { ...r, type: s.docType, draft: { ...s.docDraft }, updatedAt: new Date().toISOString() }
+              : r),
+            editingDocId: null,
+            docsHistoryOpen: true,
+          }));
+        } else {
+          setState(s => ({
+            documents: [...s.documents, { id: 'doc' + Date.now(), type: s.docType, createdAt: new Date().toISOString(), draft: { ...s.docDraft } }],
+          }));
+          if (state.docType === 'invoice') {
+            setState(s => {
+              const nextCounter = s.invoiceCounter + 1;
+              localStorage.setItem('shoottracker_invoice_counter', String(nextCounter));
+              return { invoiceCounter: nextCounter, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(nextCounter) } };
+            });
+          }
         }
+        break;
+      case 'doc-history-edit': {
+        const rec = state.documents.find(r => r.id === id);
+        if (rec) setState({ docType: rec.type, docDraft: { ...rec.draft }, editingDocId: rec.id, docsHistoryOpen: false });
+        break;
+      }
+      case 'doc-cancel-edit':
+        setState(s => ({
+          editingDocId: null,
+          docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(s.invoiceCounter), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '' },
+        }));
         break;
       case 'doc-history-toggle': setState(s => ({ docsHistoryOpen: !s.docsHistoryOpen })); break;
       case 'doc-history-download': {
