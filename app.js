@@ -1803,6 +1803,7 @@
               <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-top:3px">${esc(rd.description || '')} · ${fmtDate(rd.date)} · ${fmtMoney(rd.amount)}${rIsInvoice ? ' · ' + esc(rd.paymentStatus) : ''}</div>
             </div>
             <div style="display:flex;gap:8px;flex:none">
+              ${r.type === 'quotation' ? `<button type="button" data-action="doc-book-shoot" data-id="${esc(r.id)}" title="Client pushed through — create a booked shoot from this quotation" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.45 0.14 150);color:#fff;font-size:12.5px;font-weight:700">✓ Book</button>` : ''}
               <button type="button" data-action="doc-history-edit" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.93 0.03 250);color:oklch(0.45 0.13 260);font-size:12.5px;font-weight:700">Edit</button>
               <button type="button" data-action="doc-history-download" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150);font-size:12.5px;font-weight:700">Download</button>
               <button type="button" data-action="doc-history-delete" data-id="${esc(r.id)}" style="all:unset;cursor:pointer;padding:8px 12px;border-radius:8px;background:oklch(0.92 0.08 25);color:oklch(0.5 0.19 25);font-size:12.5px;font-weight:700">Delete</button>
@@ -2635,6 +2636,30 @@
 
   /* ---------------- actions ---------------- */
 
+  // Client pushed through on a quotation → open a pre-filled New Shoot (status "Booked").
+  // The quoted client, project (into notes), and rate (as a custom package) carry over;
+  // the user just picks the actual shoot/booking date and saves.
+  function openBookShootFromDoc(docId) {
+    const rec = state.documents.find(r => r.id === docId);
+    if (!rec) return;
+    const rd = rec.draft || {};
+    const initialDate = TODAY_STR;
+    const calBase = new Date(initialDate + 'T00:00:00');
+    setState({
+      view: 'shoots',
+      modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
+      shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
+      shootDeadlineCalYear: calBase.getFullYear(), shootDeadlineCalMonth: calBase.getMonth(),
+      draftDateLocked: false,
+      draft: {
+        id: null, client: rd.clientName || '', location: '', date: initialDate, deadline: '', time: '09:00',
+        status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate',
+        notes: rd.description ? `From quotation: ${rd.description}` : '',
+        packageTier: 'custom', package: String(rd.amount || ''), paid: '', addons: {},
+      },
+    });
+  }
+
   function openAddShoot(presetDate, lockDate) {
     const initialDate = presetDate || TODAY_STR;
     const calBase = new Date(initialDate + 'T00:00:00');
@@ -3043,6 +3068,7 @@
         if (rec) setState({ docType: rec.type, docDraft: { ...rec.draft }, editingDocId: rec.id, docsHistoryOpen: false });
         break;
       }
+      case 'doc-book-shoot': openBookShootFromDoc(id); break;
       case 'doc-cancel-edit':
         setState(s => ({
           editingDocId: null,
