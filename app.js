@@ -60,7 +60,7 @@
 
   const DOC_TYPE_META = {
     contract:  { title: 'Service Agreement / Contract', body: (d, mf = fmtMoney) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", to be delivered on ${d.date || '[Date]'} for a total contract value of ${mf(d.amount)}.` },
-    quotation: { title: 'Quotation',                      body: (d, mf = fmtMoney) => `Thank you for the opportunity to work with you. Below is our proposed scope of work and pricing for ${d.description || '[Project/Service]'}. This quotation is valid until ${d.dueDate ? fmtDateShortYear(d.dueDate) : '[Valid Until]'}.` },
+    quotation: { title: 'Quotation',                      body: (d, mf = fmtMoney) => `Thank you for the opportunity to work with you. Below is our proposed scope of work and pricing for ${d.description || '[Project/Service]'}.${d.dueDate ? ` This quotation is valid until ${fmtDateShortYear(d.dueDate)}.` : ''}` },
     invoice:   { title: 'Statement of Account',           body: (d, mf = fmtMoney) => `Invoice billed to ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}. Amount due: ${mf(d.amount)}.` },
   };
 
@@ -1694,7 +1694,7 @@
         </div>` : ''}
       </div>`;
 
-    const docDueLabel = d.dueDate ? fmtDate(d.dueDate) : 'Select date';
+    const docDueLabel = d.dueDate ? fmtDate(d.dueDate) : (docType === 'quotation' ? 'No expiry' : 'Select date');
     const docDueMonthLabel = new Date(state.docDueCalYear, state.docDueCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const docDueCells = buildCalendarCells(state.docDueCalYear, state.docDueCalMonth, [], d.dueDate);
     const docDuePicker = `
@@ -1720,6 +1720,7 @@
               <div data-action="doc-due-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
           </div>
           <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:10px">${docType === 'quotation' ? 'Auto-set to 30 days after the issue date — click a date here to override.' : 'Auto-set to 10 days after the invoice date — click a date here to override.'}</div>
+          ${docType === 'quotation' ? `<button type="button" data-action="doc-due-clear" style="all:unset;cursor:pointer;color:oklch(0.55 0.18 25);font-size:11.5px;font-weight:700;margin-top:8px;display:inline-block">✕ No expiry (clear date)</button>` : ''}
         </div>` : ''}
       </div>`;
 
@@ -1740,7 +1741,7 @@
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
         <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Issue Date</div><div style="font-size:12.5px;font-weight:700">${fmtDateShortYear(d.date)}</div></div>
-        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Valid Until</div><div style="font-size:12.5px;font-weight:700;color:oklch(0.4 0.13 150)">${d.dueDate ? fmtDateShortYear(d.dueDate) : '—'}</div></div>
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Valid Until</div><div style="font-size:12.5px;font-weight:700;color:oklch(0.4 0.13 150)">${d.dueDate ? fmtDateShortYear(d.dueDate) : 'No expiry'}</div></div>
         <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Project</div><div style="font-size:12.5px;font-weight:700">${esc(d.description) || '—'}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
@@ -3066,6 +3067,7 @@
       case 'doc-due-cal-prev': setState(s => { let m = s.docDueCalMonth - 1, y = s.docDueCalYear; if (m < 0) { m = 11; y--; } return { docDueCalMonth: m, docDueCalYear: y }; }); break;
       case 'doc-due-cal-next': setState(s => { let m = s.docDueCalMonth + 1, y = s.docDueCalYear; if (m > 11) { m = 0; y++; } return { docDueCalMonth: m, docDueCalYear: y }; }); break;
       case 'doc-due-pick': setState(s => ({ docDraft: { ...s.docDraft, dueDate: el.dataset.date }, docDuePickerOpen: false })); break;
+      case 'doc-due-clear': setState(s => ({ docDraft: { ...s.docDraft, dueDate: '' }, docDuePickerOpen: false })); break;
 
       case 'ftdraft-date-toggle': setState(s => ({ ftDraftDatePickerOpen: !s.ftDraftDatePickerOpen })); break;
       case 'ftdraft-date-cal-prev': setState(s => { let m = s.ftDraftDateCalMonth - 1, y = s.ftDraftDateCalYear; if (m < 0) { m = 11; y--; } return { ftDraftDateCalMonth: m, ftDraftDateCalYear: y }; }); break;
@@ -3353,7 +3355,7 @@
       metaField('PAYMENT STATUS', (d.paymentStatus || 'Unpaid').toUpperCase(), metaColW * 2, statusColor);
     } else if (docType === 'quotation') {
       metaField('ISSUE DATE', fmtDateShortYear(d.date), 0);
-      metaField('VALID UNTIL', d.dueDate ? fmtDateShortYear(d.dueDate) : '—', metaColW, BRAND);
+      metaField('VALID UNTIL', d.dueDate ? fmtDateShortYear(d.dueDate) : 'No expiry', metaColW, BRAND);
       metaField('PROJECT', truncate(sanitizePeso(d.description) || '—', metaColW - 16), metaColW * 2);
     } else {
       metaField('ISSUE DATE', fmtDateShortYear(d.date), 0);
