@@ -1009,9 +1009,10 @@
     const selMonthNetProfit = selMonthRevenue - selMonthExpenses;
     const selMonthChartMax = Math.max(selMonthRevenue, selMonthExpenses, 1);
 
-    // Top Clients: total paid-to-date grouped by client name, biggest contributors first.
+    // Top Clients & Biggest Expenses follow the SELECTED month (like Revenue vs Expenses),
+    // so clicking a month in the chart re-scopes the whole page to that month.
     const clientTotals = {};
-    shoots.forEach(s => {
+    shoots.filter(s => s.date && s.date.slice(0, 7) === selectedMonthKey).forEach(s => {
       const name = (s.client || '').trim();
       if (!name) return;
       if (!clientTotals[name]) clientTotals[name] = { name, total: 0, count: 0 };
@@ -1024,11 +1025,15 @@
       .slice(0, 5)
       .map(c => ({ name: c.name, totalLabel: fmtMoney(c.total), shootsLabel: `${c.count} shoot${c.count === 1 ? '' : 's'}` }));
 
-    // Biggest Expenses: top 5 single largest expense entries, all-time.
-    const biggestExpenses = expenses.slice()
+    const biggestExpenses = expenses.filter(e => e.date && e.date.slice(0, 7) === selectedMonthKey)
       .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))
       .slice(0, 5)
       .map(e => ({ description: e.description || 'Untitled', dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount) }));
+
+    // Outstanding (unpaid balance still to collect) for the selected month — confirmed shoots only.
+    const selMonthOutstanding = shoots
+      .filter(s => s.date && s.date.slice(0, 7) === selectedMonthKey && s.status !== 'tentative')
+      .reduce((a, s) => a + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
 
     return {
       view, shoots, navColor, goalCards, completed, outstanding,
@@ -1044,7 +1049,7 @@
       monthShoots, monthSideHustleCollected, monthCombinedTotal, monthFullTimeSharePercent, monthSideHustleSharePercent,
       clientRows, activeClients, monthlyRevenue, netProfit, yearlyGoalIncome, yearlyProgressPercent,
       overviewBars, overviewYear,
-      selMonthLabel, selMonthRevenue, selMonthExpenses, selMonthNetProfit, selMonthChartMax,
+      selMonthLabel, selMonthRevenue, selMonthExpenses, selMonthNetProfit, selMonthChartMax, selMonthOutstanding,
       topClients, biggestExpenses,
       dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
       userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
@@ -1993,11 +1998,12 @@
         <span style="font-size:12.5px;font-weight:600;color:oklch(0.42 0.015 150)">Net Profit</span>
         <span style="font-size:16px;font-weight:700;color:${ctx.selMonthNetProfit > 0 ? 'oklch(0.45 0.14 150)' : 'oklch(0.58 0.19 25)'}">${fmtMoney(ctx.selMonthNetProfit)}</span>
       </div>
+      ${ctx.selMonthOutstanding > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px"><span style="color:oklch(0.5 0.015 150)">Outstanding (still to collect)</span><span style="font-weight:700;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.selMonthOutstanding)}</span></div>` : ''}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px">
       <div class="card">
-        <div class="card-title" style="margin-bottom:14px">Top Clients</div>
-        ${ctx.topClients.length === 0 ? `<div style="font-size:13px;color:oklch(0.55 0.015 150)">No payments collected yet.</div>` : `
+        <div class="card-title" style="margin-bottom:14px">Top Clients — ${esc(ctx.selMonthLabel)}</div>
+        ${ctx.topClients.length === 0 ? `<div style="font-size:13px;color:oklch(0.55 0.015 150)">No payments collected this month.</div>` : `
         <div style="display:flex;flex-direction:column;gap:12px">
           ${ctx.topClients.map((c, i) => `
             <div style="display:flex;align-items:center;gap:12px">
@@ -2011,8 +2017,8 @@
         </div>`}
       </div>
       <div class="card">
-        <div class="card-title" style="margin-bottom:14px">Biggest Expenses</div>
-        ${ctx.biggestExpenses.length === 0 ? `<div style="font-size:13px;color:oklch(0.55 0.015 150)">No expenses logged yet.</div>` : `
+        <div class="card-title" style="margin-bottom:14px">Biggest Expenses — ${esc(ctx.selMonthLabel)}</div>
+        ${ctx.biggestExpenses.length === 0 ? `<div style="font-size:13px;color:oklch(0.55 0.015 150)">No expenses this month.</div>` : `
         <div style="display:flex;flex-direction:column;gap:12px">
           ${ctx.biggestExpenses.map(e => `
             <div style="display:flex;align-items:center;gap:12px">
