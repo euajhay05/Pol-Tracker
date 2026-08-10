@@ -3250,10 +3250,10 @@
       doc.text('P', x, yPos);
       const pW = doc.getTextWidth('P');
       doc.setDrawColor(...color);
-      doc.setLineWidth(Math.max(0.6, fontSize * 0.055));
-      const barX0 = x - fontSize * 0.03, barX1 = x + pW * 0.68;
-      doc.line(barX0, yPos - fontSize * 0.58, barX1, yPos - fontSize * 0.58);
-      doc.line(barX0, yPos - fontSize * 0.4, barX1, yPos - fontSize * 0.4);
+      doc.setLineWidth(Math.max(0.6, fontSize * 0.05));
+      const barX0 = x - fontSize * 0.10, barX1 = x + pW * 0.60;
+      doc.line(barX0, yPos - fontSize * 0.52, barX1, yPos - fontSize * 0.52);
+      doc.line(barX0, yPos - fontSize * 0.37, barX1, yPos - fontSize * 0.37);
       const amtStr = (Number(amount) || 0).toLocaleString('en-PH');
       doc.text(amtStr, x + pW + fontSize * 0.1, yPos);
       return x + pW + fontSize * 0.1 + doc.getTextWidth(amtStr);
