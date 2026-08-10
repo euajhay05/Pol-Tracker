@@ -476,7 +476,7 @@
       expensesDayCalMonth: TODAY.getMonth(),
       expensesReportYear: TODAY.getFullYear(),
       expensesReportSelectedMonth: THIS_MONTH_KEY,
-      expensesListOpen: false,
+      expensesListOpen: true,
       loanModal: null,
       loanDraft: null,
       loanPaymentModal: null,
