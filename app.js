@@ -3325,7 +3325,11 @@
     const badgeSize = 46, badgeY = 42;
     doc.setFillColor(...DARK);
     doc.roundedRect(marginX, badgeY, badgeSize, badgeSize, 10, 10, 'F');
-    drawPolMark(marginX + 8, badgeY + 13, 15, [255, 255, 255], DARK);
+    // Simple "pol." wordmark to match the on-screen preview (white text + red dot).
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(255, 255, 255);
+    doc.text('pol', marginX + 9, badgeY + 30);
+    doc.setTextColor(200, 40, 35);
+    doc.text('.', marginX + 9 + doc.getTextWidth('pol') + 1.5, badgeY + 30);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...INK);
     doc.text(meta.title.toUpperCase(), rightX, badgeY + 16, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY);
@@ -3516,8 +3520,7 @@
       doc.roundedRect(boxX, y, boxW, 56, 10, 10, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
       doc.text('TOTAL PROPOSED RATE', boxX + 16, y + 20);
-      const qTotW = measurePeso(d.amount, 19, true);
-      drawPeso(d.amount, boxX + boxW - 16 - qTotW, y + 44, 19, INK, true);
+      drawPeso(d.amount, boxX + 16, y + 44, 20, INK, true);
       y += 56 + 24;
       // Next Step — green-tinted box with a left accent bar
       const nsLines = doc.splitTextToSize('To confirm your booking, reply to accept this quotation and settle the downpayment. We will then reserve your shoot schedule.', contentW - 32);
