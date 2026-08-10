@@ -1543,26 +1543,6 @@
       </div>
     </div>
     ${expensesCalendarSection}
-    <button type="button" data-action="expenses-list-toggle" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;background:var(--panel2);border-radius:12px;padding:12px 16px;margin-bottom:${state.expensesListOpen ? '16' : '24'}px">
-      <span style="font-size:13px;font-weight:700;color:oklch(0.3 0.02 150)">${state.expensesListOpen ? '▾' : '▸'} Full list — ${esc(ctx.expensesMonthLabel)} (${ctx.filteredExpenseRows.length})</span>
-      <span style="font-size:13px;font-weight:700;color:oklch(0.4 0.02 150)">${fmtMoney(ctx.monthExpensesTotal)}</span>
-    </button>
-    ${state.expensesListOpen ? `
-    <div class="search-wrap">
-      <input type="text" value="${esc(state.expensesSearch)}" data-bind="expensesSearch" placeholder="Search expenses..."/>
-      ${searchClear}
-    </div>
-    <div class="table-wrap">
-      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 32px"><div>Description</div><div>Date</div><div>Amount</div><div></div></div>
-      ${ctx.filteredExpenseRows.map(ex => `
-        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 32px">
-          <div style="font-weight:600;font-size:14px">${esc(ex.description)}</div>
-          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${ex.dateLabel}</div>
-          <div style="font-size:13.5px;font-weight:600">${ex.amountLabel}</div>
-          <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
-        </div>`).join('')}
-      ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in ${esc(ctx.expensesMonthLabel)}.</div>` : ''}
-    </div>` : ''}
     <div class="card" style="margin-top:24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="card-title" style="margin-bottom:0">Monthly Report</div>
@@ -1584,7 +1564,27 @@
         <div style="font-size:13px;font-weight:700;color:oklch(0.35 0.02 150)">Total for ${ctx.expensesReportYear}</div>
         <div class="sg" style="font-size:15px;font-weight:700">${fmtMoney(ctx.expensesReportYearTotal)}</div>
       </div>
-    </div>`;
+    </div>
+    <button type="button" data-action="expenses-list-toggle" style="all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;background:var(--panel2);border-radius:12px;padding:12px 16px;margin-top:24px;margin-bottom:${state.expensesListOpen ? '16' : '0'}px">
+      <span style="font-size:13px;font-weight:700;color:oklch(0.3 0.02 150)">${state.expensesListOpen ? '▾' : '▸'} Full list — ${esc(ctx.expensesMonthLabel)} (${ctx.filteredExpenseRows.length})</span>
+      <span style="font-size:13px;font-weight:700;color:oklch(0.4 0.02 150)">${fmtMoney(ctx.monthExpensesTotal)}</span>
+    </button>
+    ${state.expensesListOpen ? `
+    <div class="search-wrap">
+      <input type="text" value="${esc(state.expensesSearch)}" data-bind="expensesSearch" placeholder="Search expenses..."/>
+      ${searchClear}
+    </div>
+    <div class="table-wrap">
+      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 32px"><div>Description</div><div>Date</div><div>Amount</div><div></div></div>
+      ${ctx.filteredExpenseRows.map(ex => `
+        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 32px">
+          <div style="font-weight:600;font-size:14px">${esc(ex.description)}</div>
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${ex.dateLabel}</div>
+          <div style="font-size:13.5px;font-weight:600">${ex.amountLabel}</div>
+          <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
+        </div>`).join('')}
+      ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in ${esc(ctx.expensesMonthLabel)}.</div>` : ''}
+    </div>` : ''}`;
   }
 
   /* ---------------- loans ---------------- */
