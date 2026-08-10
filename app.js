@@ -60,7 +60,7 @@
 
   const DOC_TYPE_META = {
     contract:  { title: 'Service Agreement / Contract', body: (d, mf = fmtMoney) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", to be delivered on ${d.date || '[Date]'} for a total contract value of ${mf(d.amount)}.` },
-    quotation: { title: 'Quotation / Proposal',          body: (d, mf = fmtMoney) => `Quotation prepared for ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}". Proposed rate: ${mf(d.amount)}. Valid until ${d.date || '[Date]'}.` },
+    quotation: { title: 'Quotation',                      body: (d, mf = fmtMoney) => `Thank you for the opportunity to work with you. Below is our proposed scope of work and pricing for ${d.description || '[Project/Service]'}. This quotation is valid until ${d.dueDate ? fmtDateShortYear(d.dueDate) : '[Valid Until]'}.` },
     invoice:   { title: 'Statement of Account',           body: (d, mf = fmtMoney) => `Invoice billed to ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}. Amount due: ${mf(d.amount)}.` },
   };
 
@@ -1699,7 +1699,7 @@
     const docDueCells = buildCalendarCells(state.docDueCalYear, state.docDueCalMonth, [], d.dueDate);
     const docDuePicker = `
       <div class="field" style="position:relative">
-        <label>Due Date</label>
+        <label>${docType === 'quotation' ? 'Valid Until' : 'Due Date'}</label>
         <button type="button" data-action="doc-due-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between">
           <span>${docDueLabel}</span>
         </button>
@@ -1719,9 +1719,62 @@
             ${docDueCells.map(c => c.blank ? `<div></div>` : `
               <div data-action="doc-due-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
           </div>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:10px">Auto-set to 10 days after the invoice date — click a date here to override.</div>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:10px">${docType === 'quotation' ? 'Auto-set to 30 days after the issue date — click a date here to override.' : 'Auto-set to 10 days after the invoice date — click a date here to override.'}</div>
         </div>` : ''}
       </div>`;
+
+    // Quotation preview (redesigned): numbered Inclusions, Valid Until, Next Step, clean totals.
+    const qItemsRaw = parseLineItems(d.lineItems);
+    const qItems = qItemsRaw.length ? qItemsRaw
+      : (d.amount ? [{ label: d.description || 'Professional service', amount: Number(d.amount) }]
+                  : [{ label: 'No inclusions listed yet', amount: null }]);
+    const qHasAmounts = qItems.some(it => it.amount != null);
+    const qSubtotal = qItems.reduce((a, it) => a + (it.amount != null ? Number(it.amount) : 0), 0);
+    const quotationPreview = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px">
+        <div style="width:46px;height:46px;border-radius:10px;background:oklch(0.15 0 0);display:flex;align-items:center;justify-content:center;flex:none"><span class="sg" style="color:#fff;font-weight:700;font-size:15px;letter-spacing:-0.02em">pol<span style="color:oklch(0.6 0.2 25)">.</span></span></div>
+        <div style="text-align:right">
+          <div class="sg" style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.04em">Quotation</div>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:3px">Pol Film Productions</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Issue Date</div><div style="font-size:12.5px;font-weight:700">${fmtDateShortYear(d.date)}</div></div>
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Valid Until</div><div style="font-size:12.5px;font-weight:700;color:oklch(0.4 0.13 150)">${d.dueDate ? fmtDateShortYear(d.dueDate) : '—'}</div></div>
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Project</div><div style="font-size:12.5px;font-weight:700">${esc(d.description) || '—'}</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;margin-bottom:6px">Prepared By</div><div style="font-weight:700;font-size:13.5px;margin-bottom:2px">Pol Film Productions</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Video Production &amp; Editing Services</div></div>
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;margin-bottom:6px">Prepared For</div><div style="font-weight:700;font-size:13.5px;margin-bottom:2px">${esc(d.clientName) || '[Client Name]'}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${esc(d.clientContact) || 'No contact details provided'}</div></div>
+      </div>
+      <div style="font-size:12.5px;line-height:1.7;color:oklch(0.35 0.02 150);margin-bottom:20px">${esc(meta.body(d))}</div>
+      <div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Inclusions</div>
+      <div style="border:1px solid oklch(0 0 0 / 0.06);border-radius:12px;overflow:hidden;margin-bottom:18px">
+        ${qItems.map((it, i) => `
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;${i > 0 ? 'border-top:1px solid oklch(0 0 0 / 0.06);' : ''}font-size:12.5px">
+          <div style="width:22px;height:22px;border-radius:7px;background:oklch(0.95 0.03 150);color:oklch(0.4 0.13 150);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">${i + 1}</div>
+          <div style="flex:1;min-width:0;font-weight:600">${esc(it.label)}</div>
+          ${it.amount != null ? `<div style="font-weight:700;flex:none">${fmtMoney(it.amount)}</div>` : ''}
+        </div>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+        <div style="min-width:250px">
+          ${qHasAmounts ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:oklch(0.5 0.015 150);padding:3px 2px"><span>Subtotal</span><span>${fmtMoney(qSubtotal)}</span></div>` : ''}
+          <div style="background:oklch(0.97 0.015 150);border-radius:12px;padding:14px 18px;margin-top:8px">
+            <div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:7px">Total Proposed Rate</div>
+            <div class="sg" style="font-size:23px;font-weight:700;line-height:1">${fmtMoney(d.amount)}</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:oklch(0.95 0.03 150);border-left:4px solid oklch(0.4 0.13 150);border-radius:10px;padding:13px 16px;margin-bottom:20px">
+        <div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Next Step</div>
+        <div style="font-size:12px;color:oklch(0.3 0.03 150);line-height:1.6">To confirm your booking, reply to accept this quotation and settle the downpayment. We will then reserve your shoot schedule.</div>
+      </div>
+      <div style="border-top:1px solid oklch(0 0 0 / 0.08);padding-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Payment Terms</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);line-height:1.6">50% downpayment to confirm the booking. Balance due upon delivery of the final files.</div></div>
+        ${d.notes ? `<div><div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Notes</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);line-height:1.6;white-space:pre-line">${esc(d.notes)}</div></div>` : ''}
+      </div>
+    `;
 
     const sortedDocs = [...state.documents].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const docsHistorySection = state.docsHistoryOpen ? `
@@ -1799,6 +1852,11 @@
             </select>
           </div>
         </div>` : ''}
+        ${docType === 'quotation' ? `
+        <div style="border-top:1px solid oklch(0 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
+          ${docDuePicker}
+          <div class="field"><label>Inclusions</label><textarea rows="4" data-bind="docDraft.lineItems" placeholder="One per line, e.g.&#10;Full-day video shoot - ₱10,000&#10;Drone coverage - ₱3,000&#10;Editing and color grading - ₱2,000">${esc(d.lineItems)}</textarea><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">One item per line. Add "- ₱amount" at the end to show a price. Each line becomes a numbered inclusion.</div></div>
+        </div>` : ''}
         ${state.editingDocId ? `
         <div style="font-size:12px;color:oklch(0.45 0.13 260);background:oklch(0.96 0.03 260);border:1px solid oklch(0.86 0.05 260);padding:8px 11px;border-radius:9px;margin-top:4px">✎ Editing this ${meta.title.toLowerCase()}${isInvoice ? ` (#${esc(d.invoiceNumber)})` : ''} — “Update” saves it back to the same record (no new copy).</div>
         <div style="display:flex;gap:8px;margin-top:8px">
@@ -1810,6 +1868,7 @@
         `}
       </div>
       <div id="doc-preview-panel" style="background:#fff;color:oklch(0.22 0.02 150);border-radius:16px;padding:32px;min-height:360px;border:1px solid oklch(0 0 0 / 0.06)">
+        ${docType === 'quotation' ? quotationPreview : `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px">
           <div style="width:46px;height:46px;border-radius:10px;background:oklch(0.15 0 0);display:flex;align-items:center;justify-content:center;flex:none">
             <span class="sg" style="color:#fff;font-weight:700;font-size:15px;letter-spacing:-0.02em">pol<span style="color:oklch(0.6 0.2 25)">.</span></span>
@@ -1873,6 +1932,7 @@
           </div>
         </div>
         ${d.notes ? `<div style="padding-top:14px;border-top:1px solid oklch(0 0 0 / 0.08);font-size:12px;color:oklch(0.5 0.015 150);white-space:pre-line"><div style="font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;font-size:9.5px;margin-bottom:6px">Notes</div>${esc(d.notes)}</div>` : ''}
+        `}
       </div>
     </div>
     <div class="card" style="margin-top:20px">
@@ -2939,6 +2999,9 @@
         if (doctype === 'invoice') {
           return { docType: doctype, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(s.invoiceCounter) } };
         }
+        if (doctype === 'quotation') {
+          return { docType: doctype, docDraft: { ...s.docDraft, dueDate: addDays(s.docDraft.date || TODAY_STR, 30) } };
+        }
         return { docType: doctype };
       }); break;
       case 'doc-generate':
@@ -2996,7 +3059,7 @@
       case 'doc-date-cal-prev': setState(s => { let m = s.docDateCalMonth - 1, y = s.docDateCalYear; if (m < 0) { m = 11; y--; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
       case 'doc-date-cal-next': setState(s => { let m = s.docDateCalMonth + 1, y = s.docDateCalYear; if (m > 11) { m = 0; y++; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
       case 'doc-date-pick': setState(s => ({
-        docDraft: { ...s.docDraft, date: el.dataset.date, dueDate: addDays(el.dataset.date, 10) },
+        docDraft: { ...s.docDraft, date: el.dataset.date, dueDate: addDays(el.dataset.date, s.docType === 'quotation' ? 30 : 10) },
         docDatePickerOpen: false,
       })); break;
       case 'doc-due-toggle': setState(s => ({ docDuePickerOpen: !s.docDuePickerOpen, docDatePickerOpen: false })); break;
@@ -3284,10 +3347,14 @@
       metaField('ISSUE DATE', fmtDateShortYear(d.date), 0);
       metaField('DUE DATE', fmtDateShortYear(d.dueDate), metaColW);
       metaField('PAYMENT STATUS', (d.paymentStatus || 'Unpaid').toUpperCase(), metaColW * 2, statusColor);
+    } else if (docType === 'quotation') {
+      metaField('ISSUE DATE', fmtDateShortYear(d.date), 0);
+      metaField('VALID UNTIL', d.dueDate ? fmtDateShortYear(d.dueDate) : '—', metaColW, BRAND);
+      metaField('PROJECT', truncate(sanitizePeso(d.description) || '—', metaColW - 16), metaColW * 2);
     } else {
       metaField('ISSUE DATE', fmtDateShortYear(d.date), 0);
       metaField('PROJECT / SERVICE', truncate(sanitizePeso(d.description) || '—', metaColW - 16), metaColW);
-      metaField('DOCUMENT TYPE', docType === 'quotation' ? 'Quotation' : 'Contract', metaColW * 2);
+      metaField('DOCUMENT TYPE', 'Contract', metaColW * 2);
     }
     y += 42;
     doc.setDrawColor(...LINE); doc.setLineWidth(1);
@@ -3296,8 +3363,8 @@
 
     // ---- billed by / billed to ----
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
-    doc.text('BILLED BY', marginX, y);
-    doc.text('BILLED TO', col2X, y);
+    doc.text(docType === 'quotation' ? 'PREPARED BY' : 'BILLED BY', marginX, y);
+    doc.text(docType === 'quotation' ? 'PREPARED FOR' : 'BILLED TO', col2X, y);
     y += 16;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...INK);
     doc.text('Pol Film Productions', marginX, y);
@@ -3336,6 +3403,32 @@
         doc.line(marginX, y, rightX, y);
       });
       y += 20;
+    } else if (docType === 'quotation') {
+      // intro paragraph
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
+      const introLines = doc.splitTextToSize(sanitizePeso(meta.body(d, pdfFmtMoney)), contentW);
+      ensureSpace(introLines.length * 15 + 24);
+      introLines.forEach(line => { doc.text(line, marginX, y); y += 15; });
+      y += 14;
+      // inclusions
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+      doc.text('INCLUSIONS', marginX, y); y += 8;
+      doc.setDrawColor(...LINE); doc.setLineWidth(1); doc.line(marginX, y, rightX, y); y += 16;
+      const qitems = parseLineItems(d.lineItems);
+      const qrows = qitems.length ? qitems
+        : [{ label: sanitizePeso(d.description) || 'Professional service', amount: (Number(d.amount) || 0) ? Number(d.amount) : null }];
+      qrows.forEach((it, i) => {
+        const labelLines = doc.splitTextToSize(sanitizePeso(it.label), contentW - 170);
+        const rowH = Math.max(labelLines.length, 1) * 14 + 8;
+        ensureSpace(rowH);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...BRAND);
+        doc.text(String(i + 1) + '.', marginX, y + 12);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK);
+        labelLines.forEach((ln, j) => doc.text(ln, marginX + 18, y + 12 + j * 14));
+        if (it.amount != null) doc.text(pdfFmtMoney(it.amount), rightX, y + 12, { align: 'right' });
+        y += rowH;
+      });
+      y += 18;
     } else {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
       const bodyLines = doc.splitTextToSize(sanitizePeso(meta.body(d, pdfFmtMoney)), contentW);
@@ -3404,6 +3497,19 @@
       const totW2 = measurePeso(d.amount, 17, true);
       drawPeso(d.amount, boxX + boxW - 14 - totW2, y + 41, 17, INK, true);
       y += 54 + 26;
+      if (docType === 'quotation') {
+        ensureSpace(80);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+        doc.text('NEXT STEP', marginX, y); y += 14;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...INK);
+        doc.splitTextToSize('To confirm your booking, reply to accept this quotation and settle the downpayment. We will then reserve your shoot schedule.', contentW).forEach(line => { doc.text(line, marginX, y); y += 13; });
+        y += 14;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+        doc.text('PAYMENT TERMS', marginX, y); y += 14;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+        doc.splitTextToSize('50% downpayment to confirm the booking. Balance due upon delivery of the final files.', contentW).forEach(line => { doc.text(line, marginX, y); y += 13; });
+        y += 10;
+      }
     }
 
     // ---- notes ----
