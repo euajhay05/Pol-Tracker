@@ -3410,25 +3410,38 @@
       ensureSpace(introLines.length * 15 + 24);
       introLines.forEach(line => { doc.text(line, marginX, y); y += 15; });
       y += 14;
-      // inclusions
+      // inclusions — numbered badges inside a bordered container (mirrors the on-screen preview)
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
-      doc.text('INCLUSIONS', marginX, y); y += 8;
-      doc.setDrawColor(...LINE); doc.setLineWidth(1); doc.line(marginX, y, rightX, y); y += 16;
+      doc.text('INCLUSIONS', marginX, y); y += 12;
       const qitems = parseLineItems(d.lineItems);
       const qrows = qitems.length ? qitems
         : [{ label: sanitizePeso(d.description) || 'Professional service', amount: (Number(d.amount) || 0) ? Number(d.amount) : null }];
-      qrows.forEach((it, i) => {
-        const labelLines = doc.splitTextToSize(sanitizePeso(it.label), contentW - 170);
-        const rowH = Math.max(labelLines.length, 1) * 14 + 8;
-        ensureSpace(rowH);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...BRAND);
-        doc.text(String(i + 1) + '.', marginX, y + 12);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK);
-        labelLines.forEach((ln, j) => doc.text(ln, marginX + 18, y + 12 + j * 14));
-        if (it.amount != null) doc.text(pdfFmtMoney(it.amount), rightX, y + 12, { align: 'right' });
-        y += rowH;
+      const qPadX = 14, qBadge = 16, qGap = 10, qLabelX = marginX + qPadX + qBadge + qGap, qLabelW = contentW - qPadX * 2 - qBadge - qGap - 92;
+      const qLayout = qrows.map(it => {
+        const lines = doc.splitTextToSize(sanitizePeso(it.label), qLabelW);
+        return { it, lines, h: Math.max(lines.length, 1) * 13 + 16 };
       });
-      y += 18;
+      const qBoxH = qLayout.reduce((a, r) => a + r.h, 0);
+      ensureSpace(qBoxH + 8);
+      doc.setDrawColor(...LINE); doc.setLineWidth(1);
+      doc.roundedRect(marginX, y, contentW, qBoxH, 10, 10, 'D');
+      let qry = y;
+      qLayout.forEach((r, i) => {
+        if (i > 0) { doc.setDrawColor(...LINE); doc.setLineWidth(0.75); doc.line(marginX, qry, marginX + contentW, qry); }
+        const textY = qry + 17;
+        doc.setFillColor(...BRAND_PALE);
+        doc.roundedRect(marginX + qPadX, qry + 9, qBadge, qBadge, 5, 5, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...BRAND);
+        doc.text(String(i + 1), marginX + qPadX + qBadge / 2, qry + 9 + qBadge / 2 + 3.2, { align: 'center' });
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...INK);
+        r.lines.forEach((ln, j) => doc.text(ln, qLabelX, textY + j * 13));
+        if (r.it.amount != null) {
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...INK);
+          doc.text(pdfFmtMoney(r.it.amount), marginX + contentW - qPadX, textY, { align: 'right' });
+        }
+        qry += r.h;
+      });
+      y += qBoxH + 20;
     } else {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
       const bodyLines = doc.splitTextToSize(sanitizePeso(meta.body(d, pdfFmtMoney)), contentW);
@@ -3486,30 +3499,54 @@
       const totW = measurePeso(d.amount, 18, true);
       drawPeso(d.amount, boxX + boxW - 14 - totW, pesoY, 18, INK, true);
       y = Math.max(ly, startY - 8 + boxH) + 26;
+    } else if (docType === 'quotation') {
+      // subtotal + prominent Total Proposed Rate box (mirrors preview)
+      const qi = parseLineItems(d.lineItems);
+      const qHasAmt = qi.some(it => it.amount != null);
+      const qSub = qi.reduce((a, it) => a + (it.amount != null ? Number(it.amount) : 0), 0);
+      ensureSpace(90);
+      const boxW = 250, boxX = rightX - boxW;
+      if (qHasAmt) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+        doc.text('Subtotal', boxX, y);
+        doc.text(pdfFmtMoney(qSub), rightX, y, { align: 'right' });
+        y += 16;
+      }
+      doc.setDrawColor(...LINE); doc.setFillColor(...BRAND_PALE);
+      doc.roundedRect(boxX, y, boxW, 56, 10, 10, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+      doc.text('TOTAL PROPOSED RATE', boxX + 16, y + 20);
+      const qTotW = measurePeso(d.amount, 19, true);
+      drawPeso(d.amount, boxX + boxW - 16 - qTotW, y + 44, 19, INK, true);
+      y += 56 + 24;
+      // Next Step — green-tinted box with a left accent bar
+      const nsLines = doc.splitTextToSize('To confirm your booking, reply to accept this quotation and settle the downpayment. We will then reserve your shoot schedule.', contentW - 32);
+      const nsH = nsLines.length * 13 + 32;
+      ensureSpace(nsH + 10);
+      doc.setFillColor(230, 241, 233); doc.roundedRect(marginX, y, contentW, nsH, 8, 8, 'F');
+      doc.setFillColor(...BRAND); doc.rect(marginX, y, 4, nsH, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+      doc.text('NEXT STEP', marginX + 16, y + 17);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...INK);
+      nsLines.forEach((line, i) => doc.text(line, marginX + 16, y + 32 + i * 13));
+      y += nsH + 22;
+      // Payment Terms
+      ensureSpace(44);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+      doc.text('PAYMENT TERMS', marginX, y); y += 14;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+      doc.splitTextToSize('50% downpayment to confirm the booking. Balance due upon delivery of the final files.', contentW).forEach(line => { doc.text(line, marginX, y); y += 13; });
+      y += 10;
     } else {
       ensureSpace(70);
       const boxW = 230, boxX = rightX - boxW;
-      const totalLabel = docType === 'quotation' ? 'PROPOSED RATE' : 'TOTAL CONTRACT VALUE';
       doc.setDrawColor(...LINE); doc.setFillColor(...BRAND_PALE);
       doc.roundedRect(boxX, y, boxW, 54, 8, 8, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
-      doc.text(totalLabel, boxX + 14, y + 17);
+      doc.text('TOTAL CONTRACT VALUE', boxX + 14, y + 17);
       const totW2 = measurePeso(d.amount, 17, true);
       drawPeso(d.amount, boxX + boxW - 14 - totW2, y + 41, 17, INK, true);
       y += 54 + 26;
-      if (docType === 'quotation') {
-        ensureSpace(80);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
-        doc.text('NEXT STEP', marginX, y); y += 14;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...INK);
-        doc.splitTextToSize('To confirm your booking, reply to accept this quotation and settle the downpayment. We will then reserve your shoot schedule.', contentW).forEach(line => { doc.text(line, marginX, y); y += 13; });
-        y += 14;
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
-        doc.text('PAYMENT TERMS', marginX, y); y += 14;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
-        doc.splitTextToSize('50% downpayment to confirm the booking. Balance due upon delivery of the final files.', contentW).forEach(line => { doc.text(line, marginX, y); y += 13; });
-        y += 10;
-      }
     }
 
     // ---- notes ----
