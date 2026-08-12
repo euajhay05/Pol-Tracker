@@ -333,20 +333,34 @@
   const AUTH_EXPIRES_KEY = 'shoottracker_expires_at';
   let accessToken = null;
 
+  // Login is kept in sessionStorage (not localStorage) on purpose: it survives a
+  // page refresh but is cleared when the tab / browser is closed — so reopening
+  // the app fresh asks for login again, while a simple refresh keeps you in.
+  const authStore = (() => {
+    try { return window.sessionStorage; } catch (e) { return null; }
+  })();
+  // One-time cleanup: remove any old login left in localStorage by earlier versions,
+  // otherwise closing the browser wouldn't actually log you out.
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_REFRESH_KEY);
+    localStorage.removeItem(AUTH_EXPIRES_KEY);
+  } catch (e) { /* storage unavailable */ }
+
   function saveSession(sess) {
     accessToken = sess.access_token || null;
     try {
-      localStorage.setItem(AUTH_TOKEN_KEY, sess.access_token);
-      localStorage.setItem(AUTH_REFRESH_KEY, sess.refresh_token);
-      localStorage.setItem(AUTH_EXPIRES_KEY, String(Date.now() + ((sess.expires_in || 3600) * 1000)));
+      authStore.setItem(AUTH_TOKEN_KEY, sess.access_token);
+      authStore.setItem(AUTH_REFRESH_KEY, sess.refresh_token);
+      authStore.setItem(AUTH_EXPIRES_KEY, String(Date.now() + ((sess.expires_in || 3600) * 1000)));
     } catch (e) { /* storage unavailable */ }
   }
   function clearSession() {
     accessToken = null;
     try {
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(AUTH_REFRESH_KEY);
-      localStorage.removeItem(AUTH_EXPIRES_KEY);
+      authStore.removeItem(AUTH_TOKEN_KEY);
+      authStore.removeItem(AUTH_REFRESH_KEY);
+      authStore.removeItem(AUTH_EXPIRES_KEY);
     } catch (e) { /* storage unavailable */ }
   }
   // kept so the existing 'logout' action keeps working
@@ -363,7 +377,7 @@
   }
   async function refreshSession() {
     let rt = null;
-    try { rt = localStorage.getItem(AUTH_REFRESH_KEY); } catch (e) { /* storage unavailable */ }
+    try { rt = authStore.getItem(AUTH_REFRESH_KEY); } catch (e) { /* storage unavailable */ }
     if (!rt) return false;
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
       method: 'POST',
@@ -378,8 +392,8 @@
   async function ensureSession() {
     let token = null, exp = 0;
     try {
-      token = localStorage.getItem(AUTH_TOKEN_KEY);
-      exp = Number(localStorage.getItem(AUTH_EXPIRES_KEY));
+      token = authStore.getItem(AUTH_TOKEN_KEY);
+      exp = Number(authStore.getItem(AUTH_EXPIRES_KEY));
     } catch (e) { /* storage unavailable */ }
     if (token && exp && Date.now() < exp - 60000) { accessToken = token; return true; }
     return await refreshSession();
