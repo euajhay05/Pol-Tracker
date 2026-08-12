@@ -347,6 +347,37 @@
     localStorage.removeItem(AUTH_EXPIRES_KEY);
   } catch (e) { /* storage unavailable */ }
 
+  // Auto-logout after 10 minutes of inactivity (even across a refresh): we remember
+  // the last time you actually did something, and if that was over 10 minutes ago the
+  // saved login is dropped so the app asks you to log in again. "Doing something" =
+  // a tap, key press, or scroll - just leaving the tab open does NOT keep you in.
+  const IDLE_LIMIT_MS = 10 * 60 * 1000;
+  const AUTH_ACTIVE_KEY = 'shoottracker_last_active';
+  let lastMark = 0;
+  function markActive() {
+    const now = Date.now();
+    try { authStore.setItem(AUTH_ACTIVE_KEY, String(now)); } catch (e) { /* storage unavailable */ }
+    lastMark = now;
+  }
+  function markActiveThrottled() {
+    if (Date.now() - lastMark > 20000) markActive();
+  }
+  function idleTooLong() {
+    let last = 0;
+    try { last = Number(authStore.getItem(AUTH_ACTIVE_KEY)) || 0; } catch (e) { /* storage unavailable */ }
+    return last > 0 && (Date.now() - last) > IDLE_LIMIT_MS;
+  }
+  let idleWatchStarted = false;
+  function startIdleWatch() {
+    if (idleWatchStarted) return;
+    idleWatchStarted = true;
+    ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach(evt =>
+      window.addEventListener(evt, markActiveThrottled, { passive: true }));
+    setInterval(() => {
+      if (accessToken && idleTooLong()) { clearSession(); renderLockScreen(false); }
+    }, 30000);
+  }
+
   function saveSession(sess) {
     accessToken = sess.access_token || null;
     try {
@@ -390,13 +421,15 @@
   }
   // True if we already hold a valid (or refreshable) session, so a refresh keeps you logged in.
   async function ensureSession() {
+    if (idleTooLong()) { clearSession(); return false; }
     let token = null, exp = 0;
     try {
       token = authStore.getItem(AUTH_TOKEN_KEY);
       exp = Number(authStore.getItem(AUTH_EXPIRES_KEY));
     } catch (e) { /* storage unavailable */ }
-    if (token && exp && Date.now() < exp - 60000) { accessToken = token; return true; }
-    return await refreshSession();
+    const ok = (token && exp && Date.now() < exp - 60000) ? (accessToken = token, true) : await refreshSession();
+    if (ok) markActive();
+    return ok;
   }
   // Every Supabase REST call goes through here, sending the logged-in user's token
   // (not the public key) and auto-refreshing once if the token has expired.
@@ -3992,6 +4025,8 @@
   }
 
   async function init() {
+    markActive();
+    startIdleWatch();
     wireListeners();
     startClockInterval();
     const app = document.getElementById('app');
