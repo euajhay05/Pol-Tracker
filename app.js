@@ -762,6 +762,41 @@
     };
   }
 
+  /* ---------------- backup reminder + PWA install ---------------- */
+  // Remember the last time a backup was downloaded (device-local) so we can nudge
+  // the user to back up again after a while — all their data lives in one Supabase row.
+  const BACKUP_KEY = 'shoottracker_last_backup';
+  const BACKUP_REMIND_DAYS = 7;
+  let backupReminderDismissed = false;
+  function markBackupDone() { try { localStorage.setItem(BACKUP_KEY, TODAY_STR); } catch (e) { /* storage unavailable */ } }
+  function daysSinceBackup() {
+    let last = null;
+    try { last = localStorage.getItem(BACKUP_KEY); } catch (e) { /* storage unavailable */ }
+    if (!last) return null; // never backed up
+    const d = Math.floor((new Date(TODAY_STR + 'T00:00:00') - new Date(last + 'T00:00:00')) / 86400000);
+    return isNaN(d) ? null : d;
+  }
+
+  // PWA "Install app": the browser fires beforeinstallprompt when the app is installable.
+  // We capture it and show our own button that triggers the native prompt on demand.
+  let deferredInstallPrompt = null;
+  let installReady = false;
+  function safeRerender() {
+    // Only re-render when the full app (not the lock screen / loading screen) is showing.
+    if (document.querySelector('.app-shell')) { try { render(); } catch (e) { /* not ready */ } }
+  }
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installReady = true;
+    safeRerender();
+  });
+  window.addEventListener('appinstalled', () => {
+    installReady = false;
+    deferredInstallPrompt = null;
+    safeRerender();
+  });
+
   function buildCtx() {
     const view = state.view;
     const shoots = state.shoots.map(decorate);
@@ -827,7 +862,7 @@
       const remainingNum = Number(l.remainingBalance) || 0;
       const monthsLeft = (!isPaid && monthlyDueNum > 0 && remainingNum > 0) ? Math.ceil(remainingNum / monthlyDueNum) : null;
       return {
-        ...l, paidPercent, dueDay,
+        ...l, paidPercent, dueDay, dueDays,
         statusLabel: isPaid ? 'Paid Off' : 'Ongoing',
         statusColor: isPaid ? 'oklch(0.5 0.15 150)' : 'oklch(0.58 0.16 80)',
         statusBg: isPaid ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.78 0.14 80 / 0.16)',
@@ -837,6 +872,18 @@
         monthsLeftLabel: isPaid ? 'Paid off ✓' : (monthsLeft !== null ? `~${monthsLeft} month${monthsLeft === 1 ? '' : 's'} left to pay off` : null),
       };
     });
+    // Loans whose next monthly payment is due within a week (or already overdue) —
+    // surfaced on the dashboard so a payment is less likely to be missed.
+    const loansDueSoon = loanCards
+      .filter(l => l.showDueBadge && l.dueDays !== null && l.dueDays <= 7)
+      .sort((a, b) => a.dueDays - b.dueDays);
+
+    // Backup reminder state (device-local last-backup date).
+    const backupDays = daysSinceBackup();
+    const showBackupReminder = !backupReminderDismissed && (backupDays === null || backupDays >= BACKUP_REMIND_DAYS);
+    const backupReminderLabel = backupDays === null
+      ? "You haven't downloaded a backup yet."
+      : `It's been ${backupDays} day${backupDays === 1 ? '' : 's'} since your last backup.`;
 
     const expenses = state.expenses;
     const todayTotal = expenses.filter(e => e.date === TODAY_STR).reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -1090,6 +1137,7 @@
     return {
       view, shoots, navColor, goalCards, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
+      loansDueSoon, showBackupReminder, backupReminderLabel,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
       expensesMonthKey, expensesMonthLabel, monthExpensesTotal,
@@ -1172,8 +1220,38 @@
         <div class="sg" style="font-size:30px;font-weight:700;letter-spacing:-0.01em">Welcome Back, <span style="color:oklch(0.4 0.13 150)">${esc(ctx.userFirstName)}</span></div>
         <div class="page-sub">Your production priorities at a glance</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;color:oklch(0.4 0.02 150)">🕒 ${esc(ctx.liveDateTimeLabel)}</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        ${installReady ? `<button type="button" data-action="install-app" class="btn-primary" style="padding:10px 16px">⬇ Install app</button>` : ''}
+        <div style="display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;color:oklch(0.4 0.02 150)">🕒 ${esc(ctx.liveDateTimeLabel)}</div>
+      </div>
     </div>
+
+    ${ctx.showBackupReminder ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:oklch(0.96 0.05 85);border:1px solid oklch(0.8 0.12 85);border-radius:14px;padding:14px 18px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;font-size:13.5px;color:oklch(0.4 0.05 70)">
+        <span style="font-size:18px">💾</span>
+        <span><strong>Backup reminder.</strong> ${esc(ctx.backupReminderLabel)} Mag-download ng kopya para sigurado.</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="button" data-action="backup-download" class="btn-primary" style="padding:9px 14px">Download backup</button>
+        <button type="button" data-action="backup-remind-later" style="all:unset;cursor:pointer;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;color:oklch(0.45 0.03 70)">Later</button>
+      </div>
+    </div>` : ''}
+
+    ${ctx.loansDueSoon.length ? `
+    <div class="card" style="margin-bottom:16px;border:1px solid oklch(0.8 0.14 45 / 0.5)">
+      <div class="card-title" style="display:flex;align-items:center;gap:8px">🔔 Loan Payments Due Soon</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${ctx.loansDueSoon.map(l => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;background:var(--card);border-radius:10px">
+            <div>
+              <div style="font-weight:700;font-size:14px">${esc(l.lender)}</div>
+              <div style="font-size:12px;color:oklch(0.5 0.015 150)">${esc(l.dueLabel)} · Monthly due ${l.monthlyDueLabel}</div>
+            </div>
+            <div style="font-size:12.5px;font-weight:700;color:${l.dueBadgeColor}">${l.dueBadgeLabel}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="dash-hero-grid" style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:16px;align-items:stretch">
       <div style="background:linear-gradient(160deg, oklch(0.42 0.14 150), oklch(0.28 0.1 155));border-radius:18px;padding:26px;display:flex;flex-direction:column;justify-content:space-between;color:oklch(1 0 0);min-height:150px">
@@ -2978,6 +3056,20 @@
         a.href = url; a.download = `pol-tracker-backup-${TODAY_STR}.json`;
         document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(url);
+        markBackupDone();               // remember we just backed up
+        backupReminderDismissed = true; // hide the reminder banner
+        render();
+        break;
+      }
+      case 'backup-remind-later': { backupReminderDismissed = true; render(); break; }
+      case 'install-app': {
+        if (deferredInstallPrompt) {
+          const p = deferredInstallPrompt;
+          deferredInstallPrompt = null;
+          installReady = false;
+          render();
+          p.prompt();
+        }
         break;
       }
       case 'monthly-report': { generateMonthlyReportPdf(); break; }
