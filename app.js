@@ -2601,7 +2601,7 @@
         <div class="page-title">Gear ROI</div>
         <div class="page-sub">How much of your gear investment you have earned back from your side hustle income</div>
       </div>
-      <button type="button" class="btn-primary" data-action="gear-add-open">+ Add Gear</button>
+      <button type="button" class="btn-primary" data-action="gear-add-open">+ Add Item</button>
     </div>
 
     <div class="card" style="margin-bottom:16px;background:linear-gradient(160deg, oklch(0.42 0.14 150), oklch(0.28 0.1 155));color:oklch(1 0 0);border:none">
@@ -2637,21 +2637,21 @@
     </div>
 
     <div class="table-wrap">
-      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 1.5fr 68px"><div>Item</div><div>Purchased</div><div>Cost</div><div>Status</div><div></div></div>
+      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 1.3fr 96px"><div>Item</div><div>Purchased</div><div>Cost</div><div>Status</div><div></div></div>
       ${ctx.gearRows.map(g => `
-        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 1.5fr 68px;align-items:center">
+        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 1.3fr 96px;align-items:center">
           <div style="font-weight:600;font-size:13.5px">${esc(g.name)}</div>
           <div style="font-size:12.5px;color:oklch(0.5 0.015 150)">${g.dateLabel}</div>
           <div style="font-size:13.5px;font-weight:600">${g.costLabel}</div>
           <div>${g.sold
             ? `<span class="badge" style="background:oklch(0.92 0.06 25);color:oklch(0.5 0.19 25)">Sold ${g.soldForLabel}</span>${g.soldName || g.soldDateLabel ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:3px">${esc(g.soldName || '')}${g.soldName && g.soldDateLabel ? ' · ' : ''}${g.soldDateLabel}</div>` : ''}`
             : `<span class="badge" style="background:oklch(0.9 0.05 150);color:oklch(0.42 0.13 150)">Owned</span>`}</div>
-          <div style="display:flex;gap:10px;justify-content:flex-end">
-            <button type="button" data-action="gear-edit" data-id="${esc(g.id)}" title="Edit" style="all:unset;cursor:pointer;color:oklch(0.45 0.14 150);font-size:14px">✎</button>
-            <button type="button" data-action="gear-delete" data-id="${esc(g.id)}" title="Delete" style="all:unset;cursor:pointer;color:oklch(0.58 0.19 25);font-size:14px">✕</button>
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button type="button" data-action="gear-edit" data-id="${esc(g.id)}" title="Edit" style="all:unset;cursor:pointer;color:oklch(0.45 0.14 150);font-size:18px;padding:8px 9px;border-radius:9px">✎</button>
+            <button type="button" data-action="gear-delete" data-id="${esc(g.id)}" title="Delete" style="all:unset;cursor:pointer;color:oklch(0.58 0.19 25);font-size:18px;padding:8px 9px;border-radius:9px">✕</button>
           </div>
         </div>`).join('')}
-      ${ctx.gearRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">${ctx.gearItems.length ? 'No gear matches your search.' : 'No gear yet. Tap "+ Add Gear" to start.'}</div>` : ''}
+      ${ctx.gearRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">${ctx.gearItems.length ? 'No gear matches your search.' : 'No items yet. Tap "+ Add Item" to start.'}</div>` : ''}
     </div>`;
   }
 
@@ -2663,7 +2663,7 @@
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="gear">
       <form class="modal-box" style="width:420px" data-stop data-action="save-gear">
-        <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Gear' : 'Add Gear'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="gear">✕</button></div>
+        <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Item' : 'Add Item'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="gear">✕</button></div>
         <div class="modal-fields">
           <div class="field"><label>Item Name</label><input type="text" value="${esc(d.name)}" data-bind="gearDraft.name" placeholder="e.g. A7V with 35 GM" required/></div>
           <div class="row-2">
