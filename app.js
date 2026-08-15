@@ -534,6 +534,10 @@
       goalFundDraft: null,
       clientModal: null,
       clientDraft: null,
+      gearItems: [],
+      gearModal: null,
+      gearDraft: null,
+      gearSearch: '',
       docType: 'contract',
       invoiceCounter: Number(localStorage.getItem('shoottracker_invoice_counter')) || 1,
       docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
@@ -549,8 +553,8 @@
     };
   }
 
-  const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients', 'packageRates', 'documents'];
-  const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', goals: 'goals', clients: 'clients', packageRates: 'package_rates', documents: 'documents' };
+  const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'goals', 'clients', 'packageRates', 'documents', 'gearItems'];
+  const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', goals: 'goals', clients: 'clients', packageRates: 'package_rates', documents: 'documents', gearItems: 'gear_items' };
 
   async function fetchRemoteState() {
     const cols = Object.values(PERSIST_COLUMNS).join(',');
@@ -849,6 +853,28 @@
     const totalPackage = shoots.reduce((sum, s) => sum + (Number(s.package) || 0), 0);
     const totalPaid = shoots.reduce((sum, s) => sum + (Number(s.paid) || 0), 0);
 
+    // Gear ROI: how much of the gear investment has been earned back from side-hustle
+    // income (money actually collected from shoots). Selling gear reduces the amount to recover.
+    const gearItems = state.gearItems || [];
+    const gearTotalCost = gearItems.reduce((s, g) => s + (Number(g.cost) || 0), 0);
+    const gearSoldProceeds = gearItems.filter(g => g.sold).reduce((s, g) => s + (Number(g.soldFor) || 0), 0);
+    const gearNetInvestment = Math.max(0, gearTotalCost - gearSoldProceeds);
+    const gearRoiIncome = totalPaid; // side-hustle collected across all shoots
+    const gearRoiRemaining = Math.max(0, gearNetInvestment - gearRoiIncome);
+    const gearRoiPercent = gearNetInvestment > 0 ? Math.min(100, Math.round((gearRoiIncome / gearNetInvestment) * 100)) : 0;
+    const gearRoiReached = gearNetInvestment > 0 && gearRoiIncome >= gearNetInvestment;
+    const gearOwnedCount = gearItems.filter(g => !g.sold).length;
+    const gearSoldCount = gearItems.filter(g => g.sold).length;
+    const gearRows = gearItems.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      .filter(g => (g.name || '').toLowerCase().includes((state.gearSearch || '').toLowerCase()))
+      .map(g => ({
+        ...g,
+        costLabel: fmtMoney(g.cost),
+        dateLabel: g.date ? new Date(g.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        soldForLabel: g.soldFor ? fmtMoney(g.soldFor) : '',
+        soldDateLabel: g.soldDate ? new Date(g.soldDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+      }));
+
     const loanCards = state.loans.map(l => {
       const paidPercent = l.amount > 0 ? Math.min(100, Math.round(((l.amount - l.remainingBalance) / l.amount) * 100)) : 100;
       const isPaid = l.status === 'paid';
@@ -1138,6 +1164,7 @@
       view, shoots, navColor, goalCards, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
       loansDueSoon, showBackupReminder, backupReminderLabel,
+      gearItems, gearTotalCost, gearSoldProceeds, gearNetInvestment, gearRoiIncome, gearRoiRemaining, gearRoiPercent, gearRoiReached, gearOwnedCount, gearSoldCount, gearRows,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
       expensesMonthKey, expensesMonthLabel, monthExpensesTotal,
@@ -1201,6 +1228,7 @@
         ${navBtn('expenses', 'receipt', 'Expenses')}
         ${navBtn('loans', 'building-bank', 'Loans')}
         ${navBtn('goals', 'target-arrow', 'Goals')}
+        ${navBtn('gear', 'camera', 'Gear ROI')}
         <div class="nav-section">Tools</div>
         ${navBtn('docs', 'file-text', 'Documents')}
         ${navBtn('insights', 'chart-bar', 'Insights')}
@@ -2562,6 +2590,110 @@
     </div>`;
   }
 
+  /* ---------------- gear ROI ---------------- */
+
+  function viewGear(ctx) {
+    const reached = ctx.gearRoiReached;
+    const surplus = ctx.gearRoiIncome - ctx.gearNetInvestment;
+    return `
+    <div class="page-head">
+      <div>
+        <div class="page-title">Gear ROI</div>
+        <div class="page-sub">How much of your gear investment you have earned back from your side hustle income</div>
+      </div>
+      <button type="button" class="btn-primary" data-action="gear-add-open">+ Add Gear</button>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;background:linear-gradient(160deg, oklch(0.42 0.14 150), oklch(0.28 0.1 155));color:oklch(1 0 0);border:none">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:oklch(0.9 0.05 150)">${reached ? 'Status' : 'ROI Progress'}</div>
+          <div class="sg" style="font-size:34px;font-weight:700;margin-top:4px">${reached ? 'Fully recovered ✓' : ctx.gearRoiPercent + '% recovered'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11.5px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Side hustle income</div>
+          <div class="sg" style="font-size:24px;font-weight:700;margin-top:2px">${fmtMoney(ctx.gearRoiIncome)}</div>
+        </div>
+      </div>
+      <div style="height:12px;background:oklch(1 0 0 / 0.2);border-radius:8px;overflow:hidden;margin-top:16px">
+        <div style="height:100%;width:${ctx.gearRoiPercent}%;background:oklch(0.85 0.14 150);border-radius:8px"></div>
+      </div>
+      <div style="display:flex;gap:30px;margin-top:14px;flex-wrap:wrap;font-size:12.5px">
+        <div><div style="color:oklch(0.85 0.06 150);text-transform:uppercase;font-size:11px;letter-spacing:0.04em">Net to recover</div><div style="font-weight:700;margin-top:2px">${fmtMoney(ctx.gearNetInvestment)}</div></div>
+        <div><div style="color:oklch(0.85 0.06 150);text-transform:uppercase;font-size:11px;letter-spacing:0.04em">${reached ? 'Surplus' : 'Remaining'}</div><div style="font-weight:700;margin-top:2px">${fmtMoney(reached ? surplus : ctx.gearRoiRemaining)}</div></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:16px;margin-bottom:24px">
+      <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">Total Invested</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px">${fmtMoney(ctx.gearTotalCost)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">${ctx.gearItems.length} item${ctx.gearItems.length === 1 ? '' : 's'}</div></div>
+      <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">Recovered from Sales</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px;color:oklch(0.5 0.15 150)">${fmtMoney(ctx.gearSoldProceeds)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">${ctx.gearSoldCount} sold</div></div>
+      <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">Net to Recover</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px">${fmtMoney(ctx.gearNetInvestment)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">after sales</div></div>
+      <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">${reached ? 'Surplus' : 'Still to Recover'}</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px;color:${reached ? 'oklch(0.5 0.15 150)' : 'oklch(0.62 0.17 45)'}">${fmtMoney(reached ? surplus : ctx.gearRoiRemaining)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">via side hustle</div></div>
+    </div>
+
+    <div class="search-wrap">
+      <input type="text" value="${esc(state.gearSearch)}" data-bind="gearSearch" placeholder="Search gear..."/>
+      ${state.gearSearch ? `<button type="button" class="search-clear" data-action="gear-search-clear">✕</button>` : ''}
+    </div>
+
+    <div class="table-wrap">
+      <div class="t-head" style="grid-template-columns:2fr 1fr 1fr 1.5fr 68px"><div>Item</div><div>Purchased</div><div>Cost</div><div>Status</div><div></div></div>
+      ${ctx.gearRows.map(g => `
+        <div class="t-row" style="grid-template-columns:2fr 1fr 1fr 1.5fr 68px;align-items:center">
+          <div style="font-weight:600;font-size:13.5px">${esc(g.name)}</div>
+          <div style="font-size:12.5px;color:oklch(0.5 0.015 150)">${g.dateLabel}</div>
+          <div style="font-size:13.5px;font-weight:600">${g.costLabel}</div>
+          <div>${g.sold
+            ? `<span class="badge" style="background:oklch(0.92 0.06 25);color:oklch(0.5 0.19 25)">Sold ${g.soldForLabel}</span>${g.soldName || g.soldDateLabel ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:3px">${esc(g.soldName || '')}${g.soldName && g.soldDateLabel ? ' · ' : ''}${g.soldDateLabel}</div>` : ''}`
+            : `<span class="badge" style="background:oklch(0.9 0.05 150);color:oklch(0.42 0.13 150)">Owned</span>`}</div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button type="button" data-action="gear-edit" data-id="${esc(g.id)}" title="Edit" style="all:unset;cursor:pointer;color:oklch(0.45 0.14 150);font-size:14px">✎</button>
+            <button type="button" data-action="gear-delete" data-id="${esc(g.id)}" title="Delete" style="all:unset;cursor:pointer;color:oklch(0.58 0.19 25);font-size:14px">✕</button>
+          </div>
+        </div>`).join('')}
+      ${ctx.gearRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">${ctx.gearItems.length ? 'No gear matches your search.' : 'No gear yet. Tap "+ Add Gear" to start.'}</div>` : ''}
+    </div>`;
+  }
+
+  function modalGear() {
+    if (!state.gearModal) return '';
+    const d = state.gearDraft || {};
+    const isEdit = state.gearModal.mode === 'edit';
+    const isSold = d.status === 'sold';
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="gear">
+      <form class="modal-box" style="width:420px" data-stop data-action="save-gear">
+        <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Gear' : 'Add Gear'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="gear">✕</button></div>
+        <div class="modal-fields">
+          <div class="field"><label>Item Name</label><input type="text" value="${esc(d.name)}" data-bind="gearDraft.name" placeholder="e.g. A7V with 35 GM" required/></div>
+          <div class="row-2">
+            <div class="field"><label>Date of Purchase</label><input type="date" value="${esc(d.date)}" data-bind="gearDraft.date"/></div>
+            <div class="field"><label>Cost (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.cost))}" data-bind="gearDraft.cost" data-fmt="money" placeholder="0"/></div>
+          </div>
+          <div class="field"><label>Status</label>
+            <select data-bind="gearDraft.status">
+              <option value="owned" ${!isSold ? 'selected' : ''}>Owned</option>
+              <option value="sold" ${isSold ? 'selected' : ''}>Sold</option>
+            </select>
+          </div>
+          ${isSold ? `
+          <div style="border-top:1px solid var(--border2);padding-top:12px;display:flex;flex-direction:column;gap:12px">
+            <div class="field"><label>Sold As / Note</label><input type="text" value="${esc(d.soldName)}" data-bind="gearDraft.soldName" placeholder="e.g. Gimbal RS4 18K"/></div>
+            <div class="row-2">
+              <div class="field"><label>Sold For (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.soldFor))}" data-bind="gearDraft.soldFor" data-fmt="money" placeholder="0"/></div>
+              <div class="field"><label>Date Sold</label><input type="date" value="${esc(d.soldDate)}" data-bind="gearDraft.soldDate"/></div>
+            </div>
+            <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Money from the sale is subtracted from the amount you need to recover.</div>
+          </div>` : ''}
+        </div>
+        <div class="modal-actions">
+          ${isEdit ? `<button type="button" class="btn-danger" data-action="gear-delete" data-id="${esc(d.id)}">Delete</button>` : ''}
+          <button type="submit" class="btn-primary" style="flex:1;text-align:center">${isEdit ? 'Save Changes' : 'Add Gear'}</button>
+        </div>
+      </form>
+    </div>`;
+  }
+
   function modalGoal() {
     if (!state.goalModal) return '';
     const d = state.goalDraft;
@@ -2714,7 +2846,7 @@
     const pageMap = {
       dashboard: viewDashboard, shoots: viewShoots, finances: viewFinances,
       expenses: viewExpenses, loans: viewLoans, clients: viewClients,
-      docs: viewDocs, insights: viewInsights, goals: viewGoals,
+      docs: viewDocs, insights: viewInsights, goals: viewGoals, gear: viewGear,
     };
     const pageFn = pageMap[state.view] || viewDashboard;
 
@@ -2733,6 +2865,7 @@
       ${modalGoal()}
       ${modalGoalFund()}
       ${modalClient()}
+      ${modalGear()}
     `;
 
     const app = document.getElementById('app');
@@ -3170,6 +3303,18 @@
         break;
       case 'client-view-shoots': ev.stopPropagation(); setState({ chipModal: 'clientshoots:' + id }); break;
 
+      case 'gear-add-open': setState({ gearModal: { mode: 'add' }, gearDraft: { id: null, name: '', date: TODAY_STR, cost: '', status: 'owned', soldName: '', soldFor: '', soldDate: TODAY_STR } }); break;
+      case 'gear-edit': {
+        const g = state.gearItems.find(x => x.id === id);
+        if (g) setState({ gearModal: { mode: 'edit', id: g.id }, gearDraft: { id: g.id, name: g.name || '', date: g.date || '', cost: (g.cost != null && g.cost !== 0) ? String(g.cost) : '', status: g.sold ? 'sold' : 'owned', soldName: g.soldName || '', soldFor: (g.soldFor != null && g.soldFor !== 0) ? String(g.soldFor) : '', soldDate: g.soldDate || TODAY_STR } });
+        break;
+      }
+      case 'gear-delete':
+        if (!confirm('Delete this gear item? This cannot be undone.')) break;
+        setState(s => ({ gearItems: s.gearItems.filter(g => g.id !== id), gearModal: null, gearDraft: null }));
+        break;
+      case 'gear-search-clear': setState({ gearSearch: '' }); break;
+
       case 'doc-type': setState(s => {
         const doctype = el.dataset.doctype;
         if (doctype === 'invoice') {
@@ -3273,6 +3418,7 @@
     else if (which === 'goal') setState({ goalModal: null, goalDraft: null });
     else if (which === 'goalfund') setState({ goalFundModal: null, goalFundDraft: null });
     else if (which === 'client') setState({ clientModal: null, clientDraft: null });
+    else if (which === 'gear') setState({ gearModal: null, gearDraft: null });
     else if (which === 'chip') setState({ chipModal: null });
   }
 
@@ -4109,6 +4255,23 @@
         setState(s => s.clientModal.mode === 'add'
           ? { clients: [...s.clients, { ...d, id: 'c' + Date.now() }], clientModal: null, clientDraft: null }
           : { clients: s.clients.map(c => c.id === d.id ? d : c), clientModal: null, clientDraft: null });
+      } else if (action === 'save-gear') {
+        const d = state.gearDraft;
+        if (!(d.name || '').trim()) { alert('Please enter the gear name.'); return; }
+        const sold = d.status === 'sold';
+        const cleaned = {
+          id: d.id || ('gr' + Date.now()),
+          name: d.name.trim(),
+          date: d.date || '',
+          cost: Number(d.cost) || 0,
+          sold,
+          soldName: sold ? (d.soldName || '').trim() : '',
+          soldFor: sold ? (Number(d.soldFor) || 0) : 0,
+          soldDate: sold ? (d.soldDate || '') : '',
+        };
+        setState(s => s.gearModal.mode === 'add'
+          ? { gearItems: [...s.gearItems, cleaned], gearModal: null, gearDraft: null }
+          : { gearItems: s.gearItems.map(g => g.id === cleaned.id ? cleaned : g), gearModal: null, gearDraft: null });
       }
     });
 
