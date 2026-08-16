@@ -268,6 +268,7 @@
         shootItems: dayShoots.slice(0, 2).map(s => {
           const isEdit = s.serviceType === 'edit';
           return {
+            id: s.id,
             client: s.client || 'Untitled',
             location: s.location || '',
             color: isEdit ? '#33503c' : 'oklch(0.42 0.13 150)',
@@ -513,6 +514,7 @@
       draftDateLocked: false,
       shootAddonsOpen: false,
       shootConfirmCloseOpen: false,
+      rescheduleDraft: null,
       shootDatePickerOpen: false,
       timePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(),
@@ -1466,7 +1468,7 @@
                   <div style="font-size:12px;font-weight:600;color:${c.textColor}">${c.dayNum}</div>
                   <div style="display:flex;flex-direction:column;gap:2px;overflow:hidden">
                     ${c.shootItems.map(si => `
-                      <div style="background:${si.bg};border:1px solid ${si.border};border-radius:5px;padding:2px 5px;font-size:9px;line-height:1.25;overflow:hidden">
+                      <div draggable="true" data-id="${esc(si.id)}" title="Drag to another date to reschedule" style="background:${si.bg};border:1px solid ${si.border};border-radius:5px;padding:2px 5px;font-size:9px;line-height:1.25;overflow:hidden;cursor:grab">
                         <div style="font-weight:700;color:${si.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(si.client)}</div>
                         ${si.location ? `<div style="color:oklch(0.5 0.015 150);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(si.location)}</div>` : ''}
                       </div>`).join('')}
@@ -2516,6 +2518,23 @@
     </div>`;
   }
 
+  function modalReschedule() {
+    const d = state.rescheduleDraft;
+    if (!d) return '';
+    const fmt = ds => ds ? new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    return `
+    <div class="modal-backdrop chip" style="z-index:70">
+      <div class="modal-box" style="width:360px;padding:24px">
+        <div class="modal-title" style="margin-bottom:8px">Reschedule shoot?</div>
+        <div style="font-size:13.5px;color:oklch(0.48 0.015 150);margin-bottom:20px;line-height:1.6">Move <b>${esc(d.client)}</b><br>from ${fmt(d.from)}<br>to <b>${fmt(d.to)}</b>?</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" style="all:unset;cursor:pointer;padding:9px 16px;border-radius:9px;background:var(--card2);color:oklch(0.35 0.02 150);font-weight:600;font-size:13px" data-action="reschedule-cancel">Cancel</button>
+          <button type="button" style="all:unset;cursor:pointer;padding:9px 16px;border-radius:9px;background:linear-gradient(135deg, var(--accent1), var(--accent2));color:#fff;font-weight:700;font-size:13px" data-action="reschedule-confirm">Yes, reschedule</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function modalTelegram(ctx) {
     if (!state.telegramModalOpen) return '';
     const d = state.expenseDraft;
@@ -2885,6 +2904,7 @@
       ${modalGoalFund()}
       ${modalClient()}
       ${modalGear()}
+      ${modalReschedule()}
     `;
 
     const app = document.getElementById('app');
@@ -3430,6 +3450,8 @@
         if (['gear', 'loan', 'loanpayment', 'goal', 'goalfund', 'client'].includes(el.dataset.which)) break;
         closeModalOf(el.dataset.which);
         break;
+      case 'reschedule-cancel': setState({ rescheduleDraft: null }); break;
+      case 'reschedule-confirm': setState(s => { const d = s.rescheduleDraft; if (!d) return { rescheduleDraft: null }; return { shoots: s.shoots.map(sh => sh.id === d.id ? { ...sh, date: d.to } : sh), rescheduleDraft: null, selectedDate: d.to }; }); break;
       case 'shoot-confirm-close-cancel': setState({ shootConfirmCloseOpen: false }); break;
       case 'shoot-confirm-close-confirm': setState({ modal: null, draft: null, shootConfirmCloseOpen: false }); break;
       default: break;
@@ -3994,10 +4016,22 @@
     });
 
     app.addEventListener('dragover', (e) => {
-      const zone = e.target.closest('[data-dropzone]');
+      const zone = e.target.closest('[data-dropzone]') || e.target.closest('[data-action="cal-select"]');
       if (zone) e.preventDefault();
     });
     app.addEventListener('drop', (e) => {
+      // Calendar reschedule: drop a shoot chip onto another date -> confirm, then move it.
+      const calCell = e.target.closest('[data-action="cal-select"]');
+      if (calCell && !e.target.closest('[data-dropzone]') && draggingId) {
+        e.preventDefault();
+        const toDate = calCell.dataset.date;
+        const sh = state.shoots.find(x => x.id === draggingId);
+        if (sh && sh.date !== toDate) {
+          setState({ rescheduleDraft: { id: draggingId, client: sh.client || 'this shoot', from: sh.date, to: toDate } });
+        }
+        draggingId = null;
+        return;
+      }
       const zone = e.target.closest('[data-dropzone]');
       if (!zone) return;
       e.preventDefault();
