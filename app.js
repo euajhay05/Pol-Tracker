@@ -265,7 +265,16 @@
         // for text. `shootItems`/`extraShootCount` (client name + location) is used by the big
         // Shoots-page calendar, which has room to show real details instead of just dots.
         dots: dayShoots.slice(0, 4).map(s => statusMeta(s.status).color),
-        shootItems: dayShoots.slice(0, 2).map(s => ({ client: s.client || 'Untitled', location: s.location || '', color: statusMeta(s.status).color })),
+        shootItems: dayShoots.slice(0, 2).map(s => {
+          const isEdit = s.serviceType === 'edit';
+          return {
+            client: s.client || 'Untitled',
+            location: s.location || '',
+            color: isEdit ? '#33503c' : 'oklch(0.42 0.13 150)',
+            bg: isEdit ? '#e6ece8' : 'oklch(0.945 0.05 150)',
+            border: isEdit ? '#9fbaa9' : 'oklch(0.82 0.09 150)',
+          };
+        }),
         extraShootCount: Math.max(0, dayShoots.length - 2),
       });
     }
@@ -1443,6 +1452,10 @@
             <div class="sg" style="font-weight:700;font-size:15px">${ctx.monthLabel}</div>
             <button type="button" class="btn-ghost" style="padding:6px 10px;border-radius:8px;font-size:15px" data-action="cal-next">›</button>
           </div>
+          <div style="display:flex;gap:16px;align-items:center;margin-bottom:14px;font-size:11.5px;font-weight:600;color:oklch(0.5 0.015 150)">
+            <div style="display:flex;align-items:center;gap:5px"><span style="width:11px;height:11px;border-radius:4px;background:oklch(0.82 0.09 150)"></span>Shoot</div>
+            <div style="display:flex;align-items:center;gap:5px"><span style="width:11px;height:11px;border-radius:4px;background:#41644A"></span>Edit</div>
+          </div>
           <div class="cal-grid" style="margin-bottom:8px">
             ${WEEKDAY_LABELS.map(wd => `<div style="text-align:center;font-size:11px;color:oklch(0.55 0.015 150);font-weight:700;padding-bottom:4px">${wd}</div>`).join('')}
           </div>
@@ -1453,9 +1466,9 @@
                   <div style="font-size:12px;font-weight:600;color:${c.textColor}">${c.dayNum}</div>
                   <div style="display:flex;flex-direction:column;gap:2px;overflow:hidden">
                     ${c.shootItems.map(si => `
-                      <div style="font-size:9px;line-height:1.25;overflow:hidden">
+                      <div style="background:${si.bg};border:1px solid ${si.border};border-radius:5px;padding:2px 5px;font-size:9px;line-height:1.25;overflow:hidden">
                         <div style="font-weight:700;color:${si.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(si.client)}</div>
-                        ${si.location ? `<div style="color:oklch(0.55 0.015 150);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(si.location)}</div>` : ''}
+                        ${si.location ? `<div style="color:oklch(0.5 0.015 150);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(si.location)}</div>` : ''}
                       </div>`).join('')}
                     ${c.extraShootCount > 0 ? `<div style="font-size:9px;font-weight:700;color:oklch(0.5 0.015 150)">+${c.extraShootCount} more</div>` : ''}
                   </div>
@@ -2310,6 +2323,12 @@
         <div style="display:flex;gap:8px;margin-bottom:16px">
           ${shootTypePills.map(tp => `<button type="button" data-action="shoot-type-pick" data-type="${esc(tp.value)}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${tp.bg};color:${tp.color};border:1px solid ${tp.border}">${tp.icon} ${esc(tp.label)}</button>`).join('')}
         </div>
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;color:oklch(0.5 0.015 150);margin-bottom:6px;padding-left:2px">Service</div>
+          <div style="display:flex;gap:8px">
+            ${[{v:'shoot',l:'Shoot'},{v:'edit',l:'Edit'}].map(sv => { const active=(d.serviceType||'shoot')===sv.v; const ac = sv.v==='edit' ? {c:'#33503c',bg:'#e6ece8',br:'#41644A'} : {c:'oklch(0.45 0.14 150)',bg:'oklch(0.5 0.13 150 / 0.14)',br:'oklch(0.45 0.14 150)'}; return `<button type="button" data-action="shoot-service-pick" data-service="${sv.v}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:9px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${active?ac.bg:'oklch(0.97 0.006 150)'};color:${active?ac.c:'oklch(0.5 0.015 150)'};border:1px solid ${active?ac.br:'oklch(0 0 0 / 0.08)'}">${sv.l}</button>`; }).join('')}
+          </div>
+        </div>
         <div class="modal-fields">
           <div class="field"><label>Client / Project</label><input type="text" value="${esc(d.client)}" data-bind="draft.client" data-fmt="autocomplete" placeholder="e.g. Globe Telecom Anthem" required autocomplete="off"/>
           </div>
@@ -2916,7 +2935,7 @@
       draftDateLocked: false,
       draft: {
         id: null, client: rd.clientName || '', location: '', date: initialDate, deadline: '', time: '09:00',
-        status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate',
+        status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', serviceType: 'shoot',
         notes: rd.description ? `From quotation: ${rd.description}` : '',
         packageTier: 'custom', package: String(rd.amount || ''), paid: '', addons: {},
       },
@@ -2931,7 +2950,7 @@
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: calBase.getFullYear(), shootDeadlineCalMonth: calBase.getMonth(),
       draftDateLocked: !!lockDate,
-      draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
+      draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', serviceType: 'shoot', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
     });
   }
   function openEditShoot(id) {
@@ -2955,7 +2974,7 @@
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: deadlineCalBase.getFullYear(), shootDeadlineCalMonth: deadlineCalBase.getMonth(),
       draftDateLocked: false,
-      draft: { packageTier: 'custom', shootType: 'General Project', addons: {}, ...sh, package: basePackage },
+      draft: { packageTier: 'custom', shootType: 'General Project', serviceType: 'shoot', addons: {}, ...sh, package: basePackage },
     });
   }
   function openEditLoan(id) {
@@ -3007,6 +3026,7 @@
         setState(s => ({ shoots: s.shoots.filter(sh => sh.id !== s.draft.id), modal: null, draft: null }));
         break;
       case 'shoot-type-pick': setState(s => ({ draft: { ...s.draft, shootType: el.dataset.type } })); break;
+      case 'shoot-service-pick': setState(s => ({ draft: { ...s.draft, serviceType: el.dataset.service } })); break;
       case 'shoot-addons-toggle': setState(s => ({ shootAddonsOpen: !s.shootAddonsOpen })); break;
       case 'shoot-addon-inc': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) + 1 } } })); break;
       case 'shoot-addon-dec': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: Math.max(0, ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) - 1) } } })); break;
@@ -3400,8 +3420,14 @@
       case 'insights-chart-month-select': setState({ insightsChartSelectedMonth: el.dataset.month }); break;
 
       case 'modal-close':
+        if (el.dataset.which === 'shoot') { setState({ shootConfirmCloseOpen: true }); break; }
+        closeModalOf(el.dataset.which);
+        break;
       case 'modal-backdrop-close':
         if (el.dataset.which === 'shoot') { setState({ shootConfirmCloseOpen: true }); break; }
+        // For data-entry modals, ignore clicks on the backdrop (outside the box) so an
+        // accidental click doesn't discard whatever is being typed. Close with the ✕ button.
+        if (['gear', 'loan', 'loanpayment', 'goal', 'goalfund', 'client'].includes(el.dataset.which)) break;
         closeModalOf(el.dataset.which);
         break;
       case 'shoot-confirm-close-cancel': setState({ shootConfirmCloseOpen: false }); break;
