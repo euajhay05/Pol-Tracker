@@ -515,6 +515,7 @@
       shootAddonsOpen: false,
       shootConfirmCloseOpen: false,
       rescheduleDraft: null,
+      financeBreakdown: null,
       shootDatePickerOpen: false,
       timePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(),
@@ -1521,9 +1522,9 @@
 
     const sideHustle = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Collected</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.5 0.15 150)">${fmtMoney(ctx.monthSideHustleCollected)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.monthOutstanding)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Package Value</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthTotalPackage)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="sidehustle" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Collected ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.5 0.15 150)">${fmtMoney(ctx.monthSideHustleCollected)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="remaining" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.monthOutstanding)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="package" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Package Value ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthTotalPackage)}</div></div>
       </div>
       <div class="table-wrap">
         <div class="t-head" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1fr"><div>Client / Project</div><div>Status</div><div>Package</div><div>Paid</div><div>Remaining Balance</div></div>
@@ -1576,8 +1577,8 @@
 
     const fullTime = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${esc(ctx.ftMonthLabel)}</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="fulltime-all" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="fulltime" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${esc(ctx.ftMonthLabel)} ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div></div>
       </div>
       <div class="card" style="margin-bottom:24px">
         <div class="card-title">Add Income</div>
@@ -1614,10 +1615,10 @@
 
     const combined = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Full-Time</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Side Hustle Collected</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthSideHustleCollected)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Combined Income</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.55 0.12 175)">${fmtMoney(ctx.monthCombinedTotal)}</div></div>
-        <div class="card" style="padding:20px"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.monthOutstanding)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="fulltime" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Full-Time ›</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="sidehustle" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Side Hustle Collected ›</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthSideHustleCollected)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="combined" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Combined Income ›</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.55 0.12 175)">${fmtMoney(ctx.monthCombinedTotal)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="remaining" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Remaining Balance ›</div><div class="sg" style="font-size:24px;font-weight:700;margin-top:8px;color:oklch(0.62 0.17 45)">${fmtMoney(ctx.monthOutstanding)}</div></div>
       </div>
       <div class="card" style="margin-bottom:24px">
         <div class="card-title">Income Split</div>
@@ -2518,6 +2519,51 @@
     </div>`;
   }
 
+  function modalFinanceBreakdown() {
+    const key = state.financeBreakdown;
+    if (!key) return '';
+    const mKey = state.financeMonthKey || THIS_MONTH_KEY;
+    const mLabel = new Date(mKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const monthShoots = state.shoots.filter(s => s.date && s.date.slice(0, 7) === mKey);
+    const ftMonth = state.fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === mKey);
+    let title = '', rows = [], totalLabel = '';
+    if (key === 'remaining') {
+      title = 'Remaining Balance — ' + mLabel; totalLabel = 'Total remaining';
+      rows = monthShoots.filter(s => s.status !== 'tentative').map(s => ({ label: s.client || 'Untitled', sub: s.location || '', amount: Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0) })).filter(x => x.amount > 0);
+    } else if (key === 'sidehustle') {
+      title = 'Side Hustle Collected — ' + mLabel; totalLabel = 'Total collected';
+      rows = monthShoots.filter(s => (Number(s.paid) || 0) > 0).map(s => ({ label: s.client || 'Untitled', sub: fmtDate(s.date), amount: Number(s.paid) || 0 }));
+    } else if (key === 'package') {
+      title = 'Total Package Value — ' + mLabel; totalLabel = 'Total package value';
+      rows = monthShoots.map(s => ({ label: s.client || 'Untitled', sub: fmtDate(s.date), amount: Number(s.package) || 0 })).filter(x => x.amount > 0);
+    } else if (key === 'fulltime') {
+      title = 'Full-Time Income — ' + mLabel; totalLabel = 'Total full-time';
+      rows = ftMonth.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(f => ({ label: f.source || 'Full-Time', sub: fmtDate(f.date), amount: Number(f.amount) || 0 }));
+    } else if (key === 'fulltime-all') {
+      title = 'All Full-Time Income'; totalLabel = 'Total (all-time)';
+      rows = state.fullTimeIncome.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(f => ({ label: f.source || 'Full-Time', sub: fmtDate(f.date), amount: Number(f.amount) || 0 }));
+    } else if (key === 'combined') {
+      title = 'Combined Income — ' + mLabel; totalLabel = 'Combined total';
+      const ft = ftMonth.map(f => ({ label: f.source || 'Full-Time', sub: 'Full-Time · ' + fmtDate(f.date), amount: Number(f.amount) || 0, date: f.date }));
+      const sh = monthShoots.filter(s => (Number(s.paid) || 0) > 0).map(s => ({ label: s.client || 'Shoot', sub: 'Side Hustle · ' + fmtDate(s.date), amount: Number(s.paid) || 0, date: s.date }));
+      rows = [...ft, ...sh].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }
+    const total = rows.reduce((a, b) => a + b.amount, 0);
+    const body = rows.length ? rows.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border2)">
+        <div style="min-width:0"><div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.label)}</div>${r.sub ? `<div style="color:oklch(0.5 0.015 150);font-size:11.5px;margin-top:2px">${esc(r.sub)}</div>` : ''}</div>
+        <div style="font-weight:700;font-size:13.5px;white-space:nowrap">${fmtMoney(r.amount)}</div>
+      </div>`).join('') : `<div style="padding:18px 0;color:oklch(0.55 0.015 150);font-size:13px">Walang laman para dito.</div>`;
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="financebreakdown">
+      <div class="modal-box" style="width:420px" data-stop>
+        <div class="modal-head"><div class="modal-title">${esc(title)}</div><button type="button" class="modal-close" data-action="modal-close" data-which="financebreakdown">✕</button></div>
+        <div style="max-height:52vh;overflow-y:auto">${body}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:2px solid var(--border3)"><div style="font-weight:700;font-size:13px;color:oklch(0.45 0.015 150)">${esc(totalLabel)}</div><div class="sg" style="font-weight:700;font-size:18px">${fmtMoney(total)}</div></div>
+      </div>
+    </div>`;
+  }
+
   function modalReschedule() {
     const d = state.rescheduleDraft;
     if (!d) return '';
@@ -2905,6 +2951,7 @@
       ${modalClient()}
       ${modalGear()}
       ${modalReschedule()}
+      ${modalFinanceBreakdown()}
     `;
 
     const app = document.getElementById('app');
@@ -3450,6 +3497,7 @@
         if (['gear', 'loan', 'loanpayment', 'goal', 'goalfund', 'client'].includes(el.dataset.which)) break;
         closeModalOf(el.dataset.which);
         break;
+      case 'finance-breakdown': setState({ financeBreakdown: el.dataset.key }); break;
       case 'reschedule-cancel': setState({ rescheduleDraft: null }); break;
       case 'reschedule-confirm': setState(s => { const d = s.rescheduleDraft; if (!d) return { rescheduleDraft: null }; return { shoots: s.shoots.map(sh => sh.id === d.id ? { ...sh, date: d.to } : sh), rescheduleDraft: null, selectedDate: d.to }; }); break;
       case 'shoot-confirm-close-cancel': setState({ shootConfirmCloseOpen: false }); break;
@@ -3467,6 +3515,7 @@
     else if (which === 'goalfund') setState({ goalFundModal: null, goalFundDraft: null });
     else if (which === 'client') setState({ clientModal: null, clientDraft: null });
     else if (which === 'gear') setState({ gearModal: null, gearDraft: null });
+    else if (which === 'financebreakdown') setState({ financeBreakdown: null });
     else if (which === 'chip') setState({ chipModal: null });
   }
 
