@@ -891,7 +891,10 @@
 
     const loanCards = state.loans.map(l => {
       const paidPercent = l.amount > 0 ? Math.min(100, Math.round(((l.amount - l.remainingBalance) / l.amount) * 100)) : 100;
-      const isPaid = l.status === 'paid';
+      // A loan counts as paid off when its status says so, its balance is fully paid,
+      // or today is past its payoff / end date (matatapos na).
+      const pastEnd = l.endDate ? (TODAY_STR > l.endDate) : false;
+      const isPaid = l.status === 'paid' || (Number(l.remainingBalance) || 0) <= 0 || pastEnd;
       // dueDay (1-31) is the recurring monthly due day (e.g. "every 23rd"); older records may
       // only have a one-time dueDate, so fall back to that date's day-of-month for compatibility.
       const dueDay = l.dueDay ? Number(l.dueDay) : (l.dueDate ? new Date(l.dueDate + 'T00:00:00').getDate() : null);
@@ -900,7 +903,18 @@
       const dueBadge = dueDays !== null ? daysLeftLabelAndColor(dueDays) : null;
       const monthlyDueNum = Number(l.monthlyDue) || 0;
       const remainingNum = Number(l.remainingBalance) || 0;
-      const monthsLeft = (!isPaid && monthlyDueNum > 0 && remainingNum > 0) ? Math.ceil(remainingNum / monthlyDueNum) : null;
+      // Months left: if an explicit end date is set, count the monthly dues from the next
+      // due date up to (and including) the end-date month — so it stops on the real payoff
+      // month instead of guessing from balance. Otherwise fall back to balance / monthly due.
+      let monthsLeft = null;
+      if (!isPaid) {
+        if (l.endDate && nextDue) {
+          const _end = new Date(l.endDate + 'T00:00:00');
+          monthsLeft = Math.max(0, (_end.getFullYear() - nextDue.getFullYear()) * 12 + (_end.getMonth() - nextDue.getMonth()) + 1);
+        } else if (monthlyDueNum > 0 && remainingNum > 0) {
+          monthsLeft = Math.ceil(remainingNum / monthlyDueNum);
+        }
+      }
       return {
         ...l, paidPercent, dueDay, dueDays,
         statusLabel: isPaid ? 'Paid Off' : 'Ongoing',
@@ -2761,6 +2775,7 @@
             <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.monthlyDue))}" data-bind="loanDraft.monthlyDue" data-fmt="money"/></div>
             <div class="field"><label>Due Day of Month</label><input type="number" min="1" max="31" value="${esc(d.dueDay)}" data-bind="loanDraft.dueDay" placeholder="e.g. 23"/></div>
           </div>
+          <div class="field"><label>Payoff / End Date (optional)</label><input type="date" value="${esc(d.endDate || '')}" data-bind="loanDraft.endDate"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px">Kapag may petsa dito, dito ibabase ang natitirang buwan, at magiging "Paid off" ito kapag lampas na.</div></div>
           <div class="field"><label>Status</label>
             <select data-bind="loanDraft.status">
               <option value="ongoing" ${d.status === 'ongoing' ? 'selected' : ''}>Ongoing</option>
@@ -3423,7 +3438,7 @@
         break;
       }
 
-      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', remainingBalance: '', dueDay: '', status: 'ongoing' } }); break;
+      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', remainingBalance: '', dueDay: '', endDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
       case 'loan-delete':
         if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
@@ -4415,7 +4430,7 @@
         if (!(d.lender || '').trim() || !d.amount) { alert('Please enter a lender / source name and a loan amount.'); return; }
         const loanAmountNum = Number(d.amount) || 0;
         const remainingBalanceNum = (d.remainingBalance === '' || d.remainingBalance === null || d.remainingBalance === undefined) ? loanAmountNum : (Number(d.remainingBalance) || 0);
-        const cleaned = { ...d, amount: loanAmountNum, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: remainingBalanceNum, dueDay: d.dueDay ? Number(d.dueDay) : null };
+        const cleaned = { ...d, amount: loanAmountNum, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: remainingBalanceNum, dueDay: d.dueDay ? Number(d.dueDay) : null, endDate: d.endDate || null };
         delete cleaned.dueDate;
         setState(s => s.loanModal.mode === 'add'
           ? { loans: [...s.loans, { ...cleaned, id: 'ln' + Date.now() }], loanModal: null, loanDraft: null }
