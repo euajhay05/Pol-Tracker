@@ -915,8 +915,17 @@
           monthsLeft = Math.ceil(remainingNum / monthlyDueNum);
         }
       }
+      // "Paid this month?" — awareness that the current month's due is already settled,
+      // based on any logged payment dated within the current calendar month (resets each month).
+      const hasMonthlyDue = !!(dueDay && monthlyDueNum > 0);
+      const paidThisMonth = (l.paymentHistory || []).some(h => (h.date || '').slice(0, 7) === THIS_MONTH_KEY);
+      const showMonthPay = !isPaid && hasMonthlyDue;
       return {
         ...l, paidPercent, dueDay, dueDays,
+        showMonthPay, paidThisMonth,
+        monthPayLabel: paidThisMonth ? 'Bayad na this month ✓' : 'Hindi pa bayad this month',
+        monthPayColor: paidThisMonth ? 'oklch(0.42 0.14 150)' : 'oklch(0.5 0.17 55)',
+        monthPayBg: paidThisMonth ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.82 0.15 65 / 0.18)',
         statusLabel: isPaid ? 'Paid Off' : 'Ongoing',
         statusColor: isPaid ? 'oklch(0.5 0.15 150)' : 'oklch(0.58 0.16 80)',
         statusBg: isPaid ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.78 0.14 80 / 0.16)',
@@ -929,7 +938,7 @@
     // Loans whose next monthly payment is due within a week (or already overdue) —
     // surfaced on the dashboard so a payment is less likely to be missed.
     const loansDueSoon = loanCards
-      .filter(l => l.showDueBadge && l.dueDays !== null && l.dueDays <= 7)
+      .filter(l => l.showDueBadge && l.dueDays !== null && l.dueDays <= 7 && !l.paidThisMonth)
       .sort((a, b) => a.dueDays - b.dueDays);
 
     // Backup reminder state (device-local last-backup date).
@@ -1809,7 +1818,8 @@
           <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden;margin-bottom:8px">
             <div style="height:100%;width:${l.paidPercent}%;background:linear-gradient(90deg, oklch(0.5 0.13 165), oklch(0.42 0.12 155));border-radius:5px"></div>
           </div>
-          ${l.monthsLeftLabel ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:18px">${l.monthsLeftLabel}</div>` : `<div style="margin-bottom:18px"></div>`}
+          ${l.monthsLeftLabel ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:${l.showMonthPay ? '10px' : '18px'}">${l.monthsLeftLabel}</div>` : `<div style="margin-bottom:${l.showMonthPay ? '4px' : '18px'}"></div>`}
+          ${l.showMonthPay ? `<div style="margin-bottom:16px"><span style="display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:20px;background:${l.monthPayBg};color:${l.monthPayColor}">${l.monthPayLabel}${!l.paidThisMonth && l.showDueBadge ? ` · ${l.dueBadgeLabel}` : ''}</span></div>` : ''}
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div style="font-size:13.5px;color:oklch(0.45 0.015 150)">Monthly due: <span style="color:oklch(0.2 0.02 150);font-weight:700">${l.monthlyDueLabel}</span></div>
             ${l.showDueBadge ? `<div style="font-size:12px;font-weight:700;color:${l.dueBadgeColor}">${l.dueBadgeLabel}</div>` : ''}
