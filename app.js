@@ -516,6 +516,8 @@
       shootConfirmCloseOpen: false,
       rescheduleDraft: null,
       financeBreakdown: null,
+      financeExportOpen: false,
+      financeExportRange: '3m',
       shootDatePickerOpen: false,
       timePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(),
@@ -1646,7 +1648,10 @@
     return `
     <div class="page-head">
       <div><div class="page-title sg">Finances</div><div class="page-sub">Package value vs. what's been collected</div></div>
-      ${financeMonthPicker}
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ${financeMonthPicker}
+        <button type="button" class="btn-primary" style="padding:10px 16px" data-action="finance-export-open">↓ Export</button>
+      </div>
     </div>
     <div class="tabbar" style="margin-bottom:24px">
       ${tab('sidehustle', 'Side Hustle')}${tab('fulltime', 'Full-Time')}${tab('combined', 'Combined')}
@@ -2564,6 +2569,103 @@
     </div>`;
   }
 
+  /* ---------------- income export (CSV / PDF) ---------------- */
+
+  function financeExportData(rangeKey) {
+    const months = { '1m': 1, '3m': 3, '6m': 6, '1y': 12 }[rangeKey] || 3;
+    const start = new Date(TODAY);
+    start.setMonth(start.getMonth() - months);
+    const pad = n => String(n).padStart(2, '0');
+    const startStr = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
+    const inRange = ds => ds && ds >= startStr && ds <= TODAY_STR;
+    const ft = state.fullTimeIncome.filter(f => inRange(f.date)).map(f => ({ date: f.date, type: 'Full-Time', label: f.source || 'Full-Time Income', amount: Number(f.amount) || 0 }));
+    const sh = state.shoots.filter(s => inRange(s.date) && (Number(s.paid) || 0) > 0).map(s => ({ date: s.date, type: 'Side Hustle', label: s.client || 'Shoot', amount: Number(s.paid) || 0 }));
+    const rows = [...ft, ...sh].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const total = rows.reduce((a, b) => a + b.amount, 0);
+    const rangeLabel = { '1m': 'Last Month', '3m': 'Last 3 Months', '6m': 'Last 6 Months', '1y': 'Last 1 Year' }[rangeKey] || 'Last 3 Months';
+    return { rows, total, rangeLabel, startStr, endStr: TODAY_STR };
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function exportIncomeCSV() {
+    const { rows, total, rangeLabel, startStr, endStr } = financeExportData(state.financeExportRange);
+    const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const lines = [];
+    lines.push('Pol Tracker - Income Report');
+    lines.push('Range,' + cell(rangeLabel + ' (' + startStr + ' to ' + endStr + ')'));
+    lines.push('');
+    lines.push(['Date', 'Type', 'Client / Source', 'Amount (PHP)'].join(','));
+    rows.forEach(r => lines.push([cell(r.date), cell(r.type), cell(r.label), r.amount].join(',')));
+    lines.push('');
+    lines.push(['', '', 'Total', total].join(','));
+    triggerDownload(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }), 'pol-income-' + state.financeExportRange + '-' + endStr + '.csv');
+    setState({ financeExportOpen: false });
+  }
+
+  function exportIncomePDF() {
+    const jspdf = window.jspdf;
+    if (!jspdf || !jspdf.jsPDF) { alert('PDF tool is still loading. Please try again in a moment.'); return; }
+    const { jsPDF } = jspdf;
+    const { rows, total, rangeLabel, startStr, endStr } = financeExportData(state.financeExportRange);
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const PAGE_W = 612, PAGE_H = 792, marginX = 56, rightX = PAGE_W - marginX;
+    const money = n => 'PHP ' + (Number(n) || 0).toLocaleString('en-PH');
+    let y = 64;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(31, 107, 64);
+    doc.text('Income Report', marginX, y);
+    y += 20; doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(110, 115, 110);
+    doc.text(rangeLabel + '  -  ' + startStr + ' to ' + endStr, marginX, y);
+    y += 10; doc.setDrawColor(222, 228, 222); doc.line(marginX, y, rightX, y); y += 22;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(110, 115, 110);
+    doc.text('DATE', marginX, y); doc.text('TYPE', marginX + 92, y); doc.text('CLIENT / SOURCE', marginX + 188, y); doc.text('AMOUNT', rightX, y, { align: 'right' });
+    y += 6; doc.line(marginX, y, rightX, y); y += 16;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(30, 32, 30);
+    if (!rows.length) { doc.setTextColor(150, 150, 150); doc.text('No income in this range.', marginX, y); y += 16; }
+    rows.forEach(r => {
+      if (y > PAGE_H - 90) { doc.addPage(); y = 64; }
+      doc.setTextColor(30, 32, 30);
+      doc.text(String(r.date || ''), marginX, y);
+      doc.text(r.type, marginX + 92, y);
+      const label = (doc.splitTextToSize(String(r.label || '').replace(/₱/g, 'PHP '), 175)[0]) || '';
+      doc.text(label, marginX + 188, y);
+      doc.text(money(r.amount), rightX, y, { align: 'right' });
+      y += 16;
+    });
+    y += 6; doc.setDrawColor(222, 228, 222); doc.line(marginX, y, rightX, y); y += 22;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 32, 30);
+    doc.text('Total Income', marginX, y); doc.text(money(total), rightX, y, { align: 'right' });
+    doc.save('pol-income-' + state.financeExportRange + '-' + endStr + '.pdf');
+    setState({ financeExportOpen: false });
+  }
+
+  function modalFinanceExport() {
+    if (!state.financeExportOpen) return '';
+    const rk = state.financeExportRange || '3m';
+    const ranges = [['1m', 'Last Month'], ['3m', 'Last 3 Months'], ['6m', 'Last 6 Months'], ['1y', 'Last 1 Year']];
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="financeexport">
+      <div class="modal-box" style="width:400px" data-stop>
+        <div class="modal-head"><div class="modal-title">Export Income</div><button type="button" class="modal-close" data-action="modal-close" data-which="financeexport">✕</button></div>
+        <div style="font-size:12px;color:oklch(0.48 0.015 150);font-weight:600;margin-bottom:8px">Time range</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
+          ${ranges.map(([k, l]) => { const a = rk === k; return `<button type="button" data-action="finance-export-range" data-range="${k}" style="all:unset;cursor:pointer;text-align:center;padding:10px 8px;border-radius:10px;font-weight:700;font-size:12.5px;background:${a ? 'oklch(0.5 0.13 150 / 0.14)' : 'oklch(0.97 0.006 150)'};color:${a ? 'oklch(0.42 0.13 150)' : 'oklch(0.5 0.015 150)'};border:1px solid ${a ? 'oklch(0.45 0.14 150)' : 'oklch(0 0 0 / 0.08)'}">${l}</button>`; }).join('')}
+        </div>
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn-primary" style="flex:1;justify-content:center;text-align:center" data-action="finance-export-csv">Download CSV</button>
+          <button type="button" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 16px;border-radius:9px;background:oklch(0.55 0.14 235 / 0.14);color:oklch(0.42 0.13 235);font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center" data-action="finance-export-pdf">Download PDF</button>
+        </div>
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:12px;line-height:1.5">Income lang (Full-Time + Side Hustle collected) sa napiling range. Hiwalay ito sa expenses.</div>
+      </div>
+    </div>`;
+  }
+
   function modalReschedule() {
     const d = state.rescheduleDraft;
     if (!d) return '';
@@ -2952,6 +3054,7 @@
       ${modalGear()}
       ${modalReschedule()}
       ${modalFinanceBreakdown()}
+      ${modalFinanceExport()}
     `;
 
     const app = document.getElementById('app');
@@ -3498,6 +3601,10 @@
         closeModalOf(el.dataset.which);
         break;
       case 'finance-breakdown': setState({ financeBreakdown: el.dataset.key }); break;
+      case 'finance-export-open': setState({ financeExportOpen: true }); break;
+      case 'finance-export-range': setState({ financeExportRange: el.dataset.range }); break;
+      case 'finance-export-csv': exportIncomeCSV(); break;
+      case 'finance-export-pdf': exportIncomePDF(); break;
       case 'reschedule-cancel': setState({ rescheduleDraft: null }); break;
       case 'reschedule-confirm': setState(s => { const d = s.rescheduleDraft; if (!d) return { rescheduleDraft: null }; return { shoots: s.shoots.map(sh => sh.id === d.id ? { ...sh, date: d.to } : sh), rescheduleDraft: null, selectedDate: d.to }; }); break;
       case 'shoot-confirm-close-cancel': setState({ shootConfirmCloseOpen: false }); break;
@@ -3516,6 +3623,7 @@
     else if (which === 'client') setState({ clientModal: null, clientDraft: null });
     else if (which === 'gear') setState({ gearModal: null, gearDraft: null });
     else if (which === 'financebreakdown') setState({ financeBreakdown: null });
+    else if (which === 'financeexport') setState({ financeExportOpen: false });
     else if (which === 'chip') setState({ chipModal: null });
   }
 
