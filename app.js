@@ -923,7 +923,7 @@
       return {
         ...l, paidPercent, dueDay, dueDays,
         showMonthPay, paidThisMonth,
-        monthPayLabel: paidThisMonth ? 'Bayad na this month ✓' : 'Hindi pa bayad this month',
+        monthPayLabel: paidThisMonth ? 'Paid this month ✓' : 'Not paid yet this month',
         monthPayColor: paidThisMonth ? 'oklch(0.42 0.14 150)' : 'oklch(0.5 0.17 55)',
         monthPayBg: paidThisMonth ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.82 0.15 65 / 0.18)',
         statusLabel: isPaid ? 'Paid Off' : 'Ongoing',
@@ -2785,7 +2785,7 @@
             <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.monthlyDue))}" data-bind="loanDraft.monthlyDue" data-fmt="money"/></div>
             <div class="field"><label>Due Day of Month</label><input type="number" min="1" max="31" value="${esc(d.dueDay)}" data-bind="loanDraft.dueDay" placeholder="e.g. 23"/></div>
           </div>
-          <div class="field"><label>Payoff / End Date (optional)</label><input type="date" value="${esc(d.endDate || '')}" data-bind="loanDraft.endDate"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px">Kapag may petsa dito, dito ibabase ang natitirang buwan, at magiging "Paid off" ito kapag lampas na.</div></div>
+          <div class="field"><label>Payoff / End Date (optional)</label><input type="date" value="${esc(d.endDate || '')}" data-bind="loanDraft.endDate"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px">If set, the months-left count is based on this date, and the loan is automatically marked "Paid off" once today is past it.</div></div>
           <div class="field"><label>Status</label>
             <select data-bind="loanDraft.status">
               <option value="ongoing" ${d.status === 'ongoing' ? 'selected' : ''}>Ongoing</option>
