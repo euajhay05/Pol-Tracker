@@ -934,7 +934,8 @@
       if (!isPaid) {
         if (l.endDate && nextDue) {
           const _end = new Date(l.endDate + 'T00:00:00');
-          monthsLeft = Math.max(0, (_end.getFullYear() - nextDue.getFullYear()) * 12 + (_end.getMonth() - nextDue.getMonth()) + 1);
+          const _next = new Date(nextDue + 'T00:00:00');
+          monthsLeft = Math.max(0, (_end.getFullYear() - _next.getFullYear()) * 12 + (_end.getMonth() - _next.getMonth()) + 1);
         } else if (monthlyDueNum > 0 && remainingNum > 0) {
           monthsLeft = Math.ceil(remainingNum / monthlyDueNum);
         }
