@@ -542,6 +542,8 @@
       loanDraft: null,
       loanPaymentModal: null,
       loanPaymentDraft: null,
+      shootPaymentModal: null,
+      shootPaymentDraft: null,
       goalModal: null,
       goalDraft: null,
       goalFundModal: null,
@@ -778,6 +780,28 @@
       balanceLabel: balance > 0 ? fmtMoney(balance) : 'Paid up',
       balanceColor: balance > 0 ? 'oklch(0.62 0.17 45)' : 'oklch(0.5 0.15 150)',
     };
+  }
+
+  // ---- shoot payment log ---------------------------------------------------
+  // A shoot may carry a `payments` array of { id, amount, date, label } entries
+  // so income lands in the month each payment was actually received. Legacy
+  // shoots (no payments array) keep the old behavior: their single `paid` total
+  // counts in the shoot's own month.
+  const SHOOT_PAY_LABELS = ['DP 20%', 'After Shoot 30%', 'Final 50%', 'Payment'];
+  function shootPaymentsOf(s) { return Array.isArray(s.payments) ? s.payments : []; }
+  function shootPaidTotal(s) {
+    const ps = shootPaymentsOf(s);
+    return ps.length ? ps.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : (Number(s.paid) || 0);
+  }
+  function shootCollectedInMonth(s, monthKey) {
+    const ps = shootPaymentsOf(s);
+    if (ps.length) return ps.reduce((sum, p) => sum + (((p.date || '').slice(0, 7) === monthKey) ? (Number(p.amount) || 0) : 0), 0);
+    return ((s.date || '').slice(0, 7) === monthKey) ? (Number(s.paid) || 0) : 0;
+  }
+  function shootCollectedInRange(s, startStr, endStr) {
+    const ps = shootPaymentsOf(s);
+    if (ps.length) return ps.reduce((sum, p) => { const d = p.date || ''; return sum + ((d >= startStr && d <= endStr) ? (Number(p.amount) || 0) : 0); }, 0);
+    return (s.date && s.date >= startStr && s.date <= endStr) ? (Number(s.paid) || 0) : 0;
   }
 
   /* ---------------- backup reminder + PWA install ---------------- */
@@ -1028,13 +1052,19 @@
     const ftMonthIncome = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === financeMonthKey);
     const ftMonthTotal = ftMonthIncome.reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const ftMonthRows = ftMonthIncome.slice().sort((a, b) => b.date.localeCompare(a.date)).map(f => ({ ...f, dateLabel: fmtDate(f.date), amountLabel: fmtMoney(f.amount) }));
-    const monthShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === financeMonthKey);
-    const monthSideHustleCollected = monthShoots.reduce((sum, s) => sum + (Number(s.paid) || 0), 0);
+    // Shoots relevant to the selected month: dated this month, OR received a
+    // payment this month (so a July DP shows in July even if the shoot is in Sept).
+    const monthShoots = shoots.filter(s => (s.date && s.date.slice(0, 7) === financeMonthKey) || shootPaymentsOf(s).some(p => (p.date || '').slice(0, 7) === financeMonthKey));
+    // The subset actually BOOKED in this month — drives the package/remaining cards
+    // so those totals aren't double-counted across months.
+    const monthShootsDated = monthShoots.filter(s => (s.date || '').slice(0, 7) === financeMonthKey);
+    // Collected = payments whose DATE falls in this month (legacy shoots fall back to shoot date).
+    const monthSideHustleCollected = monthShoots.reduce((sum, s) => sum + shootCollectedInMonth(s, financeMonthKey), 0);
     // Remaining balance for the SELECTED month only (confirmed shoots, still unpaid) -
     // so the Finances "Remaining Balance" card tracks the month picker like everything else here.
-    const monthOutstanding = monthShoots.filter(s => s.status !== 'tentative').reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
+    const monthOutstanding = monthShootsDated.filter(s => s.status !== 'tentative').reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - shootPaidTotal(s), 0), 0);
     // Total package value of the SELECTED month's shoots (matches the table below the cards).
-    const monthTotalPackage = monthShoots.reduce((sum, s) => sum + (Number(s.package) || 0), 0);
+    const monthTotalPackage = monthShootsDated.reduce((sum, s) => sum + (Number(s.package) || 0), 0);
     const monthCombinedTotal = ftMonthTotal + monthSideHustleCollected;
     const monthFullTimeSharePercent = monthCombinedTotal > 0 ? Math.round((ftMonthTotal / monthCombinedTotal) * 100) : 0;
     const monthSideHustleSharePercent = monthCombinedTotal > 0 ? 100 - monthFullTimeSharePercent : 0;
@@ -1056,11 +1086,11 @@
     }).filter(c => c.name.toLowerCase().includes(state.clientsSearch.toLowerCase()));
     const activeClients = state.clients.filter(c => c.leadStatus === 'Booked' || c.leadStatus === 'Client').length;
 
-    const monthPaidFromShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === THIS_MONTH_KEY).reduce((s, x) => s + (Number(x.paid) || 0), 0);
+    const monthPaidFromShoots = shoots.reduce((s, x) => s + shootCollectedInMonth(x, THIS_MONTH_KEY), 0);
     const monthlyRevenue = monthPaidFromShoots + monthFullTime;
     const netProfit = monthlyRevenue - monthTotal;
 
-    const dashMonthPaidFromShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashMonthKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
+    const dashMonthPaidFromShoots = shoots.reduce((s, x) => s + shootCollectedInMonth(x, dashMonthKey), 0);
     const dashMonthFullTime = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === dashMonthKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const dashMonthlyRevenue = dashMonthPaidFromShoots + dashMonthFullTime;
     const dashMonthExpenses = expenses.filter(e => e.date && e.date.slice(0, 7) === dashMonthKey).reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -1146,7 +1176,7 @@
     const earningsByMonth = MONTH_SHORT_LABELS.map((label, i) => {
       const mKey = `${overviewYear}-${String(i + 1).padStart(2, '0')}`;
       const ftSum = fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === mKey).reduce((s, f) => s + (Number(f.amount) || 0), 0);
-      const shSum = shoots.filter(s => s.date && s.date.slice(0, 7) === mKey).reduce((s, x) => s + (Number(x.paid) || 0), 0);
+      const shSum = shoots.reduce((s, x) => s + shootCollectedInMonth(x, mKey), 0);
       return { label, monthKey: mKey, total: ftSum + shSum, isSelected: mKey === selectedMonthKey };
     });
     const maxEarningsMonth = Math.max(...earningsByMonth.map(m => m.total), 1);
@@ -1552,16 +1582,40 @@
         <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="package" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Package Value ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.monthTotalPackage)}</div></div>
       </div>
       <div class="table-wrap">
-        <div class="t-head" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1fr"><div>Client / Project</div><div>Status</div><div>Package</div><div>Paid</div><div>Remaining Balance</div></div>
-        ${ctx.monthShoots.map(s => `
-          <div class="t-row" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;cursor:pointer" data-action="shoot-edit" data-id="${esc(s.id)}">
-            <div><div style="font-weight:600;font-size:14px">${esc(s.client)}</div><div style="color:oklch(0.48 0.015 150);font-size:12px;margin-top:2px">${esc(s.location)}</div></div>
-            <div style="font-size:12.5px;color:oklch(0.4 0.015 150)">${s.statusLabel}</div>
-            <div><div style="font-size:13.5px;font-weight:600">${s.packageLabel}</div><div style="color:oklch(0.5 0.015 150);font-size:11px;margin-top:2px">${s.packageTierLabel}</div></div>
-            <div style="font-size:13.5px;color:oklch(0.5 0.15 150)">${s.paidLabel}</div>
-            <div style="font-size:13.5px;font-weight:700;color:${s.balanceColor}">${s.balanceLabel}</div>
-          </div>`).join('')}
-        ${ctx.monthShoots.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No shoots in ${esc(ctx.financeMonthLabel)}.</div>` : ''}
+        <div class="t-head" style="grid-template-columns:1.5fr 2.3fr 1fr 1.1fr"><div>Client / Project</div><div>Payments (by date)</div><div>Package</div><div>Remaining</div></div>
+        ${ctx.monthShoots.map(s => {
+          const mk = ctx.financeMonthKey;
+          const ps = shootPaymentsOf(s).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+          const pkg = Number(s.package) || 0;
+          const paidT = shootPaidTotal(s);
+          const bal = Math.max(0, pkg - paidT);
+          const shortDate = ds => ds ? new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+          let chips;
+          if (ps.length) {
+            chips = ps.map(p => {
+              const here = (p.date || '').slice(0, 7) === mk;
+              const c = here ? 'oklch(0.42 0.12 155)' : 'oklch(0.6 0.02 150)';
+              const dot = here ? 'oklch(0.5 0.15 150)' : 'oklch(0.75 0.02 150)';
+              const tagbg = here ? 'oklch(0.9 0.06 150)' : 'oklch(0.94 0.008 150)';
+              return `<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;${here ? '' : 'opacity:.65'}"><span style="width:6px;height:6px;border-radius:50%;background:${dot};flex:none"></span><span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;padding:2px 6px;border-radius:5px;background:${tagbg};color:${c}">${esc(p.label || 'Payment')}</span><span style="font-weight:700;color:${c}">${fmtMoney(p.amount)}</span><span style="color:oklch(0.55 0.015 150)">· ${shortDate(p.date)}</span></div>`;
+            }).join('');
+          } else if (paidT > 0) {
+            const here = (s.date || '').slice(0, 7) === mk;
+            chips = `<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;${here ? '' : 'opacity:.65'}"><span style="width:6px;height:6px;border-radius:50%;background:${here ? 'oklch(0.5 0.15 150)' : 'oklch(0.75 0.02 150)'};flex:none"></span><span style="font-weight:700;color:${here ? 'oklch(0.42 0.12 155)' : 'oklch(0.6 0.02 150)'}">${fmtMoney(paidT)}</span><span style="color:oklch(0.55 0.015 150)">· ${shortDate(s.date)}</span></div>`;
+          } else {
+            chips = `<div style="font-size:11.5px;color:oklch(0.6 0.015 150)">No payments yet</div>`;
+          }
+          return `
+          <div class="t-row" style="grid-template-columns:1.5fr 2.3fr 1fr 1.1fr;align-items:center">
+            <div style="cursor:pointer" data-action="shoot-edit" data-id="${esc(s.id)}"><div style="font-weight:600;font-size:14px">${esc(s.client)}</div><div style="color:oklch(0.48 0.015 150);font-size:11.5px;margin-top:2px">${esc(s.location) || s.statusLabel}</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px">${chips}
+              <button type="button" data-action="shoot-payment-open" data-id="${esc(s.id)}" style="all:unset;cursor:pointer;font-size:10.5px;font-weight:700;color:oklch(0.45 0.14 150);margin-top:2px;width:fit-content">+ Log payment</button>
+            </div>
+            <div style="cursor:pointer" data-action="shoot-edit" data-id="${esc(s.id)}"><div style="font-size:13.5px;font-weight:600">${fmtMoney(pkg)}</div><div style="color:oklch(0.5 0.015 150);font-size:11px;margin-top:2px">${s.packageTierLabel}</div></div>
+            <div style="font-size:13.5px;font-weight:700;color:${bal > 0 ? 'oklch(0.62 0.17 45)' : 'oklch(0.5 0.15 150)'}">${bal > 0 ? fmtMoney(bal) : 'Paid up'}</div>
+          </div>`;
+        }).join('')}
+        ${ctx.monthShoots.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No shoots or payments in ${esc(ctx.financeMonthLabel)}.</div>` : ''}
       </div>`;
 
     const financeMonthPicker = `
@@ -1635,7 +1689,12 @@
 
     const combinedRows = [
       ...ctx.ftMonthRows.map(f => ({ date: f.date, dateLabel: f.dateLabel, source: 'Full-Time', label: f.source || 'Full-Time Income', amountLabel: f.amountLabel })),
-      ...ctx.monthShoots.filter(s => (Number(s.paid) || 0) > 0).map(s => ({ date: s.date, dateLabel: s.dateLabel, source: 'Side Hustle', label: s.client || 'Shoot', amountLabel: fmtMoney(s.paid) })),
+      ...ctx.monthShoots.flatMap(s => {
+        const ps = shootPaymentsOf(s).filter(p => (p.date || '').slice(0, 7) === ctx.financeMonthKey);
+        if (ps.length) return ps.map(p => ({ date: p.date, dateLabel: fmtDate(p.date), source: 'Side Hustle', label: (s.client || 'Shoot') + (p.label ? ' · ' + p.label : ''), amountLabel: fmtMoney(p.amount) }));
+        if (shootPaymentsOf(s).length === 0 && (s.date || '').slice(0, 7) === ctx.financeMonthKey && (Number(s.paid) || 0) > 0) return [{ date: s.date, dateLabel: s.dateLabel, source: 'Side Hustle', label: s.client || 'Shoot', amountLabel: fmtMoney(s.paid) }];
+        return [];
+      }),
     ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     const combined = `
@@ -2558,10 +2617,16 @@
     let title = '', rows = [], totalLabel = '';
     if (key === 'remaining') {
       title = 'Remaining Balance — ' + mLabel; totalLabel = 'Total remaining';
-      rows = monthShoots.filter(s => s.status !== 'tentative').map(s => ({ label: s.client || 'Untitled', sub: s.location || '', amount: Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0) })).filter(x => x.amount > 0);
+      rows = monthShoots.filter(s => s.status !== 'tentative').map(s => ({ label: s.client || 'Untitled', sub: s.location || '', amount: Math.max((Number(s.package) || 0) - shootPaidTotal(s), 0) })).filter(x => x.amount > 0);
     } else if (key === 'sidehustle') {
       title = 'Side Hustle Collected — ' + mLabel; totalLabel = 'Total collected';
-      rows = monthShoots.filter(s => (Number(s.paid) || 0) > 0).map(s => ({ label: s.client || 'Untitled', sub: fmtDate(s.date), amount: Number(s.paid) || 0 }));
+      const rowsSH = [];
+      state.shoots.forEach(s => {
+        const ps = shootPaymentsOf(s).filter(p => (p.date || '').slice(0, 7) === mKey);
+        if (ps.length) ps.forEach(p => rowsSH.push({ label: (s.client || 'Untitled') + (p.label ? ' · ' + p.label : ''), sub: fmtDate(p.date), amount: Number(p.amount) || 0 }));
+        else if (shootPaymentsOf(s).length === 0 && (s.date || '').slice(0, 7) === mKey && (Number(s.paid) || 0) > 0) rowsSH.push({ label: s.client || 'Untitled', sub: fmtDate(s.date), amount: Number(s.paid) || 0 });
+      });
+      rows = rowsSH;
     } else if (key === 'package') {
       title = 'Total Package Value — ' + mLabel; totalLabel = 'Total package value';
       rows = monthShoots.map(s => ({ label: s.client || 'Untitled', sub: fmtDate(s.date), amount: Number(s.package) || 0 })).filter(x => x.amount > 0);
@@ -2574,7 +2639,12 @@
     } else if (key === 'combined') {
       title = 'Combined Income — ' + mLabel; totalLabel = 'Combined total';
       const ft = ftMonth.map(f => ({ label: f.source || 'Full-Time', sub: 'Full-Time · ' + fmtDate(f.date), amount: Number(f.amount) || 0, date: f.date }));
-      const sh = monthShoots.filter(s => (Number(s.paid) || 0) > 0).map(s => ({ label: s.client || 'Shoot', sub: 'Side Hustle · ' + fmtDate(s.date), amount: Number(s.paid) || 0, date: s.date }));
+      const sh = [];
+      state.shoots.forEach(s => {
+        const ps = shootPaymentsOf(s).filter(p => (p.date || '').slice(0, 7) === mKey);
+        if (ps.length) ps.forEach(p => sh.push({ label: (s.client || 'Shoot') + (p.label ? ' · ' + p.label : ''), sub: 'Side Hustle · ' + fmtDate(p.date), amount: Number(p.amount) || 0, date: p.date }));
+        else if (shootPaymentsOf(s).length === 0 && (s.date || '').slice(0, 7) === mKey && (Number(s.paid) || 0) > 0) sh.push({ label: s.client || 'Shoot', sub: 'Side Hustle · ' + fmtDate(s.date), amount: Number(s.paid) || 0, date: s.date });
+      });
       rows = [...ft, ...sh].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     }
     const total = rows.reduce((a, b) => a + b.amount, 0);
@@ -2582,7 +2652,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border2)">
         <div style="min-width:0"><div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.label)}</div>${r.sub ? `<div style="color:oklch(0.5 0.015 150);font-size:11.5px;margin-top:2px">${esc(r.sub)}</div>` : ''}</div>
         <div style="font-weight:700;font-size:13.5px;white-space:nowrap">${fmtMoney(r.amount)}</div>
-      </div>`).join('') : `<div style="padding:18px 0;color:oklch(0.55 0.015 150);font-size:13px">Walang laman para dito.</div>`;
+      </div>`).join('') : `<div style="padding:18px 0;color:oklch(0.55 0.015 150);font-size:13px">Nothing to show here.</div>`;
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="financebreakdown">
       <div class="modal-box" style="width:420px" data-stop>
@@ -2603,7 +2673,12 @@
     const startStr = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
     const inRange = ds => ds && ds >= startStr && ds <= TODAY_STR;
     const ft = state.fullTimeIncome.filter(f => inRange(f.date)).map(f => ({ date: f.date, type: 'Full-Time', label: f.source || 'Full-Time Income', amount: Number(f.amount) || 0 }));
-    const sh = state.shoots.filter(s => inRange(s.date) && (Number(s.paid) || 0) > 0).map(s => ({ date: s.date, type: 'Side Hustle', label: s.client || 'Shoot', amount: Number(s.paid) || 0 }));
+    const sh = state.shoots.flatMap(s => {
+      const ps = shootPaymentsOf(s).filter(p => inRange(p.date));
+      if (ps.length) return ps.map(p => ({ date: p.date, type: 'Side Hustle', label: (s.client || 'Shoot') + (p.label ? ' · ' + p.label : ''), amount: Number(p.amount) || 0 }));
+      if (shootPaymentsOf(s).length === 0 && inRange(s.date) && (Number(s.paid) || 0) > 0) return [{ date: s.date, type: 'Side Hustle', label: s.client || 'Shoot', amount: Number(s.paid) || 0 }];
+      return [];
+    });
     const rows = [...ft, ...sh].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const total = rows.reduce((a, b) => a + b.amount, 0);
     const rangeLabel = { '1m': 'Last Month', '3m': 'Last 3 Months', '6m': 'Last 6 Months', '1y': 'Last 1 Year' }[rangeKey] || 'Last 3 Months';
@@ -2685,7 +2760,7 @@
           <button type="button" class="btn-primary" style="flex:1;justify-content:center;text-align:center" data-action="finance-export-csv">Download CSV</button>
           <button type="button" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 16px;border-radius:9px;background:oklch(0.55 0.14 235 / 0.14);color:oklch(0.42 0.13 235);font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center" data-action="finance-export-pdf">Download PDF</button>
         </div>
-        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:12px;line-height:1.5">Income lang (Full-Time + Side Hustle collected) sa napiling range. Hiwalay ito sa expenses.</div>
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:12px;line-height:1.5">Income only (Full-Time + Side Hustle collected) for the selected range. Separate from expenses.</div>
       </div>
     </div>`;
   }
@@ -2704,6 +2779,59 @@
           <button type="button" style="all:unset;cursor:pointer;padding:9px 16px;border-radius:9px;background:linear-gradient(135deg, var(--accent1), var(--accent2));color:#fff;font-weight:700;font-size:13px" data-action="reschedule-confirm">Yes, reschedule</button>
         </div>
       </div>
+    </div>`;
+  }
+
+  function modalShootPayment() {
+    if (!state.shootPaymentModal) return '';
+    const s = state.shoots.find(x => x.id === state.shootPaymentModal.id);
+    if (!s) return '';
+    const d = state.shootPaymentDraft || { amount: '', date: TODAY_STR, label: 'Payment' };
+    const pkg = Number(s.package) || 0;
+    const paidT = shootPaidTotal(s);
+    const remaining = Math.max(0, pkg - paidT);
+    const amt = Number(d.amount) || 0;
+    const previewRemaining = Math.max(0, remaining - amt);
+    const history = shootPaymentsOf(s).slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
+    const quick = [
+      { label: 'DP 20%', amount: Math.round(pkg * 0.2) },
+      { label: 'After Shoot 30%', amount: Math.round(pkg * 0.3) },
+      { label: 'Final 50%', amount: Math.round(pkg * 0.5) },
+    ];
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="shootpayment">
+      <form class="modal-box" style="width:380px" data-stop data-action="save-shoot-payment">
+        <div class="modal-head"><div class="modal-title">${esc(s.client || 'Shoot')}</div><button type="button" class="modal-close" data-action="modal-close" data-which="shootpayment">✕</button></div>
+        <div class="modal-fields">
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">${s.location ? esc(s.location) + ' · ' : ''}Package ${fmtMoney(pkg)} · Remaining <b>${fmtMoney(remaining)}</b></div>
+          <div class="field"><label>Payment Type</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${SHOOT_PAY_LABELS.map(lb => { const a = (d.label || 'Payment') === lb; return `<button type="button" data-action="shoot-payment-label" data-label="${esc(lb)}" style="all:unset;cursor:pointer;padding:6px 11px;border-radius:20px;font-size:11.5px;font-weight:700;background:${a ? 'oklch(0.9 0.06 150)' : 'oklch(1 0 0)'};color:${a ? 'oklch(0.42 0.12 155)' : 'oklch(0.5 0.015 150)'};border:1px solid ${a ? 'oklch(0.45 0.14 150 / 0.4)' : 'oklch(0 0 0 / 0.08)'}">${esc(lb)}</button>`; }).join('')}
+            </div>
+          </div>
+          <div class="field"><label>Payment Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="shootPaymentDraft.amount" data-fmt="money" placeholder="0" autofocus required/></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${quick.map(q => `<button type="button" data-action="shoot-payment-quick" data-amount="${q.amount}" data-label="${esc(q.label)}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">${esc(q.label)} (${fmtMoney(q.amount)})</button>`).join('')}
+            ${remaining > 0 ? `<button type="button" data-action="shoot-payment-quick" data-amount="${remaining}" data-label="Payment" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Pay remaining (${fmtMoney(remaining)})</button>` : ''}
+          </div>
+          <div class="field"><label>Date paid</label><input type="date" value="${esc(d.date || TODAY_STR)}" max="${TODAY_STR}" data-bind="shootPaymentDraft.date"/></div>
+          <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New remaining: <strong>${fmtMoney(previewRemaining)}</strong>${previewRemaining === 0 && amt > 0 ? ' — Paid up ✓' : ''}</div>
+          ${history.length > 0 ? `
+          <div style="border-top:1px solid var(--border2);padding-top:12px">
+            <div style="font-size:11.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:8px">Payment History</div>
+            <div style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto">
+              ${history.map(h => `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card2);border-radius:8px;padding:7px 10px">
+                  <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:9.5px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:5px;background:oklch(0.9 0.06 150);color:oklch(0.42 0.12 155);white-space:nowrap">${esc(h.label || 'Payment')}</span><span style="font-size:12px;color:oklch(0.45 0.015 150)">${fmtDate(h.date)}</span></div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font-size:12.5px;font-weight:700">${fmtMoney(h.amount)}</span><button type="button" data-action="shoot-payment-history-delete" data-hist-id="${esc(h.id)}" style="all:unset;cursor:pointer;color:oklch(0.5 0.015 150);font-size:12px;padding:2px 4px" title="Remove this payment">✕</button></div>
+                </div>`).join('')}
+            </div>
+          </div>` : ''}
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary" style="flex:1;text-align:center">Log Payment</button>
+        </div>
+      </form>
     </div>`;
   }
 
@@ -3073,6 +3201,7 @@
       ${modalTelegram(ctx)}
       ${modalLoan()}
       ${modalLoanPayment()}
+      ${modalShootPayment()}
       ${modalGoal()}
       ${modalGoalFund()}
       ${modalClient()}
@@ -3456,6 +3585,23 @@
         break;
       case 'loan-payment-open': setState({ loanPaymentModal: { id }, loanPaymentDraft: { amount: '' } }); break;
       case 'loan-payment-quick': setState(s => ({ loanPaymentDraft: { ...s.loanPaymentDraft, amount: el.dataset.amount } })); break;
+      case 'shoot-payment-open': setState({ shootPaymentModal: { id }, shootPaymentDraft: { amount: '', date: TODAY_STR, label: 'Payment' } }); break;
+      case 'shoot-payment-quick': setState(s => ({ shootPaymentDraft: { ...s.shootPaymentDraft, amount: el.dataset.amount, label: el.dataset.label || (s.shootPaymentDraft && s.shootPaymentDraft.label) || 'Payment' } })); break;
+      case 'shoot-payment-label': setState(s => ({ shootPaymentDraft: { ...s.shootPaymentDraft, label: el.dataset.label } })); break;
+      case 'shoot-payment-history-delete': {
+        if (!confirm('Remove this logged payment?')) break;
+        const targetId = state.shootPaymentModal && state.shootPaymentModal.id;
+        const histId = el.dataset.histId;
+        setState(s => ({
+          shoots: s.shoots.map(sh => {
+            if (sh.id !== targetId) return sh;
+            const payments = (Array.isArray(sh.payments) ? sh.payments : []).filter(h => h.id !== histId);
+            const paid = payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+            return { ...sh, payments, paid };
+          }),
+        }));
+        break;
+      }
       case 'loan-payment-history-delete': {
         if (!confirm('Remove this logged payment? The amount will be added back to the remaining balance.')) break;
         const targetId = state.loanPaymentModal && state.loanPaymentModal.id;
@@ -3622,7 +3768,7 @@
         if (el.dataset.which === 'shoot') { setState({ shootConfirmCloseOpen: true }); break; }
         // For data-entry modals, ignore clicks on the backdrop (outside the box) so an
         // accidental click doesn't discard whatever is being typed. Close with the ✕ button.
-        if (['gear', 'loan', 'loanpayment', 'goal', 'goalfund', 'client'].includes(el.dataset.which)) break;
+        if (['gear', 'loan', 'loanpayment', 'shootpayment', 'goal', 'goalfund', 'client'].includes(el.dataset.which)) break;
         closeModalOf(el.dataset.which);
         break;
       case 'finance-breakdown': setState({ financeBreakdown: el.dataset.key }); break;
@@ -3643,6 +3789,7 @@
     else if (which === 'telegram') setState({ telegramModalOpen: false });
     else if (which === 'loan') setState({ loanModal: null, loanDraft: null });
     else if (which === 'loanpayment') setState({ loanPaymentModal: null, loanPaymentDraft: null });
+    else if (which === 'shootpayment') setState({ shootPaymentModal: null, shootPaymentDraft: null });
     else if (which === 'goal') setState({ goalModal: null, goalDraft: null });
     else if (which === 'goalfund') setState({ goalFundModal: null, goalFundDraft: null });
     else if (which === 'client') setState({ clientModal: null, clientDraft: null });
@@ -4385,9 +4532,9 @@
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
-      } else if (state.loanModal || state.loanPaymentModal || state.goalModal || state.goalFundModal || state.clientModal || state.telegramModalOpen || state.chipModal) {
+      } else if (state.loanModal || state.loanPaymentModal || state.shootPaymentModal || state.goalModal || state.goalFundModal || state.clientModal || state.telegramModalOpen || state.chipModal) {
         e.preventDefault(); e.stopPropagation();
-        closeModalOf(state.loanModal ? 'loan' : state.loanPaymentModal ? 'loanpayment' : state.goalModal ? 'goal' : state.goalFundModal ? 'goalfund' : state.clientModal ? 'client' : state.telegramModalOpen ? 'telegram' : 'chip');
+        closeModalOf(state.loanModal ? 'loan' : state.loanPaymentModal ? 'loanpayment' : state.shootPaymentModal ? 'shootpayment' : state.goalModal ? 'goal' : state.goalFundModal ? 'goalfund' : state.clientModal ? 'client' : state.telegramModalOpen ? 'telegram' : 'chip');
       }
     });
 
@@ -4406,7 +4553,7 @@
           : ((liveTiers.find(t => t.value === d.packageTier) || {}).price || 0);
         const addons = d.addons || {};
         const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
-        const cleaned = { ...d, package: packageAmount + addonsTotal, paid: Number(d.paid) || 0 };
+        const cleaned = { ...d, package: packageAmount + addonsTotal, paid: (Array.isArray(d.payments) && d.payments.length) ? d.payments.reduce((a, p) => a + (Number(p.amount) || 0), 0) : (Number(d.paid) || 0) };
         setState(s => {
           const name = (cleaned.client || '').trim();
           const hasClient = name && s.clients.some(c => c.name.trim().toLowerCase() === name.toLowerCase());
@@ -4459,6 +4606,31 @@
               return { ...l, remainingBalance: newRemaining, status: newRemaining === 0 ? 'paid' : l.status, paymentHistory: [...(l.paymentHistory || []), historyEntry] };
             }),
             loanPaymentModal: null, loanPaymentDraft: null,
+          }));
+        }
+      } else if (action === 'save-shoot-payment') {
+        const pd = state.shootPaymentDraft || {};
+        const amt = Number(pd.amount) || 0;
+        if (amt <= 0) { alert('Please enter a payment amount.'); return; }
+        const payDate = pd.date || TODAY_STR;
+        if (payDate > TODAY_STR) { alert('Payment date cannot be in the future.'); return; }
+        const payLabel = pd.label || 'Payment';
+        if (state.shootPaymentModal) {
+          const targetId = state.shootPaymentModal.id;
+          setState(s => ({
+            shoots: s.shoots.map(sh => {
+              if (sh.id !== targetId) return sh;
+              let payments = Array.isArray(sh.payments) ? sh.payments.slice() : [];
+              // First time logging on a shoot that already had a plain "Amount Received":
+              // migrate that legacy total into a dated entry so no money is lost.
+              if (payments.length === 0 && (Number(sh.paid) || 0) > 0) {
+                payments.push({ id: 'sp' + Date.now() + 'm', amount: Number(sh.paid) || 0, date: sh.date || payDate, label: 'Earlier payment' });
+              }
+              payments.push({ id: 'sp' + Date.now(), amount: amt, date: payDate, label: payLabel });
+              const paid = payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+              return { ...sh, payments, paid };
+            }),
+            shootPaymentModal: null, shootPaymentDraft: null,
           }));
         }
       } else if (action === 'save-goal') {
