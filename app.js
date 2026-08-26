@@ -2398,7 +2398,10 @@
       return { ...tp, bg: active ? accent.bg : 'oklch(0.97 0.006 150)', color: active ? accent.color : 'oklch(0.5 0.015 150)', border: active ? accent.color : 'oklch(0 0 0 / 0.08)' };
     });
 
-    const statusOptions = (isEdit ? STATUS_META : STATUS_META.filter(sm => sm.value === 'tentative' || sm.value === 'idea'));
+    const GP_STATUS_LABELS = { idea: 'To Edit', shot: 'Editing', approval: 'For Approval', posted: 'Completed' };
+    const statusOptions = isGeneral
+      ? STATUS_META.filter(sm => ['idea','shot','approval','posted'].includes(sm.value)).map(sm => ({ ...sm, label: GP_STATUS_LABELS[sm.value] || sm.label }))
+      : (isEdit ? STATUS_META : STATUS_META.filter(sm => sm.value === 'tentative' || sm.value === 'idea'));
 
     const shootDateDisplayLabel = d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select date';
     const pickerMonthLabel = new Date(state.shootDateCalYear, state.shootDateCalMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -2421,7 +2424,7 @@
         <div style="margin-bottom:16px">
           <div style="font-size:11px;font-weight:700;color:oklch(0.5 0.015 150);margin-bottom:6px;padding-left:2px">Service</div>
           <div style="display:flex;gap:8px">
-            ${[{v:'shoot',l:'Shoot'},{v:'edit',l:'Edit'}].map(sv => { const active=(d.serviceType||'shoot')===sv.v; const ac = sv.v==='edit' ? {c:'#33503c',bg:'#e6ece8',br:'#41644A'} : {c:'oklch(0.45 0.14 150)',bg:'oklch(0.5 0.13 150 / 0.14)',br:'oklch(0.45 0.14 150)'}; return `<button type="button" data-action="shoot-service-pick" data-service="${sv.v}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:9px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${active?ac.bg:'oklch(0.97 0.006 150)'};color:${active?ac.c:'oklch(0.5 0.015 150)'};border:1px solid ${active?ac.br:'oklch(0 0 0 / 0.08)'}">${sv.l}</button>`; }).join('')}
+            ${[{v:'shoot',l:'Shoot + Edit'},{v:'edit',l:'Edit only'}].map(sv => { const active=(d.serviceType||'shoot')===sv.v; const ac = sv.v==='edit' ? {c:'#33503c',bg:'#e6ece8',br:'#41644A'} : {c:'oklch(0.45 0.14 150)',bg:'oklch(0.5 0.13 150 / 0.14)',br:'oklch(0.45 0.14 150)'}; return `<button type="button" data-action="shoot-service-pick" data-service="${sv.v}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:9px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${active?ac.bg:'oklch(0.97 0.006 150)'};color:${active?ac.c:'oklch(0.5 0.015 150)'};border:1px solid ${active?ac.br:'oklch(0 0 0 / 0.08)'}">${sv.l}</button>`; }).join('')}
           </div>
         </div>
         ${isGeneral ? `
@@ -2522,7 +2525,7 @@
             <div class="field"><label>Project Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>`}
             <div class="field"><label>${isForeign ? '₱ Received (actual)' : 'Amount Received (₱)'}</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.paid))}" data-bind="draft.paid" data-fmt="money" placeholder="0"/></div>
           </div>
-          ${isForeign ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin:-4px 0 4px 2px;line-height:1.45">Sa Finances, <b style="color:oklch(0.3 0.02 150)">₱ Received</b> ang lalabas sa totals. Yung <b style="color:oklch(0.3 0.02 150)">$</b> record lang — para may tala ka.</div>` : ''}
+          ${isForeign ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin:-4px 0 4px 2px;line-height:1.45">In Finances, your <b style="color:oklch(0.3 0.02 150)">₱ Received</b> counts toward the totals. The <b style="color:oklch(0.3 0.02 150)">$</b> is kept as a record only.</div>` : ''}
           ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>` : ''}
           ${isRealEstate ? `
           <div style="background:var(--card2);border:1px solid var(--border3);border-radius:12px;padding:14px 16px">
@@ -3362,7 +3365,7 @@
         if (!confirm(`Are you sure you want to delete the shoot "${state.draft.client || 'this shoot'}"? This cannot be undone.`)) break;
         setState(s => ({ shoots: s.shoots.filter(sh => sh.id !== s.draft.id), modal: null, draft: null }));
         break;
-      case 'shoot-type-pick': setState(s => ({ draft: { ...s.draft, shootType: el.dataset.type } })); break;
+      case 'shoot-type-pick': setState(s => { const st = el.dataset.type; const draft = { ...s.draft, shootType: st }; if (st === 'General Project' && (draft.status === 'tentative' || draft.status === 'resched')) draft.status = 'idea'; return { draft }; }); break;
       case 'shoot-service-pick': setState(s => ({ draft: { ...s.draft, serviceType: el.dataset.service } })); break;
       case 'shoot-currency-pick': setState(s => ({ draft: { ...s.draft, currency: el.dataset.currency } })); break;
       case 'shoot-loc-toggle': setState(s => ({ shootLocOpen: true })); break;
