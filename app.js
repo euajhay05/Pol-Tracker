@@ -4506,7 +4506,9 @@
       }
       if (el.dataset.special === 'packageRate') {
         const key = el.dataset.key;
-        const v = Number(el.value) || 0;
+        // Strip commas/symbols first — the field is money-formatted (e.g. "12,000"),
+        // and Number("12,000") is NaN, which was silently saving the rate as 0.
+        const v = Number(sanitizeMoneyInput(el.value)) || 0;
         setState(s => ({ packageRates: { ...s.packageRates, [key]: v } }));
         return;
       }
