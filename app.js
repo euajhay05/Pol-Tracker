@@ -2352,6 +2352,9 @@
     const d = state.draft;
     const isEdit = state.modal.mode === 'edit';
     const isRealEstate = d.shootType === 'Real Estate';
+    const isGeneral = !isRealEstate;
+    const isForeign = isGeneral && (d.currency === 'USD');
+    const showLoc = isRealEstate || state.shootLocOpen || (isGeneral && !!(d.location || '').trim());
     const liveTiers = getLiveTiers(state.packageRates);
     const isCustomPackage = isRealEstate && (d.packageTier || 'custom') === 'custom';
     const isScriptedShootType = isRealEstate && d.packageTier !== 'basic' && d.packageTier !== 'standard';
@@ -2421,10 +2424,17 @@
             ${[{v:'shoot',l:'Shoot'},{v:'edit',l:'Edit'}].map(sv => { const active=(d.serviceType||'shoot')===sv.v; const ac = sv.v==='edit' ? {c:'#33503c',bg:'#e6ece8',br:'#41644A'} : {c:'oklch(0.45 0.14 150)',bg:'oklch(0.5 0.13 150 / 0.14)',br:'oklch(0.45 0.14 150)'}; return `<button type="button" data-action="shoot-service-pick" data-service="${sv.v}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:9px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${active?ac.bg:'oklch(0.97 0.006 150)'};color:${active?ac.c:'oklch(0.5 0.015 150)'};border:1px solid ${active?ac.br:'oklch(0 0 0 / 0.08)'}">${sv.l}</button>`; }).join('')}
           </div>
         </div>
+        ${isGeneral ? `
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;color:oklch(0.5 0.015 150);margin-bottom:6px;padding-left:2px">Client</div>
+          <div style="display:flex;gap:8px">
+            ${[{v:'PHP',l:'₱ Local'},{v:'USD',l:'$ Foreign'}].map(cu => { const active=(d.currency||'PHP')===cu.v; return `<button type="button" data-action="shoot-currency-pick" data-currency="${cu.v}" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:9px 8px;border-radius:10px;font-weight:700;font-size:13px;background:${active?'oklch(0.5 0.13 150 / 0.14)':'oklch(0.97 0.006 150)'};color:${active?'oklch(0.45 0.14 150)':'oklch(0.5 0.015 150)'};border:1px solid ${active?'oklch(0.45 0.14 150)':'oklch(0 0 0 / 0.08)'}">${cu.l}</button>`; }).join('')}
+          </div>
+        </div>` : ''}
         <div class="modal-fields">
           <div class="field"><label>Client / Project</label><input type="text" value="${esc(d.client)}" data-bind="draft.client" data-fmt="autocomplete" placeholder="e.g. Globe Telecom Anthem" required autocomplete="off"/>
           </div>
-          <div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>
+          ${showLoc ? `<div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>` : `<div class="field" style="margin-bottom:4px"><span data-action="shoot-loc-toggle" style="cursor:pointer;font-size:12.5px;font-weight:600;color:oklch(0.45 0.14 150);text-decoration:underline">+ Add location</span></div>`}
           <div class="row-2">
             <div class="field" style="position:relative">
               <label>Date</label>
@@ -2507,10 +2517,12 @@
             ${isRealEstate ? `
             <div class="field"><label>Package</label>
               <select data-bind="draft.packageTier" data-special="packageTier">${liveTiers.map(t => `<option value="${t.value}" ${d.packageTier === t.value ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
-            </div>` : `
+            </div>` : isForeign ? `
+            <div class="field"><label>Amount Charged ($)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.usdCharged))}" data-bind="draft.usdCharged" data-fmt="money" placeholder="0"/></div>` : `
             <div class="field"><label>Project Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>`}
-            <div class="field"><label>Amount Received (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.paid))}" data-bind="draft.paid" data-fmt="money" placeholder="0"/></div>
+            <div class="field"><label>${isForeign ? '₱ Received (actual)' : 'Amount Received (₱)'}</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.paid))}" data-bind="draft.paid" data-fmt="money" placeholder="0"/></div>
           </div>
+          ${isForeign ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin:-4px 0 4px 2px;line-height:1.45">Sa Finances, <b style="color:oklch(0.3 0.02 150)">₱ Received</b> ang lalabas sa totals. Yung <b style="color:oklch(0.3 0.02 150)">$</b> record lang — para may tala ka.</div>` : ''}
           ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>` : ''}
           ${isRealEstate ? `
           <div style="background:var(--card2);border:1px solid var(--border3);border-radius:12px;padding:14px 16px">
@@ -3274,8 +3286,8 @@
       modal: { mode: 'add' }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: calBase.getFullYear(), shootDeadlineCalMonth: calBase.getMonth(),
-      draftDateLocked: !!lockDate,
-      draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', serviceType: 'shoot', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
+      draftDateLocked: !!lockDate, shootLocOpen: false,
+      draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', serviceType: 'shoot', currency: 'PHP', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
     });
   }
   function openEditShoot(id) {
@@ -3298,7 +3310,7 @@
       modal: { mode: 'edit', id }, shootAddonsOpen: false, shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false,
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: deadlineCalBase.getFullYear(), shootDeadlineCalMonth: deadlineCalBase.getMonth(),
-      draftDateLocked: false,
+      draftDateLocked: false, shootLocOpen: false,
       draft: { packageTier: 'custom', shootType: 'General Project', serviceType: 'shoot', addons: {}, ...sh, package: basePackage },
     });
   }
@@ -3352,6 +3364,8 @@
         break;
       case 'shoot-type-pick': setState(s => ({ draft: { ...s.draft, shootType: el.dataset.type } })); break;
       case 'shoot-service-pick': setState(s => ({ draft: { ...s.draft, serviceType: el.dataset.service } })); break;
+      case 'shoot-currency-pick': setState(s => ({ draft: { ...s.draft, currency: el.dataset.currency } })); break;
+      case 'shoot-loc-toggle': setState(s => ({ shootLocOpen: true })); break;
       case 'shoot-addons-toggle': setState(s => ({ shootAddonsOpen: !s.shootAddonsOpen })); break;
       case 'shoot-addon-inc': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) + 1 } } })); break;
       case 'shoot-addon-dec': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: Math.max(0, ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) - 1) } } })); break;
@@ -4556,7 +4570,10 @@
           : ((liveTiers.find(t => t.value === d.packageTier) || {}).price || 0);
         const addons = d.addons || {};
         const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
-        const cleaned = { ...d, package: packageAmount + addonsTotal, paid: (Array.isArray(d.payments) && d.payments.length) ? d.payments.reduce((a, p) => a + (Number(p.amount) || 0), 0) : (Number(d.paid) || 0) };
+        const isForeignGP = !isRealEstate && d.currency === 'USD';
+        const paidAmount = (Array.isArray(d.payments) && d.payments.length) ? d.payments.reduce((a, p) => a + (Number(p.amount) || 0), 0) : (Number(d.paid) || 0);
+        // Foreign General Project: totals stay in PHP (= the PHP actually received); the $ charged is stored as a note only.
+        const cleaned = { ...d, package: isForeignGP ? paidAmount : (packageAmount + addonsTotal), paid: paidAmount, usdCharged: Number(d.usdCharged) || 0 };
         setState(s => {
           const name = (cleaned.client || '').trim();
           const hasClient = name && s.clients.some(c => c.name.trim().toLowerCase() === name.toLowerCase());
