@@ -1044,10 +1044,12 @@
     const ebYM = expensesMonthKey.split('-');
     const ebDaysInMonth = new Date(Number(ebYM[0]), Number(ebYM[1]), 0).getDate();
     const ebDenomDays = expensesMonthKey === THIS_MONTH_KEY ? Math.max(1, TODAY.getDate()) : ebDaysInMonth;
+    const ebMonShort = new Date(`${expensesMonthKey}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' });
     const ebDaily = [];
     for (let dd = 1; dd <= ebDaysInMonth; dd++) {
       const dstr = `${expensesMonthKey}-${String(dd).padStart(2, '0')}`;
-      ebDaily.push({ day: dd, amount: ebRows.filter(e => e.date === dstr).reduce((s, e) => s + (Number(e.amount) || 0), 0) });
+      const dayRows = ebRows.filter(e => e.date === dstr);
+      ebDaily.push({ day: dd, amount: dayRows.reduce((s, e) => s + (Number(e.amount) || 0), 0), items: dayRows.map(e => ({ desc: e.description || 'Untitled', amountLabel: fmtMoney(e.amount) })) });
     }
     const ebRawMax = Math.max(...ebDaily.map(x => x.amount), 1);
     const ebStep = ebRawMax > 40000 ? 20000 : ebRawMax > 8000 ? 5000 : ebRawMax > 2000 ? 1000 : ebRawMax > 800 ? 500 : 200;
@@ -1063,12 +1065,17 @@
     for (let g = 0; g <= ebMaxY; g += ebStep) ebGrid.push({ y: ebYof(g), label: g >= 1000 ? (g / 1000) + 'k' : String(g) });
     const ebSpikeDays = {};
     [...ebDaily].sort((a, b) => b.amount - a.amount).slice(0, 2).filter(d => d.amount > ebMaxY * 0.35).forEach(d => { ebSpikeDays[d.day] = fmtMoney(d.amount); });
-    const ebMarkers = ebPts.map(p => {
+    const ebMarkers = ebPts.map((p, i) => {
       const above = p.y > 46;
+      const items = ebDaily[i].items;
+      const tip = items.length
+        ? `${ebMonShort} ${p.day} — ${p.amountLabel}\n` + items.slice(0, 8).map(it => `• ${it.desc}: ${it.amountLabel}`).join('\n') + (items.length > 8 ? `\n…+${items.length - 8} more` : '')
+        : `${ebMonShort} ${p.day} — no spending`;
       return {
         x: p.x, y: p.y, day: p.day, amountLabel: p.amountLabel,
         isSpike: !!ebSpikeDays[p.day], annot: ebSpikeDays[p.day] || '',
         annotRectY: above ? p.y - 26 : p.y + 9, annotTextY: above ? p.y - 14 : p.y + 21,
+        tip,
       };
     });
     const ebTop = [...ebRows].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0)).slice(0, 7).map(e => ({
@@ -1838,6 +1845,11 @@
 
   function viewExpenses(ctx) {
     const searchClear = state.expensesSearch ? `<button type="button" class="search-clear" data-action="search-clear" data-field="expensesSearch">✕</button>` : '';
+    const ebTab = state.expensesTab === 'breakdown' ? 'breakdown' : 'log';
+    const expensesTabBar = `
+      <div class="tabbar" style="margin-bottom:20px">
+        ${[{ v: 'log', l: 'Log' }, { v: 'breakdown', l: 'Breakdown' }].map(t => { const on = ebTab === t.v; return `<button type="button" data-action="expenses-tab" data-tab="${t.v}" style="all:unset;cursor:pointer;padding:7px 15px;border-radius:8px;font-size:12px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:${on ? 'oklch(0.3 0.02 150)' : 'oklch(0.5 0.015 150)'};background:${on ? 'var(--panel)' : 'transparent'};box-shadow:${on ? '0 1px 2px oklch(0 0 0 / 0.08)' : 'none'}">${t.l}</button>`; }).join('')}
+      </div>`;
 
     const expensesMonthPicker = `
       <div style="display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 14px">
@@ -1896,45 +1908,54 @@
         <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
-    ${expensesCalendarSection}
-    ${ctx.expenseBreakdown.hasData ? (() => { const eb = ctx.expenseBreakdown; return `
+    ${expensesTabBar}
+    ${ebTab === 'log' ? expensesCalendarSection : ''}
+    ${ebTab === 'breakdown' ? (ctx.expenseBreakdown.hasData ? (() => { const eb = ctx.expenseBreakdown; return `
     <div class="card" style="margin-top:24px">
-      <div class="card-title" style="margin-bottom:4px">Expense Breakdown — ${esc(ctx.expensesMonthLabel)}</div>
-      <div style="font-size:12.5px;color:oklch(0.5 0.015 150);margin-bottom:16px">Auto-sorted from your descriptions — spending trend and where it went.</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px">
-        <div style="background:var(--card2);border-radius:12px;padding:13px 15px"><div style="font-size:11px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:5px">Total spent</div><div class="sg" style="font-size:20px;font-weight:700">${eb.stat.totalLabel}</div><div style="font-size:11px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.perDayLabel} / day</div></div>
-        <div style="background:var(--card2);border-radius:12px;padding:13px 15px"><div style="font-size:11px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:5px">Debt & cards</div><div class="sg" style="font-size:20px;font-weight:700;color:oklch(0.45 0.16 265)">${eb.stat.debtLabel}</div><div style="font-size:11px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.debtPct}% of month</div></div>
-        <div style="background:var(--card2);border-radius:12px;padding:13px 15px"><div style="font-size:11px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:5px">Living spend</div><div class="sg" style="font-size:20px;font-weight:700;color:oklch(0.5 0.14 150)">${eb.stat.livingLabel}</div><div style="font-size:11px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.livingPerDayLabel} / day</div></div>
-        <div style="background:var(--card2);border-radius:12px;padding:13px 15px"><div style="font-size:11px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:5px">Entries</div><div class="sg" style="font-size:20px;font-weight:700">${eb.stat.entries}</div></div>
+      <div class="card-title" style="margin-bottom:4px;font-size:15px">Expense Breakdown — ${esc(ctx.expensesMonthLabel)}</div>
+      <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:16px">Auto-sorted from your descriptions — spending trend and where it went.</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+        <div style="background:var(--card2);border-radius:12px;padding:12px 14px"><div style="font-size:10.5px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:4px">Total spent</div><div class="sg" style="font-size:16px;font-weight:700">${eb.stat.totalLabel}</div><div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.perDayLabel} / day</div></div>
+        <div style="background:var(--card2);border-radius:12px;padding:12px 14px"><div style="font-size:10.5px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:4px">Debt & cards</div><div class="sg" style="font-size:16px;font-weight:700;color:oklch(0.4 0.13 150)">${eb.stat.debtLabel}</div><div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.debtPct}% of month</div></div>
+        <div style="background:var(--card2);border-radius:12px;padding:12px 14px"><div style="font-size:10.5px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:4px">Living spend</div><div class="sg" style="font-size:16px;font-weight:700;color:oklch(0.55 0.14 150)">${eb.stat.livingLabel}</div><div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.livingPerDayLabel} / day</div></div>
+        <div style="background:var(--card2);border-radius:12px;padding:12px 14px"><div style="font-size:10.5px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:4px">Entries</div><div class="sg" style="font-size:16px;font-weight:700">${eb.stat.entries}</div></div>
       </div>
-      <div class="sg" style="font-weight:700;font-size:13.5px;margin-bottom:8px">Daily Spending Trend</div>
+      <div class="sg" style="font-weight:700;font-size:12.5px;margin-bottom:7px">Where the month went</div>
+      <div style="display:flex;height:38px;border-radius:9px;overflow:hidden;gap:2px;margin-bottom:4px">
+        <div style="flex:${Math.max(eb.stat.debtPct, 7)};background:oklch(0.4 0.13 150);display:flex;flex-direction:column;align-items:center;justify-content:center;color:oklch(1 0 0);min-width:0"><span style="font-weight:700;font-size:11px">Debt · ${eb.stat.debtPct}%</span><span style="font-size:9.5px;opacity:0.9">${eb.stat.debtLabel}</span></div>
+        <div style="flex:${Math.max(100 - eb.stat.debtPct, 7)};background:oklch(0.62 0.13 150);display:flex;flex-direction:column;align-items:center;justify-content:center;color:oklch(1 0 0);min-width:0"><span style="font-weight:700;font-size:11px">Living · ${100 - eb.stat.debtPct}%</span><span style="font-size:9.5px;opacity:0.9">${eb.stat.livingLabel}</span></div>
+      </div>
+      <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 5px">Daily Spending Trend</div>
+      <div style="font-size:11px;color:oklch(0.55 0.015 150);margin-bottom:6px">Hover a day to see exactly what you spent.</div>
       <svg viewBox="0 0 ${eb.W} ${eb.H}" style="width:100%;height:auto;overflow:visible;font-family:'Inter',sans-serif">
         <defs><linearGradient id="ebGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="oklch(0.55 0.14 150)" stop-opacity="0.28"/><stop offset="100%" stop-color="oklch(0.55 0.14 150)" stop-opacity="0"/></linearGradient></defs>
         ${eb.grid.map(g => `<line x1="${eb.L}" y1="${g.y.toFixed(1)}" x2="${eb.W - eb.R}" y2="${g.y.toFixed(1)}" stroke="oklch(0 0 0 / 0.06)" stroke-width="1"/><text x="${eb.L - 8}" y="${(g.y + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="oklch(0.55 0.015 150)">${g.label}</text>`).join('')}
         ${eb.areaPath ? `<path d="${eb.areaPath}" fill="url(#ebGrad)"/>` : ''}
         ${eb.linePath ? `<path d="${eb.linePath}" fill="none" stroke="oklch(0.5 0.14 150)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
-        ${eb.markers.map(m => `${(m.day % 2 === 1 || m.day === eb.markers.length) ? `<text x="${m.x.toFixed(1)}" y="${eb.H - 9}" text-anchor="middle" font-size="9.5" fill="oklch(0.55 0.015 150)">${m.day}</text>` : ''}<circle cx="${m.x.toFixed(1)}" cy="${m.y.toFixed(1)}" r="${m.isSpike ? 4.5 : 2.6}" fill="oklch(1 0 0)" stroke="oklch(0.5 0.14 150)" stroke-width="${m.isSpike ? 2.5 : 1.6}"><title>Day ${m.day}: ${esc(m.amountLabel)}</title></circle>${m.isSpike ? `<rect x="${(m.x - 32).toFixed(1)}" y="${m.annotRectY.toFixed(1)}" width="64" height="16" rx="5" fill="oklch(1 0 0)" stroke="oklch(0.45 0.16 265)" stroke-opacity="0.35"/><text x="${m.x.toFixed(1)}" y="${m.annotTextY.toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="oklch(0.45 0.16 265)">${esc(m.annot)}</text>` : ''}`).join('')}
+        ${eb.markers.map(m => `${(m.day % 2 === 1 || m.day === eb.markers.length) ? `<text x="${m.x.toFixed(1)}" y="${eb.H - 9}" text-anchor="middle" font-size="9" fill="oklch(0.55 0.015 150)">${m.day}</text>` : ''}<circle cx="${m.x.toFixed(1)}" cy="${m.y.toFixed(1)}" r="${m.isSpike ? 4 : 2.4}" fill="oklch(1 0 0)" stroke="oklch(0.5 0.14 150)" stroke-width="${m.isSpike ? 2.4 : 1.6}"/>${m.isSpike ? `<rect x="${(m.x - 32).toFixed(1)}" y="${m.annotRectY.toFixed(1)}" width="64" height="15" rx="5" fill="oklch(1 0 0)" stroke="oklch(0.45 0.14 150)" stroke-opacity="0.4"/><text x="${m.x.toFixed(1)}" y="${(m.annotTextY - 0.5).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="oklch(0.42 0.13 150)">${esc(m.annot)}</text>` : ''}`).join('')}
+        ${eb.markers.map(m => `<rect x="${(m.x - (eb.W - eb.L - eb.R) / eb.markers.length / 2).toFixed(1)}" y="16" width="${((eb.W - eb.L - eb.R) / eb.markers.length).toFixed(1)}" height="204" fill="transparent" style="cursor:crosshair"><title>${esc(m.tip)}</title></rect>`).join('')}
       </svg>
-      <div class="sg" style="font-weight:700;font-size:13.5px;margin:22px 0 8px">By Category</div>
+      <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 6px">By Category</div>
       ${eb.cats.map(c => `
-        <div style="margin:11px 0">
-          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span>${esc(c.name)}</span><span style="font-weight:700">${c.amountLabel} <span style="color:oklch(0.55 0.015 150);font-weight:600">${c.pct}%</span></span></div>
-          <div style="height:9px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.max(Math.round((c.amount / eb.catMax) * 100), 2)}%;background:${c.isDebt ? 'oklch(0.5 0.16 265)' : 'oklch(0.55 0.14 150)'};border-radius:5px"></div></div>
-          <div style="font-size:11px;color:oklch(0.55 0.015 150);margin-top:3px">${c.count} ${c.count === 1 ? 'entry' : 'entries'}</div>
+        <div style="margin:9px 0">
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px"><span>${esc(c.name)}</span><span style="font-weight:700">${c.amountLabel} <span style="color:oklch(0.55 0.015 150);font-weight:600">${c.pct}%</span></span></div>
+          <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.max(Math.round((c.amount / eb.catMax) * 100), 2)}%;background:${c.isDebt ? 'oklch(0.4 0.13 150)' : 'oklch(0.58 0.13 150)'};border-radius:5px"></div></div>
+          <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:3px">${c.count} ${c.count === 1 ? 'entry' : 'entries'}</div>
         </div>`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px">
       <div class="card">
-        <div class="card-title" style="margin-bottom:12px">Biggest Expenses — ${esc(ctx.expensesMonthLabel)}</div>
-        ${eb.top.map(t => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border2)"><div style="font-size:11px;color:oklch(0.55 0.015 150);width:46px;flex:none">${esc(t.dateLabel)}</div><div style="flex:1;min-width:0;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.desc)}${t.isDebt ? ` <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:5px;background:oklch(0.9 0.04 265);color:oklch(0.45 0.16 265)">debt</span>` : ''}</div><div style="font-size:13px;font-weight:700;flex:none">${esc(t.amountLabel)}</div></div>`).join('')}
+        <div class="card-title" style="margin-bottom:10px;font-size:15px">Biggest Expenses — ${esc(ctx.expensesMonthLabel)}</div>
+        ${eb.top.map(t => `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border2)"><div style="font-size:10.5px;color:oklch(0.55 0.015 150);width:44px;flex:none">${esc(t.dateLabel)}</div><div style="flex:1;min-width:0;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.desc)}${t.isDebt ? ` <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:5px;background:oklch(0.92 0.05 150);color:oklch(0.4 0.13 150)">debt</span>` : ''}</div><div style="font-size:12px;font-weight:700;flex:none">${esc(t.amountLabel)}</div></div>`).join('')}
       </div>
       <div class="card">
-        <div class="card-title" style="margin-bottom:6px">Quiet Leaks</div>
-        <div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:6px">Small, repeated spends worth watching.</div>
-        <div style="display:flex;align-items:center;gap:12px;padding:8px 0"><div style="width:34px;height:34px;border-radius:10px;background:oklch(0.95 0.03 80);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none">☕</div><div><div class="sg" style="font-size:16px;font-weight:700">${eb.coffee.sumLabel}</div><div style="font-size:12px;color:oklch(0.5 0.015 150)">Coffee · ${eb.coffee.n} ${eb.coffee.n === 1 ? 'time' : 'times'}</div></div></div>
-        <div style="display:flex;align-items:center;gap:12px;padding:8px 0"><div style="width:34px;height:34px;border-radius:10px;background:oklch(0.95 0.03 80);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none">🅿️</div><div><div class="sg" style="font-size:16px;font-weight:700">${eb.parking.sumLabel}</div><div style="font-size:12px;color:oklch(0.5 0.015 150)">Parking · ${eb.parking.n} ${eb.parking.n === 1 ? 'time' : 'times'}</div></div></div>
+        <div class="card-title" style="margin-bottom:5px;font-size:15px">Quiet Leaks</div>
+        <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-bottom:4px">Small, repeated spends worth watching.</div>
+        <div style="display:flex;align-items:center;gap:12px;padding:7px 0"><div style="width:32px;height:32px;border-radius:10px;background:oklch(0.95 0.05 150);display:flex;align-items:center;justify-content:center;font-size:15px;flex:none">☕</div><div><div class="sg" style="font-size:14px;font-weight:700">${eb.coffee.sumLabel}</div><div style="font-size:11px;color:oklch(0.5 0.015 150)">Coffee · ${eb.coffee.n} ${eb.coffee.n === 1 ? 'time' : 'times'}</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:7px 0"><div style="width:32px;height:32px;border-radius:10px;background:oklch(0.95 0.05 150);display:flex;align-items:center;justify-content:center;font-size:15px;flex:none">🅿️</div><div><div class="sg" style="font-size:14px;font-weight:700">${eb.parking.sumLabel}</div><div style="font-size:11px;color:oklch(0.5 0.015 150)">Parking · ${eb.parking.n} ${eb.parking.n === 1 ? 'time' : 'times'}</div></div></div>
       </div>
-    </div>` })() : ''}
+    </div>` })() : `<div class="card" style="margin-top:24px"><div style="text-align:center;padding:34px 20px;color:oklch(0.55 0.015 150);font-size:12.5px">No expenses logged for ${esc(ctx.expensesMonthLabel)} yet.</div></div>`) : ''}
+    ${ebTab === 'log' ? `
     <div class="card" style="margin-top:24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="card-title" style="margin-bottom:0">Monthly Report</div>
@@ -1976,7 +1997,7 @@
           <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="expense-delete" data-id="${esc(ex.id)}" title="Delete">✕</button>
         </div>`).join('')}
       ${ctx.filteredExpenseRows.length === 0 ? `<div style="padding:24px 20px;color:oklch(0.55 0.015 150);font-size:13.5px">No expenses in ${esc(ctx.expensesMonthLabel)}.</div>` : ''}
-    </div>` : ''}`;
+    </div>` : ''}` : ''}`;
   }
 
   /* ---------------- loans ---------------- */
@@ -3582,6 +3603,7 @@
 
       case 'expenses-day-today': setState({ expensesSelectedDate: TODAY_STR }); break;
       case 'expenses-list-toggle': setState(s => ({ expensesListOpen: !s.expensesListOpen })); break;
+      case 'expenses-tab': setState({ expensesTab: el.dataset.tab }); break;
       case 'expenses-day-cal-prev': setState(s => {
         let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; }
         const mk = `${y}-${String(m + 1).padStart(2, '0')}`;
