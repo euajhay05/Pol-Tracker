@@ -1065,6 +1065,7 @@
     for (let g = 0; g <= ebMaxY; g += ebStep) ebGrid.push({ y: ebYof(g), label: g >= 1000 ? (g / 1000) + 'k' : String(g) });
     const ebSpikeDays = {};
     [...ebDaily].sort((a, b) => b.amount - a.amount).slice(0, 2).filter(d => d.amount > ebMaxY * 0.35).forEach(d => { ebSpikeDays[d.day] = fmtMoney(d.amount); });
+    const ebSelDay = Number(state.expChartDay) || 0;
     const ebMarkers = ebPts.map((p, i) => {
       const above = p.y > 46;
       const items = ebDaily[i].items;
@@ -1075,9 +1076,16 @@
         x: p.x, y: p.y, day: p.day, amountLabel: p.amountLabel,
         isSpike: !!ebSpikeDays[p.day], annot: ebSpikeDays[p.day] || '',
         annotRectY: above ? p.y - 26 : p.y + 9, annotTextY: above ? p.y - 14 : p.y + 21,
-        tip,
+        tip, sel: p.day === ebSelDay,
       };
     });
+    const ebSelRow = ebDaily.find(d => d.day === ebSelDay);
+    const ebSelDetail = ebSelRow ? {
+      label: `${ebMonShort} ${ebSelRow.day}`,
+      amountLabel: fmtMoney(ebSelRow.amount),
+      hasItems: ebSelRow.items.length > 0,
+      items: ebSelRow.items,
+    } : null;
     const ebTop = [...ebRows].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0)).slice(0, 7).map(e => ({
       desc: e.description || 'Untitled', dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount),
       isDebt: expenseCategoryOf(e.description || '') === 'Debt & Card Payments',
@@ -1088,6 +1096,7 @@
       hasData: ebRows.length > 0,
       W: ebW, H: ebH, L: ebLpad, R: ebRpad,
       grid: ebGrid, linePath: ebLinePath, areaPath: ebAreaPath, markers: ebMarkers,
+      selDetail: ebSelDetail,
       cats: ebCats, catMax: ebCatMax, top: ebTop,
       coffee: { n: ebCoffeeRows.length, sumLabel: fmtMoney(ebCoffeeRows.reduce((s, e) => s + (Number(e.amount) || 0), 0)) },
       parking: { n: ebParkingRows.length, sumLabel: fmtMoney(ebParkingRows.reduce((s, e) => s + (Number(e.amount) || 0), 0)) },
@@ -1926,15 +1935,24 @@
         <div style="flex:${Math.max(100 - eb.stat.debtPct, 7)};background:oklch(0.62 0.13 150);display:flex;flex-direction:column;align-items:center;justify-content:center;color:oklch(1 0 0);min-width:0"><span style="font-weight:700;font-size:11px">Living · ${100 - eb.stat.debtPct}%</span><span style="font-size:9.5px;opacity:0.9">${eb.stat.livingLabel}</span></div>
       </div>
       <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 5px">Daily Spending Trend</div>
-      <div style="font-size:11px;color:oklch(0.55 0.015 150);margin-bottom:6px">Hover a day to see exactly what you spent.</div>
+      <div style="font-size:11px;color:oklch(0.55 0.015 150);margin-bottom:6px">Tap any day to see exactly what you spent.</div>
       <svg viewBox="0 0 ${eb.W} ${eb.H}" style="width:100%;height:auto;overflow:visible;font-family:'Inter',sans-serif">
         <defs><linearGradient id="ebGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="oklch(0.55 0.14 150)" stop-opacity="0.28"/><stop offset="100%" stop-color="oklch(0.55 0.14 150)" stop-opacity="0"/></linearGradient></defs>
         ${eb.grid.map(g => `<line x1="${eb.L}" y1="${g.y.toFixed(1)}" x2="${eb.W - eb.R}" y2="${g.y.toFixed(1)}" stroke="oklch(0 0 0 / 0.06)" stroke-width="1"/><text x="${eb.L - 8}" y="${(g.y + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="oklch(0.55 0.015 150)">${g.label}</text>`).join('')}
         ${eb.areaPath ? `<path d="${eb.areaPath}" fill="url(#ebGrad)"/>` : ''}
         ${eb.linePath ? `<path d="${eb.linePath}" fill="none" stroke="oklch(0.5 0.14 150)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
-        ${eb.markers.map(m => `${(m.day % 2 === 1 || m.day === eb.markers.length) ? `<text x="${m.x.toFixed(1)}" y="${eb.H - 9}" text-anchor="middle" font-size="9" fill="oklch(0.55 0.015 150)">${m.day}</text>` : ''}<circle cx="${m.x.toFixed(1)}" cy="${m.y.toFixed(1)}" r="${m.isSpike ? 4 : 2.4}" fill="oklch(1 0 0)" stroke="oklch(0.5 0.14 150)" stroke-width="${m.isSpike ? 2.4 : 1.6}"/>${m.isSpike ? `<rect x="${(m.x - 32).toFixed(1)}" y="${m.annotRectY.toFixed(1)}" width="64" height="15" rx="5" fill="oklch(1 0 0)" stroke="oklch(0.45 0.14 150)" stroke-opacity="0.4"/><text x="${m.x.toFixed(1)}" y="${(m.annotTextY - 0.5).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="oklch(0.42 0.13 150)">${esc(m.annot)}</text>` : ''}`).join('')}
-        ${eb.markers.map(m => `<rect x="${(m.x - (eb.W - eb.L - eb.R) / eb.markers.length / 2).toFixed(1)}" y="16" width="${((eb.W - eb.L - eb.R) / eb.markers.length).toFixed(1)}" height="204" fill="transparent" style="cursor:crosshair"><title>${esc(m.tip)}</title></rect>`).join('')}
+        ${eb.markers.filter(m => m.sel).map(m => `<line x1="${m.x.toFixed(1)}" y1="16" x2="${m.x.toFixed(1)}" y2="220" stroke="oklch(0.5 0.14 150)" stroke-width="1" stroke-dasharray="3 3" stroke-opacity="0.5"/>`).join('')}
+        ${eb.markers.map(m => `${(m.day % 2 === 1 || m.day === eb.markers.length) ? `<text x="${m.x.toFixed(1)}" y="${eb.H - 9}" text-anchor="middle" font-size="9" fill="${m.sel ? 'oklch(0.42 0.13 150)' : 'oklch(0.55 0.015 150)'}" font-weight="${m.sel ? '700' : '400'}">${m.day}</text>` : ''}<circle cx="${m.x.toFixed(1)}" cy="${m.y.toFixed(1)}" r="${m.sel ? 5 : (m.isSpike ? 4 : 2.4)}" fill="${m.sel ? 'oklch(0.5 0.14 150)' : 'oklch(1 0 0)'}" stroke="oklch(0.5 0.14 150)" stroke-width="${m.sel ? 2.5 : (m.isSpike ? 2.4 : 1.6)}"/>${m.isSpike ? `<rect x="${(m.x - 32).toFixed(1)}" y="${m.annotRectY.toFixed(1)}" width="64" height="15" rx="5" fill="oklch(1 0 0)" stroke="oklch(0.45 0.14 150)" stroke-opacity="0.4"/><text x="${m.x.toFixed(1)}" y="${(m.annotTextY - 0.5).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="oklch(0.42 0.13 150)">${esc(m.annot)}</text>` : ''}`).join('')}
+        ${eb.markers.map(m => `<rect data-action="exp-day-select" data-day="${m.day}" x="${(m.x - (eb.W - eb.L - eb.R) / eb.markers.length / 2).toFixed(1)}" y="16" width="${((eb.W - eb.L - eb.R) / eb.markers.length).toFixed(1)}" height="204" fill="transparent" style="cursor:pointer"><title>${esc(m.tip)}</title></rect>`).join('')}
       </svg>
+      ${eb.selDetail ? `
+      <div style="background:var(--card2);border:1px solid var(--border3);border-radius:12px;padding:12px 14px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:${eb.selDetail.hasItems ? '8' : '0'}px">
+          <div class="sg" style="font-weight:700;font-size:13px">${esc(eb.selDetail.label)}</div>
+          <div class="sg" style="font-weight:700;font-size:15px;color:oklch(0.4 0.13 150)">${esc(eb.selDetail.amountLabel)}</div>
+        </div>
+        ${eb.selDetail.hasItems ? eb.selDetail.items.map(it => `<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px"><span style="color:oklch(0.35 0.02 150);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.desc)}</span><span style="font-weight:600;flex:none">${esc(it.amountLabel)}</span></div>`).join('') : `<div style="font-size:12px;color:oklch(0.55 0.015 150)">No spending logged this day.</div>`}
+      </div>` : `<div style="font-size:11.5px;color:oklch(0.55 0.015 150);margin-top:8px;text-align:center;padding:8px">👆 Tap a point on the chart above to see that day's expenses.</div>`}
       <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 6px">By Category</div>
       ${eb.cats.map(c => `
         <div style="margin:9px 0">
@@ -3604,6 +3622,7 @@
       case 'expenses-day-today': setState({ expensesSelectedDate: TODAY_STR }); break;
       case 'expenses-list-toggle': setState(s => ({ expensesListOpen: !s.expensesListOpen })); break;
       case 'expenses-tab': setState({ expensesTab: el.dataset.tab }); break;
+      case 'exp-day-select': setState({ expChartDay: Number(el.dataset.day) }); break;
       case 'expenses-day-cal-prev': setState(s => {
         let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; }
         const mk = `${y}-${String(m + 1).padStart(2, '0')}`;
