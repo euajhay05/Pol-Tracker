@@ -839,16 +839,40 @@
     safeRerender();
   });
 
-  function expenseCategoryOf(desc) {
+  const EXPENSE_CATEGORIES = ['Food, Dining & Dates', 'Coffee', 'Transport & Fuel', 'Grocery & Convenience', 'Family Support & Gifts', 'Bills & Utilities', 'Health', 'Gear & Tools', 'Debt & Card Payments', 'Other'];
+  // "Rule key" = the first alphabetic token (3+ letters) in a description. Used to learn from the
+  // user's manual corrections: correcting one "SNR" teaches every future "SNR" without changing how
+  // they type in Telegram.
+  function expenseRuleKey(desc) {
+    const m = (desc || '').toLowerCase().match(/[a-z]{3,}/);
+    return m ? m[0] : (desc || '').toLowerCase().trim();
+  }
+  function guessExpenseCategory(desc) {
     const s = (desc || '').toLowerCase();
-    if (/(cc payment|credit card|bdo cc|\bloan\b|\bub \d|card payment)/.test(s)) return 'Debt & Card Payments';
-    if (/(make ?up|gift|bigay|padala|\btf\b|ejhay|mama|regalo|\bate\b|pamilya)/.test(s)) return 'Family Support & Gifts';
-    if (/(gas|fuel|petron|shell|caltex|parking|fare|pamasahe|indrive|grab|angkas|gsm|taxi|jeep|toll|pasahe)/.test(s)) return 'Transport & Fuel';
-    if (/(internet|wifi|\bload\b|electric|meralco|water|\bbill\b|netflix|spotify|subscription)/.test(s)) return 'Bills & Utilities';
-    if (/(medicine|gamot|vitamin|qiqi|drug|clinic|hospital|checkup)/.test(s)) return 'Health';
-    if (/(lan cable|tools|effects|shake|equipment|tripod|lens|camera|sd card|memory|gear)/.test(s)) return 'Gear & Tools';
-    if (/(coffee|kape|dunkin|zus|starbuck|latte|americano|kopi)/.test(s) || /\bsb$/.test(s)) return 'Coffee';
-    return 'Food, Dining & Dates';
+    if (/(cc payment|credit card|bdo cc|\bloan\b|\bub \d|card payment|utang)/.test(s)) return 'Debt & Card Payments';
+    if (/(make ?up|makeup|\bgift\b|bigay|padala|\btf\b|ejhay|\bmama\b|\bpapa\b|regalo|\bate\b|\bkuya\b|pamilya|pasalubong|allowance)/.test(s)) return 'Family Support & Gifts';
+    if (/(\bgas\b|fuel|petron|shell|caltex|parking|\bfare\b|pamasahe|indrive|\bgrab\b|angkas|\bgsm\b|taxi|\bjeep\b|\btoll\b|pasahe|lalamove|transpo|pasada|habal|tricycle|\btric\b)/.test(s)) return 'Transport & Fuel';
+    if (/(internet|wifi|\bload\b|electric|meralco|\bwater\b|\bbill\b|netflix|spotify|subscription|piso wifi|prepaid)/.test(s)) return 'Bills & Utilities';
+    if (/(medicine|gamot|vitamin|qiqi|\bdrug\b|clinic|hospital|checkup|pharmacy|mercury drug)/.test(s)) return 'Health';
+    if (/(lan cable|\btools\b|equipment|tripod|\blens\b|\bcamera\b|sd card|memory card|hard ?drive|\bssd\b|gimbal|battery)/.test(s)) return 'Gear & Tools';
+    if (/(coffee|\bkape\b|dunkin|\bzus\b|starbuck|\blatte\b|americano|\bkopi\b|\bsb\b)/.test(s)) return 'Coffee';
+    if (/(lunch|dinner|\bfood\b|\bmami\b|henlin|chowking|mcdo|jollibee|\bkanin\b|breakfast|snack|chips|inihaw|\bihaw\b|manginasal|cooks|palitaw|\bfries\b|\bdate\b|movie|bebe|pizza|burger|mix and match|samosa|zagu|siomai|kwek|ice cream|\bpande\b|benedict|silog|tapsi|lugaw|ramen|milk ?tea|samgyup|\bunli\b|lumpia|\bbaka\b|angels burger|merienda|meryenda|\bulam\b|dairy queen|\bdq\b|dinner|meal)/.test(s)) return 'Food, Dining & Dates';
+    if (/(grocery|\bsnr\b|7\/?-?eleven|7\/11|lawson|ministop|puregold|\bdali\b|sari-?sari|savemore|landers|s&r|\bsm\b|supermarket|convenience|uncle john)/.test(s)) return 'Grocery & Convenience';
+    return 'Other';
+  }
+  // rules: optional { ruleKey: category } learned from the user's past manual corrections.
+  function expenseCategoryOf(desc, rules) {
+    if (rules) { const k = expenseRuleKey(desc); if (rules[k]) return rules[k]; }
+    return guessExpenseCategory(desc);
+  }
+  // The effective category of one expense: an explicit per-expense override wins, else learned rules, else the guess.
+  function categoryOfExpense(e, rules) {
+    return (e && e.category) ? e.category : expenseCategoryOf(e ? e.description : '', rules);
+  }
+  function buildCategoryRules(expenses) {
+    const rules = {};
+    (expenses || []).forEach(e => { if (e && e.category) rules[expenseRuleKey(e.description || '')] = e.category; });
+    return rules;
   }
   function smoothLinePath(P) {
     if (!P || P.length === 0) return '';
@@ -1026,15 +1050,19 @@
     // ---- Expense Breakdown (Expenses tab): auto-categorized + modern daily line chart ----
     const ebRows = monthExpenseRows;
     const ebTotal = monthExpensesTotal;
+    const ebRules = buildCategoryRules(expenses);
     const ebCatMap = {};
     ebRows.forEach(e => {
-      const c = expenseCategoryOf(e.description || '');
-      if (!ebCatMap[c]) ebCatMap[c] = { name: c, amount: 0, count: 0 };
+      const c = categoryOfExpense(e, ebRules);
+      if (!ebCatMap[c]) ebCatMap[c] = { name: c, amount: 0, count: 0, items: [] };
       ebCatMap[c].amount += Number(e.amount) || 0;
       ebCatMap[c].count += 1;
+      ebCatMap[c].items.push({ id: e.id, desc: e.description || 'Untitled', dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount), amount: Number(e.amount) || 0 });
     });
     const ebCats = Object.values(ebCatMap).sort((a, b) => b.amount - a.amount).map(c => ({
       name: c.name, count: c.count, amount: c.amount, amountLabel: fmtMoney(c.amount),
+      items: c.items.sort((a, b) => b.amount - a.amount),
+      open: state.expCatOpen === c.name,
       pct: ebTotal ? Math.round((c.amount / ebTotal) * 1000) / 10 : 0,
       isDebt: c.name === 'Debt & Card Payments',
     }));
@@ -1088,9 +1116,9 @@
     } : null;
     const ebTop = [...ebRows].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0)).slice(0, 7).map(e => ({
       desc: e.description || 'Untitled', dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount),
-      isDebt: expenseCategoryOf(e.description || '') === 'Debt & Card Payments',
+      isDebt: categoryOfExpense(e, ebRules) === 'Debt & Card Payments',
     }));
-    const ebCoffeeRows = ebRows.filter(e => expenseCategoryOf(e.description || '') === 'Coffee');
+    const ebCoffeeRows = ebRows.filter(e => categoryOfExpense(e, ebRules) === 'Coffee');
     const ebParkingRows = ebRows.filter(e => /parking/i.test(e.description || ''));
     const expenseBreakdown = {
       hasData: ebRows.length > 0,
@@ -1923,7 +1951,7 @@
     <div class="card" style="margin-top:24px">
       <div class="card-title" style="margin-bottom:4px;font-size:15px">Expense Breakdown — ${esc(ctx.expensesMonthLabel)}</div>
       <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:16px">Auto-sorted from your descriptions — spending trend and where it went.</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px">
         <div style="background:var(--card2);border-radius:12px;padding:12px 14px"><div style="font-size:10.5px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:4px">Total spent</div><div class="sg" style="font-size:16px;font-weight:700">${eb.stat.totalLabel}</div><div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.perDayLabel} / day</div></div>
         <div style="background:var(--card2);border-radius:12px;padding:12px 14px"><div style="font-size:10.5px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:4px">Debt & cards</div><div class="sg" style="font-size:16px;font-weight:700;color:oklch(0.4 0.13 150)">${eb.stat.debtLabel}</div><div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.debtPct}% of month</div></div>
         <div style="background:var(--card2);border-radius:12px;padding:12px 14px"><div style="font-size:10.5px;font-weight:600;color:oklch(0.48 0.015 150);margin-bottom:4px">Living spend</div><div class="sg" style="font-size:16px;font-weight:700;color:oklch(0.55 0.14 150)">${eb.stat.livingLabel}</div><div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:2px">${eb.stat.livingPerDayLabel} / day</div></div>
@@ -1953,12 +1981,24 @@
         </div>
         ${eb.selDetail.hasItems ? eb.selDetail.items.map(it => `<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px"><span style="color:oklch(0.35 0.02 150);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.desc)}</span><span style="font-weight:600;flex:none">${esc(it.amountLabel)}</span></div>`).join('') : `<div style="font-size:12px;color:oklch(0.55 0.015 150)">No spending logged this day.</div>`}
       </div>` : `<div style="font-size:11.5px;color:oklch(0.55 0.015 150);margin-top:8px;text-align:center;padding:8px">👆 Tap a point on the chart above to see that day's expenses.</div>`}
-      <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 6px">By Category</div>
+      <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 2px">By Category</div>
+      <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-bottom:8px">Tap a category to see its items — tap "Move" to fix any that landed in the wrong place. The app remembers your fix for next time.</div>
       ${eb.cats.map(c => `
         <div style="margin:9px 0">
-          <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px"><span>${esc(c.name)}</span><span style="font-weight:700">${c.amountLabel} <span style="color:oklch(0.55 0.015 150);font-weight:600">${c.pct}%</span></span></div>
-          <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.max(Math.round((c.amount / eb.catMax) * 100), 2)}%;background:${c.isDebt ? 'oklch(0.4 0.13 150)' : 'oklch(0.58 0.13 150)'};border-radius:5px"></div></div>
+          <div data-action="exp-cat-toggle" data-cat="${esc(c.name)}" style="cursor:pointer;display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px">
+            <span style="font-weight:${c.open ? '700' : '400'}">${c.open ? '▾' : '▸'} ${esc(c.name)}</span>
+            <span style="font-weight:700">${c.amountLabel} <span style="color:oklch(0.55 0.015 150);font-weight:600">${c.pct}%</span></span>
+          </div>
+          <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.max(Math.round((c.amount / eb.catMax) * 100), 2)}%;background:${c.name === 'Debt & Card Payments' ? 'oklch(0.4 0.13 150)' : (c.name === 'Other' ? 'oklch(0.6 0.03 150)' : 'oklch(0.58 0.13 150)')};border-radius:5px"></div></div>
           <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:3px">${c.count} ${c.count === 1 ? 'entry' : 'entries'}</div>
+          ${c.open ? `<div style="margin:8px 0 14px;padding:6px 10px;background:var(--card2);border-radius:10px">
+            ${c.items.map(it => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11.5px;border-bottom:1px solid var(--border2)">
+              <span style="width:44px;flex:none;color:oklch(0.55 0.015 150)">${esc(it.dateLabel)}</span>
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.desc)}</span>
+              <span style="font-weight:600;flex:none">${esc(it.amountLabel)}</span>
+              <button type="button" data-action="exp-item-reassign" data-id="${esc(it.id)}" style="all:unset;cursor:pointer;flex:none;font-size:10px;font-weight:700;color:oklch(0.45 0.14 150);padding:3px 8px;border-radius:6px;background:oklch(0.92 0.05 150)">Move</button>
+            </div>`).join('')}
+          </div>` : ''}
         </div>`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px">
@@ -2446,20 +2486,7 @@
                 <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${c.shootsLabel}</div>
               </div>
               <div style="font-size:13.5px;font-weight:700;flex:none">${c.totalLabel}</div>
-            </div>`).join('')}
-        </div>`}
-      </div>
-      <div class="card">
-        <div class="card-title" style="margin-bottom:14px">Biggest Expenses — ${esc(ctx.selMonthLabel)}</div>
-        ${ctx.biggestExpenses.length === 0 ? `<div style="font-size:13px;color:oklch(0.55 0.015 150)">No expenses this month.</div>` : `
-        <div style="display:flex;flex-direction:column;gap:12px">
-          ${ctx.biggestExpenses.map(e => `
-            <div style="display:flex;align-items:center;gap:12px">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.description)}</div>
-                <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${e.dateLabel}</div>
-              </div>
-              <div style="font-size:13.5px;font-weight:700;flex:none;color:oklch(0.58 0.19 25)">${e.amountLabel}</div>
+
             </div>`).join('')}
         </div>`}
       </div>
@@ -3394,6 +3421,7 @@
       ${modalReschedule()}
       ${modalFinanceBreakdown()}
       ${modalFinanceExport()}
+      ${modalExpenseCategory()}
     `;
 
     const app = document.getElementById('app');
@@ -3623,6 +3651,10 @@
       case 'expenses-list-toggle': setState(s => ({ expensesListOpen: !s.expensesListOpen })); break;
       case 'expenses-tab': setState({ expensesTab: el.dataset.tab }); break;
       case 'exp-day-select': setState({ expChartDay: Number(el.dataset.day) }); break;
+      case 'exp-cat-toggle': setState(s => ({ expCatOpen: s.expCatOpen === el.dataset.cat ? null : el.dataset.cat })); break;
+      case 'exp-item-reassign': setState({ expReassignId: el.dataset.id }); break;
+      case 'exp-cat-set': { const id = el.dataset.id, cat = el.dataset.cat; setState(s => ({ expenses: s.expenses.map(x => x.id === id ? { ...x, category: cat } : x), expReassignId: null })); break; }
+      case 'exp-cat-clear': { const id = el.dataset.id; setState(s => ({ expenses: s.expenses.map(x => { if (x.id !== id) return x; const c = { ...x }; delete c.category; return c; }), expReassignId: null })); break; }
       case 'expenses-day-cal-prev': setState(s => {
         let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; }
         const mk = `${y}-${String(m + 1).padStart(2, '0')}`;
@@ -3986,6 +4018,26 @@
     else if (which === 'financebreakdown') setState({ financeBreakdown: null });
     else if (which === 'financeexport') setState({ financeExportOpen: false });
     else if (which === 'chip') setState({ chipModal: null });
+    else if (which === 'expcat') setState({ expReassignId: null });
+  }
+
+  function modalExpenseCategory() {
+    if (!state.expReassignId) return '';
+    const e = (state.expenses || []).find(x => x.id === state.expReassignId);
+    if (!e) return '';
+    const current = categoryOfExpense(e, buildCategoryRules(state.expenses));
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="expcat">
+      <form class="modal-box" style="width:340px" data-stop>
+        <div class="modal-head"><div class="modal-title">Move to…</div><button type="button" class="modal-close" data-action="modal-close" data-which="expcat">✕</button></div>
+        <div style="font-size:12.5px;color:oklch(0.45 0.015 150);margin-bottom:4px">${esc(e.description || 'Untitled')} · <strong>${fmtMoney(e.amount)}</strong></div>
+        <div style="font-size:11px;color:oklch(0.55 0.015 150);margin-bottom:14px">The app will remember this for future "${esc(expenseRuleKey(e.description || ''))}" entries.</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${EXPENSE_CATEGORIES.map(cat => { const on = cat === current; return `<button type="button" data-action="exp-cat-set" data-id="${esc(e.id)}" data-cat="${esc(cat)}" style="all:unset;cursor:pointer;box-sizing:border-box;width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:${on ? '700' : '500'};background:${on ? 'oklch(0.92 0.05 150)' : 'var(--card2)'};color:${on ? 'oklch(0.4 0.13 150)' : 'oklch(0.3 0.02 150)'};border:1px solid ${on ? 'oklch(0.45 0.14 150)' : 'transparent'}">${esc(cat)}${on ? ' ✓' : ''}</button>`; }).join('')}
+        </div>
+        ${e.category ? `<button type="button" data-action="exp-cat-clear" data-id="${esc(e.id)}" style="all:unset;cursor:pointer;display:block;text-align:center;width:100%;box-sizing:border-box;margin-top:12px;padding:9px;font-size:12px;font-weight:600;color:oklch(0.55 0.015 150)">↺ Reset to automatic</button>` : ''}
+      </form>
+    </div>`;
   }
 
   // One-click "boss-ready" PDF: a full summary of the current month —
