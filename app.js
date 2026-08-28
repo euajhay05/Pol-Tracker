@@ -3652,8 +3652,9 @@
       case 'expenses-tab': setState({ expensesTab: el.dataset.tab }); break;
       case 'exp-day-select': setState({ expChartDay: Number(el.dataset.day) }); break;
       case 'exp-cat-toggle': setState(s => ({ expCatOpen: s.expCatOpen === el.dataset.cat ? null : el.dataset.cat })); break;
-      case 'exp-item-reassign': setState({ expReassignId: el.dataset.id }); break;
-      case 'exp-cat-set': { const id = el.dataset.id, cat = el.dataset.cat; setState(s => ({ expenses: s.expenses.map(x => x.id === id ? { ...x, category: cat } : x), expReassignId: null })); break; }
+      case 'exp-item-reassign': setState({ expReassignId: el.dataset.id, expNewCatDraft: '' }); break;
+      case 'exp-cat-set': { const id = el.dataset.id, cat = el.dataset.cat; setState(s => ({ expenses: s.expenses.map(x => x.id === id ? { ...x, category: cat } : x), expReassignId: null, expNewCatDraft: '' })); break; }
+      case 'exp-cat-set-new': { const id = el.dataset.id; const name = (state.expNewCatDraft || '').trim(); if (!name) break; setState(s => ({ expenses: s.expenses.map(x => x.id === id ? { ...x, category: name } : x), expReassignId: null, expNewCatDraft: '' })); break; }
       case 'exp-cat-clear': { const id = el.dataset.id; setState(s => ({ expenses: s.expenses.map(x => { if (x.id !== id) return x; const c = { ...x }; delete c.category; return c; }), expReassignId: null })); break; }
       case 'expenses-day-cal-prev': setState(s => {
         let m = s.expensesDayCalMonth - 1, y = s.expensesDayCalYear; if (m < 0) { m = 11; y--; }
@@ -4018,7 +4019,7 @@
     else if (which === 'financebreakdown') setState({ financeBreakdown: null });
     else if (which === 'financeexport') setState({ financeExportOpen: false });
     else if (which === 'chip') setState({ chipModal: null });
-    else if (which === 'expcat') setState({ expReassignId: null });
+    else if (which === 'expcat') setState({ expReassignId: null, expNewCatDraft: '' });
   }
 
   function modalExpenseCategory() {
@@ -4026,14 +4027,23 @@
     const e = (state.expenses || []).find(x => x.id === state.expReassignId);
     if (!e) return '';
     const current = categoryOfExpense(e, buildCategoryRules(state.expenses));
+    const customCats = [...new Set((state.expenses || []).map(x => x.category).filter(c => c && !EXPENSE_CATEGORIES.includes(c)))];
+    const allCats = [...EXPENSE_CATEGORIES.filter(c => c !== 'Other'), ...customCats, 'Other'];
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="expcat">
       <form class="modal-box" style="width:340px" data-stop>
         <div class="modal-head"><div class="modal-title">Move to…</div><button type="button" class="modal-close" data-action="modal-close" data-which="expcat">✕</button></div>
         <div style="font-size:12.5px;color:oklch(0.45 0.015 150);margin-bottom:4px">${esc(e.description || 'Untitled')} · <strong>${fmtMoney(e.amount)}</strong></div>
         <div style="font-size:11px;color:oklch(0.55 0.015 150);margin-bottom:14px">The app will remember this for future "${esc(expenseRuleKey(e.description || ''))}" entries.</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          ${EXPENSE_CATEGORIES.map(cat => { const on = cat === current; return `<button type="button" data-action="exp-cat-set" data-id="${esc(e.id)}" data-cat="${esc(cat)}" style="all:unset;cursor:pointer;box-sizing:border-box;width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:${on ? '700' : '500'};background:${on ? 'oklch(0.92 0.05 150)' : 'var(--card2)'};color:${on ? 'oklch(0.4 0.13 150)' : 'oklch(0.3 0.02 150)'};border:1px solid ${on ? 'oklch(0.45 0.14 150)' : 'transparent'}">${esc(cat)}${on ? ' ✓' : ''}</button>`; }).join('')}
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto">
+          ${allCats.map(cat => { const on = cat === current; const isCustom = !EXPENSE_CATEGORIES.includes(cat); return `<button type="button" data-action="exp-cat-set" data-id="${esc(e.id)}" data-cat="${esc(cat)}" style="all:unset;cursor:pointer;box-sizing:border-box;width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:${on ? '700' : '500'};background:${on ? 'oklch(0.92 0.05 150)' : 'var(--card2)'};color:${on ? 'oklch(0.4 0.13 150)' : 'oklch(0.3 0.02 150)'};border:1px solid ${on ? 'oklch(0.45 0.14 150)' : 'transparent'}">${esc(cat)}${isCustom ? ' <span style="font-size:9px;color:oklch(0.55 0.015 150);font-weight:600">custom</span>' : ''}${on ? ' ✓' : ''}</button>`; }).join('')}
+        </div>
+        <div style="margin-top:12px;border-top:1px solid var(--border2);padding-top:12px">
+          <div style="font-size:10.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:6px">Or create a new one</div>
+          <div style="display:flex;gap:8px">
+            <input type="text" value="${esc(state.expNewCatDraft || '')}" data-bind="expNewCatDraft" placeholder="e.g. Talent Fees" style="flex:1;min-width:0;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:9px 11px;color:inherit;font-size:13px;font-family:inherit"/>
+            <button type="button" data-action="exp-cat-set-new" data-id="${esc(e.id)}" style="all:unset;cursor:pointer;flex:none;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;background:oklch(0.45 0.14 150);color:oklch(1 0 0)">Add</button>
+          </div>
         </div>
         ${e.category ? `<button type="button" data-action="exp-cat-clear" data-id="${esc(e.id)}" style="all:unset;cursor:pointer;display:block;text-align:center;width:100%;box-sizing:border-box;margin-top:12px;padding:9px;font-size:12px;font-weight:600;color:oklch(0.55 0.015 150)">↺ Reset to automatic</button>` : ''}
       </form>
