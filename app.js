@@ -1793,8 +1793,8 @@
 
     const fullTime = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="fulltime-all" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total Full-Time Income ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div></div>
-        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="fulltime" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">${esc(ctx.ftMonthLabel)} ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="fulltime" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Earned This Month ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.ftMonthTotal)}</div><div style="font-size:11.5px;color:oklch(0.55 0.015 150);margin-top:3px">${esc(ctx.financeMonthLabel)}</div></div>
+        <div class="card" style="padding:20px;cursor:pointer" data-action="finance-breakdown" data-key="fulltime-all" title="Tap to see breakdown"><div style="color:oklch(0.45 0.015 150);font-size:12.5px;font-weight:600;text-transform:uppercase">Total — All Time ›</div><div class="sg" style="font-size:26px;font-weight:700;margin-top:8px">${fmtMoney(ctx.totalFullTime)}</div><div style="font-size:11.5px;color:oklch(0.55 0.015 150);margin-top:3px">All full-time income ever logged</div></div>
       </div>
       <div class="card" style="margin-bottom:24px">
         <div class="card-title">Add Income</div>
@@ -1821,7 +1821,7 @@
             <div style="font-size:13.5px;font-weight:600;color:oklch(0.5 0.15 150)">${f.amountLabel}</div>
             <button type="button" style="all:unset;cursor:pointer;color:oklch(0.48 0.015 150);font-size:14px;text-align:right" data-action="fulltime-delete" data-id="${esc(f.id)}" title="Delete">✕</button>
           </div>`).join('')}
-        ${ctx.ftMonthRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No income entries for ${esc(ctx.ftMonthLabel)}.</div>` : ''}
+        ${ctx.ftMonthRows.length === 0 ? `<div style="padding:20px;color:oklch(0.55 0.015 150);font-size:13px">No income entries for ${esc(ctx.financeMonthLabel)}.</div>` : ''}
       </div>`;
 
     const combinedRows = [
