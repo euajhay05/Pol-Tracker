@@ -5053,13 +5053,31 @@
         const addons = d.addons || {};
         const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
         const isForeignGP = !isRealEstate && d.currency === 'USD';
-        const paidAmount = (Array.isArray(d.payments) && d.payments.length) ? d.payments.reduce((a, p) => a + (Number(p.amount) || 0), 0) : (Number(d.paid) || 0);
+        // Reconcile the "Amount Received" field / milestone taps with the payment log.
+        // If the shoot has a log and the edited paid total differs from the log sum, record
+        // the difference as a dated entry (today) so the edit is kept AND the log stays
+        // consistent - instead of silently discarding the edit. No log means paid is the source.
+        let paidAmount;
+        let reconciledPayments = null;
+        if (Array.isArray(d.payments) && d.payments.length) {
+          const logSum = d.payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+          const editedPaid = Number(d.paid) || 0;
+          const diff = editedPaid - logSum;
+          if (Math.abs(diff) >= 0.005) {
+            reconciledPayments = [...d.payments, { id: 'sp' + Date.now() + 'adj', amount: diff, date: TODAY_STR, label: diff > 0 ? 'Balance received' : 'Adjustment' }];
+            paidAmount = editedPaid;
+          } else {
+            paidAmount = logSum;
+          }
+        } else {
+          paidAmount = Number(d.paid) || 0;
+        }
         // Edit-only General Projects have no shoot date — a NEW one is stamped with today (the
         // day it was created), and its date field is hidden in the form.
         const isEditOnlyGP = !isRealEstate && d.serviceType === 'edit';
         const isAddMode = !!(state.modal && state.modal.mode === 'add');
         // Foreign General Project: totals stay in PHP (= the PHP actually received); the $ charged is stored as a note only.
-        const cleaned = { ...d, package: isForeignGP ? paidAmount : (packageAmount + addonsTotal), paid: paidAmount, usdCharged: Number(d.usdCharged) || 0, ...(isEditOnlyGP && isAddMode ? { date: TODAY_STR } : {}) };
+        const cleaned = { ...d, package: isForeignGP ? paidAmount : (packageAmount + addonsTotal), paid: paidAmount, usdCharged: Number(d.usdCharged) || 0, ...(reconciledPayments ? { payments: reconciledPayments } : {}), ...(isEditOnlyGP && isAddMode ? { date: TODAY_STR } : {}) };
         setState(s => {
           const name = (cleaned.client || '').trim();
           const hasClient = name && s.clients.some(c => c.name.trim().toLowerCase() === name.toLowerCase());
