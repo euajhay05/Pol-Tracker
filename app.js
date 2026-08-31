@@ -79,8 +79,9 @@
     d.setDate(d.getDate() + n);
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
-  function formatInvoiceNumber(n) {
-    return `SOA-${TODAY_STR.slice(0, 4)}-${String(n).padStart(3, '0')}`;
+  function formatInvoiceNumber(n, kind) {
+    const prefix = kind === 'invoice' ? 'INV' : 'SOA';
+    return `${prefix}-${TODAY_STR.slice(0, 4)}-${String(n).padStart(3, '0')}`;
   }
   function fmtMoney(n) {
     n = Number(n) || 0;
@@ -569,7 +570,7 @@
       usdRateDate: (() => { try { return localStorage.getItem('pol_usd_rate_date') || ''; } catch (e) { return ''; } })(),
       docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
       docDuePickerOpen: false, docDueCalYear: TODAY.getFullYear(), docDueCalMonth: TODAY.getMonth(),
-      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true },
+      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1, 'soa'), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true, billingKind: 'soa' },
       documents: [],
       docsHistoryOpen: false,
       editingDocId: null,
@@ -2167,12 +2168,14 @@
     const docType = state.docType;
     const meta = DOC_TYPE_META[docType];
     const isInvoice = docType === 'invoice';
-    // The one billing document auto-titles by currency: $ Foreign → "Invoice",
-    // ₱ Local → "Statement of Account". Reference/number label follows suit.
-    const isUSDInvoice = isInvoice && d.currency === 'USD';
-    const docTitle = isInvoice ? (isUSDInvoice ? 'Invoice' : 'Statement of Account') : meta.title;
-    const docRefLabel = isInvoice ? (isUSDInvoice ? 'Invoice No.' : 'SOA No.') : 'Reference No.';
-    const docNumberFieldLabel = isUSDInvoice ? 'Invoice Number' : 'Statement (SOA) Number';
+    // The billing document is explicitly either an Invoice or a Statement of Account —
+    // chosen by a toggle (docDraft.billingKind), independent of currency. Title, reference
+    // label, number prefix and PDF filename all follow that choice.
+    const billingKind = d.billingKind || 'soa';
+    const isInv = isInvoice && billingKind === 'invoice';
+    const docTitle = isInvoice ? (isInv ? 'Invoice' : 'Statement of Account') : meta.title;
+    const docRefLabel = isInvoice ? (isInv ? 'Invoice No.' : 'SOA No.') : 'Reference No.';
+    const docNumberFieldLabel = isInv ? 'Invoice Number' : 'Statement (SOA) Number';
     const paymentStatusColor = d.paymentStatus === 'Paid' ? 'oklch(0.45 0.13 150)' : d.paymentStatus === 'Partial' ? 'oklch(0.55 0.14 80)' : 'oklch(0.55 0.18 25)';
     const paymentStatusBg = d.paymentStatus === 'Paid' ? 'oklch(0.92 0.06 150)' : d.paymentStatus === 'Partial' ? 'oklch(0.93 0.07 80)' : 'oklch(0.92 0.08 25)';
     const packageRateRows = [
@@ -2304,7 +2307,7 @@
             const rd = r.draft;
             const rMeta = DOC_TYPE_META[r.type];
             const rIsInvoice = r.type === 'invoice';
-            const rTitle = rIsInvoice ? (rd.currency === 'USD' ? 'Invoice' : 'Statement of Account') : rMeta.title;
+            const rTitle = rIsInvoice ? ((rd.billingKind || 'soa') === 'invoice' ? 'Invoice' : 'Statement of Account') : rMeta.title;
             return `
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--card);border-radius:11px;border:1px solid oklch(0 0 0 / 0.06);flex-wrap:wrap">
             <div style="min-width:0;flex:1">
@@ -2358,6 +2361,13 @@
         <div class="field"><label>Terms / Notes</label><input type="text" value="${esc(d.notes)}" data-bind="docDraft.notes" placeholder="e.g. 50% downpayment, balance on delivery"/></div>
         ${isInvoice ? `
         <div style="border-top:1px solid oklch(0 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
+          <div class="field"><label>Document Type</label>
+            <div style="display:flex;gap:8px">
+              <button type="button" data-action="doc-billing-kind" data-kind="soa" style="all:unset;cursor:pointer;flex:1;text-align:center;box-sizing:border-box;padding:10px;border-radius:9px;font-size:13px;font-weight:700;border:1.5px solid ${!isInv ? 'oklch(0.5 0.13 150)' : 'var(--border3)'};background:${!isInv ? 'oklch(0.94 0.04 150)' : 'transparent'};color:${!isInv ? 'oklch(0.34 0.13 150)' : 'oklch(0.5 0.015 150)'}">Statement of Account</button>
+              <button type="button" data-action="doc-billing-kind" data-kind="invoice" style="all:unset;cursor:pointer;flex:1;text-align:center;box-sizing:border-box;padding:10px;border-radius:9px;font-size:13px;font-weight:700;border:1.5px solid ${isInv ? 'oklch(0.5 0.13 150)' : 'var(--border3)'};background:${isInv ? 'oklch(0.94 0.04 150)' : 'transparent'};color:${isInv ? 'oklch(0.34 0.13 150)' : 'oklch(0.5 0.015 150)'}">Invoice</button>
+            </div>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Ito ang magiging pamagat ng file at PDF (${isInv ? 'INVOICE' : 'STATEMENT OF ACCOUNT'}).</div>
+          </div>
           <div class="field"><label>Currency</label>
             <div style="display:flex;gap:8px">
               <button type="button" data-action="doc-currency" data-cur="PHP" style="all:unset;cursor:pointer;flex:1;text-align:center;box-sizing:border-box;padding:9px;border-radius:9px;font-size:13px;font-weight:700;border:1.5px solid ${d.currency !== 'USD' ? 'oklch(0.5 0.13 150)' : 'var(--border3)'};background:${d.currency !== 'USD' ? 'oklch(0.94 0.04 150)' : 'transparent'};color:${d.currency !== 'USD' ? 'oklch(0.34 0.13 150)' : 'oklch(0.5 0.015 150)'}">₱ PHP <span style="font-weight:500;font-size:11px">— local</span></button>
@@ -2365,7 +2375,7 @@
             </div>
           </div>
           <div class="row-2">
-            <div class="field"><label>${docNumberFieldLabel}</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="${isUSDInvoice ? 'e.g. INV-2026-014' : 'e.g. SOA-2026-014'}"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate one.</div></div>
+            <div class="field"><label>${docNumberFieldLabel}</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="${isInv ? 'e.g. INV-2026-014' : 'e.g. SOA-2026-014'}"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate one.</div></div>
             ${docDuePicker}
           </div>
           <div class="field"><label>Line Items Breakdown</label><textarea rows="3" data-bind="docDraft.lineItems" placeholder="One item per line, e.g.&#10;Package fee - ₱10,000&#10;Transport - ₱1,000">${esc(d.lineItems)}</textarea><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Press Enter for a new item — each line becomes its own row in the invoice table.</div></div>
@@ -3992,7 +4002,8 @@
       case 'doc-type': setState(s => {
         const doctype = el.dataset.doctype;
         if (doctype === 'invoice') {
-          return { docType: doctype, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(s.invoiceCounter) } };
+          const kind = s.docDraft.billingKind || 'soa';
+          return { docType: doctype, docDraft: { ...s.docDraft, billingKind: kind, invoiceNumber: formatInvoiceNumber(s.invoiceCounter, kind) } };
         }
         if (doctype === 'quotation') {
           return { docType: doctype, docDraft: { ...s.docDraft, dueDate: addDays(s.docDraft.date || TODAY_STR, 30) } };
@@ -4000,6 +4011,12 @@
         return { docType: doctype };
       }); break;
       case 'doc-currency': setState(s => ({ docDraft: { ...s.docDraft, currency: el.dataset.cur } })); break;
+      case 'doc-billing-kind': setState(s => {
+        const kind = el.dataset.kind === 'invoice' ? 'invoice' : 'soa';
+        const prefix = kind === 'invoice' ? 'INV' : 'SOA';
+        const swapped = (s.docDraft.invoiceNumber || '').replace(/^(SOA|INV)-/, prefix + '-');
+        return { docDraft: { ...s.docDraft, billingKind: kind, invoiceNumber: swapped || formatInvoiceNumber(s.invoiceCounter, kind) } };
+      }); break;
       case 'doc-qr-include': setState(s => ({ docDraft: { ...s.docDraft, includeQr: s.docDraft.includeQr === false } })); break;
       case 'doc-qr-remove':
         try { localStorage.removeItem('pol_wise_qr'); } catch (e) {}
@@ -4060,7 +4077,7 @@
             setState(s => {
               const nextCounter = s.invoiceCounter + 1;
               localStorage.setItem('shoottracker_invoice_counter', String(nextCounter));
-              return { invoiceCounter: nextCounter, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(nextCounter) } };
+              return { invoiceCounter: nextCounter, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(nextCounter, s.docDraft.billingKind || 'soa') } };
             });
           }
         }
@@ -4074,7 +4091,7 @@
       case 'doc-cancel-edit':
         setState(s => ({
           editingDocId: null,
-          docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(s.invoiceCounter), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true },
+          docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(s.invoiceCounter, s.docDraft.billingKind || 'soa'), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true, billingKind: s.docDraft.billingKind || 'soa' },
         }));
         break;
       case 'doc-history-toggle': setState(s => ({ docsHistoryOpen: !s.docsHistoryOpen })); break;
@@ -4293,9 +4310,10 @@
     const docType = overrideType || state.docType;
     const isInvoice = docType === 'invoice';
     const meta = DOC_TYPE_META[docType];
-    // Billing doc auto-titles by currency: $ Foreign → "Invoice", ₱ Local → "Statement of Account".
-    const pdfDocTitle = isInvoice ? (d.currency === 'USD' ? 'Invoice' : 'Statement of Account') : meta.title;
-    const pdfRefLabel = isInvoice ? (d.currency === 'USD' ? 'Invoice No.' : 'SOA No.') : 'Reference No.';
+    // Billing doc is explicitly an Invoice or a Statement of Account (docDraft.billingKind).
+    const isInvDoc = isInvoice && (d.billingKind || 'soa') === 'invoice';
+    const pdfDocTitle = isInvoice ? (isInvDoc ? 'Invoice' : 'Statement of Account') : meta.title;
+    const pdfRefLabel = isInvoice ? (isInvDoc ? 'Invoice No.' : 'SOA No.') : 'Reference No.';
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
 
     const PAGE_W = 612, PAGE_H = 792;
@@ -4712,7 +4730,7 @@
     doc.text('Pol Film Productions · Generated via Pol Tracker', marginX, PAGE_H - 36);
     doc.text(fmtDateLong(TODAY_STR), rightX, PAGE_H - 36, { align: 'right' });
 
-    const filePrefix = isInvoice ? (d.currency === 'USD' ? 'Invoice' : 'Statement-of-Account') : docType;
+    const filePrefix = isInvoice ? (isInvDoc ? 'Invoice' : 'Statement-of-Account') : docType;
     doc.save(`${filePrefix}-${(d.clientName || 'document').replace(/\s+/g, '-')}.pdf`);
   }
 
