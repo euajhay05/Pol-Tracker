@@ -2893,6 +2893,11 @@
           </div>` : ''}
           ${isRealEstate && !isScriptedShootType ? `<div style="background:oklch(0.92 0.06 150 / 0.4);border-radius:9px;padding:10px 12px;font-size:12.5px;color:oklch(0.4 0.13 150)">📝 Script is provided by the client for this package tier.</div>` : ''}
           <div class="field"><input type="text" value="${esc(d.notes)}" data-bind="draft.notes" placeholder="Notes (optional)"/></div>
+          ${isEdit && !isRealEstate ? `
+          <div style="border-top:1px solid var(--border3);margin-top:6px;padding-top:14px">
+            <button type="button" data-action="shoot-create-billing" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:11px;border-radius:10px;border:1.5px solid oklch(0.5 0.13 150);background:oklch(0.95 0.03 150);color:oklch(0.32 0.13 150);font-size:13px;font-weight:700">🧾 Create ${isForeign ? 'Invoice' : 'Statement of Account'} from this shoot</button>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px;text-align:center;line-height:1.45">Kukunin nito ang client at details → sa Documents mo idadagdag ang due date at QR code.</div>
+          </div>` : ''}
         </div>
         <div class="modal-actions">
           ${isEdit ? `<button type="button" class="btn-danger" data-action="shoot-delete">Delete</button>` : ''}
@@ -3659,6 +3664,32 @@
       case 'shoot-edit': openEditShoot(id); break;
       case 'shoot-status-open': setState({ shootStatusModal: el.dataset.id }); break;
       case 'shoot-status-set': { const sid = el.dataset.id, status = el.dataset.status; setState(s => { const shoots = s.shoots.map(sh => sh.id === sid ? { ...sh, status } : sh); const clients = status === 'posted' ? promoteClientToCompleted(s.clients, (s.shoots.find(sh => sh.id === sid) || {}).client) : s.clients; return { shoots, shootStatusModal: null, ...(clients !== s.clients ? { clients } : {}) }; }); break; }
+      case 'shoot-create-billing': {
+        // Jump from a General Project shoot straight into a prefilled billing document.
+        // Foreign → Invoice (USD, amount = $ charged); Local → Statement of Account (₱, remaining balance).
+        // The user then adds the due date and QR in Documents before generating.
+        const dr = state.draft || {};
+        const foreign = dr.currency === 'USD';
+        const cl = state.clients.find(c => c.name && dr.client && c.name.trim().toLowerCase() === (dr.client || '').trim().toLowerCase());
+        const contact = cl ? [cl.phone, cl.email].filter(Boolean).join(' · ') : '';
+        const desc = `${dr.shootType || 'Project'}${dr.location ? ' - ' + dr.location : ''}`;
+        const kind = foreign ? 'invoice' : 'soa';
+        let extra;
+        if (foreign) {
+          const usd = Number(dr.usdCharged) || 0;
+          extra = { currency: 'USD', billingKind: 'invoice', amount: String(usd), lineItems: `${desc} - $${usd.toLocaleString('en-US')}`, packageTotal: '', paidToDate: '', milestoneLabel: '', paymentStatus: 'Unpaid' };
+        } else {
+          const pkg = Number(dr.package) || 0, paid = Number(dr.paid) || 0;
+          const remaining = Math.max(pkg - paid, 0);
+          extra = { currency: 'PHP', billingKind: 'soa', amount: String(remaining || pkg), lineItems: `${desc} - ${fmtMoney(pkg)}`, packageTotal: String(pkg), paidToDate: String(paid), milestoneLabel: '', paymentStatus: remaining > 0 ? 'Unpaid' : 'Paid' };
+        }
+        setState(s => ({
+          view: 'docs', docType: 'invoice', modal: null, draft: null, docsHistoryOpen: false,
+          docDraft: { ...s.docDraft, clientName: dr.client || '', clientContact: contact || s.docDraft.clientContact, description: desc, date: TODAY_STR, dueDate: addDays(TODAY_STR, 10), invoiceNumber: formatInvoiceNumber(s.invoiceCounter, kind), notes: s.docDraft.notes || '', ...extra },
+        }));
+        try { localStorage.setItem('shoottracker_last_view', 'docs'); } catch (e) { /* ignore */ }
+        break;
+      }
       case 'shoot-delete':
         if (!confirm(`Are you sure you want to delete the shoot "${state.draft.client || 'this shoot'}"? This cannot be undone.`)) break;
         setState(s => ({ shoots: s.shoots.filter(sh => sh.id !== s.draft.id), modal: null, draft: null }));
