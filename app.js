@@ -87,6 +87,10 @@
   const TODAY_STR = todayStr();
   const TODAY = new Date(TODAY_STR + 'T00:00:00');
   const THIS_MONTH_KEY = TODAY_STR.slice(0, 7);
+  // For dashboard week/month grouping: a shoot sits on its shoot date, while an
+  // edit-only task sits on its edit/delivery deadline (falling back to the day it
+  // was created if no deadline was set). Keeps "shoots" and "edits" honest.
+  function dashDateOf(s) { return (s.serviceType === 'edit' && s.deadline) ? s.deadline : s.date; }
 
   /* ---------------- helpers ---------------- */
 
@@ -959,7 +963,9 @@
     const outstanding = shoots.filter(s => s.status !== 'tentative').reduce((sum, s) => sum + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
 
     // Dashboard-card-specific: follows the dashMonthKey month switcher.
-    const dashMonthShoots = shoots.filter(s => s.date && s.date.slice(0, 7) === dashMonthKey);
+    const dashMonthItems = shoots.filter(s => { const dt = dashDateOf(s); return dt && dt.slice(0, 7) === dashMonthKey; });
+    const dashMonthShoots = dashMonthItems.filter(s => s.serviceType !== 'edit');
+    const dashMonthEdits = dashMonthItems.filter(s => s.serviceType === 'edit');
 
     const upcomingList = shoots.filter(s => s.status !== 'posted' && s.daysLeft !== null)
       .sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 5);
@@ -1287,38 +1293,50 @@
     const weekStart = new Date(nowForWeek); weekStart.setDate(nowForWeek.getDate() - nowForWeek.getDay()); weekStart.setHours(0, 0, 0, 0);
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
     const weekRangeLabel = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-    const todayISO = nowForWeek.toISOString().slice(0, 10);
+    // Build day keys from LOCAL calendar parts (not toISOString, which shifts a
+    // day in positive-UTC zones like PH) so bars line up with the stored dates.
+    const todayISO = TODAY_STR;
+    const localDayStr = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     const weekCounts = WEEK_LABELS.map((label, i) => {
       const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-      const dStr = d.toISOString().slice(0, 10);
-      const dayShoots = shoots.filter(s => s.date === dStr);
-      return { day: label, dateStr: dStr, count: dayShoots.length, isToday: dStr === todayISO, dayShoots };
+      const dStr = localDayStr(d);
+      const dayItems = shoots.filter(s => dashDateOf(s) === dStr);
+      const shootCount = dayItems.filter(s => s.serviceType !== 'edit').length;
+      const editCount = dayItems.filter(s => s.serviceType === 'edit').length;
+      return { day: label, dateStr: dStr, count: dayItems.length, shootCount, editCount, isToday: dStr === todayISO, dayItems };
     });
     const maxWeekCount = Math.max(...weekCounts.map(w => w.count), 1);
     const peakCount = Math.max(...weekCounts.map(w => w.count));
-    const weekBars = weekCounts.map(w => ({
-      day: w.day, count: w.count,
-      dateLabel: fmtDate(w.dateStr),
-      tooltip: w.count > 0
-        ? `${fmtDate(w.dateStr)}: ${w.dayShoots.map(s => s.client).join(', ')}`
-        : `${fmtDate(w.dateStr)}: No shoots`,
-      isPeak: w.count > 0 && w.count === peakCount,
-      heightPx: w.count > 0 ? Math.max(24, Math.round((w.count / maxWeekCount) * 130)) : 130,
-      fill: w.count > 0
-        ? (w.isToday ? 'linear-gradient(180deg, oklch(0.6 0.15 150), oklch(0.45 0.14 150))' : 'oklch(0.55 0.14 150)')
-        : 'repeating-linear-gradient(135deg, oklch(0.91 0.012 150), oklch(0.91 0.012 150) 4px, oklch(0.95 0.008 150) 4px, oklch(0.95 0.008 150) 8px)',
-      labelColor: w.isToday ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)',
-    }));
+    const weekEmptyFill = 'repeating-linear-gradient(135deg, oklch(0.91 0.012 150), oklch(0.91 0.012 150) 4px, oklch(0.95 0.008 150) 4px, oklch(0.95 0.008 150) 8px)';
+    const weekBars = weekCounts.map(w => {
+      const totalH = w.count > 0 ? Math.max(24, Math.round((w.count / maxWeekCount) * 130)) : 130;
+      const shootH = w.count > 0 ? Math.round(totalH * (w.shootCount / w.count)) : 0;
+      const editH = w.count > 0 ? totalH - shootH : 0;
+      const parts = [];
+      if (w.shootCount > 0) parts.push(`${w.shootCount} shoot${w.shootCount > 1 ? 's' : ''}`);
+      if (w.editCount > 0) parts.push(`${w.editCount} edit${w.editCount > 1 ? 's' : ''}`);
+      const names = w.dayItems.map(s => `${s.client}${s.serviceType === 'edit' ? ' (edit)' : ''}`).join(', ');
+      return {
+        day: w.day, count: w.count, totalH, shootH, editH, isEmpty: w.count === 0,
+        dateLabel: fmtDate(w.dateStr),
+        tooltip: w.count > 0 ? `${fmtDate(w.dateStr)} — ${parts.join(', ')}: ${names}` : `${fmtDate(w.dateStr)}: Nothing booked`,
+        isPeak: w.count > 0 && w.count === peakCount,
+        emptyFill: weekEmptyFill,
+        shootFill: w.isToday ? 'linear-gradient(180deg, oklch(0.6 0.15 150), oklch(0.45 0.14 150))' : 'oklch(0.55 0.14 150)',
+        editFill: 'oklch(0.78 0.07 150)',
+        labelColor: w.isToday ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)',
+      };
+    });
 
     const statCards = [
-      { key: 'thisMonth', label: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, value: String(dashMonthShoots.length), sub: dashMonthKey === THIS_MONTH_KEY ? 'Booked for this month' : `Booked for ${dashMonthLabel}`, hero: true },
+      { key: 'thisMonth', label: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, value: String(dashMonthShoots.length), sub: dashMonthEdits.length ? `+ ${dashMonthEdits.length} edit${dashMonthEdits.length > 1 ? 's' : ''} ${dashMonthKey === THIS_MONTH_KEY ? 'this month' : dashMonthLabel}` : (dashMonthKey === THIS_MONTH_KEY ? 'Booked for this month' : `Booked for ${dashMonthLabel}`), hero: true },
       { key: 'completed', label: 'Completed', value: String(completed.length), sub: 'Delivered to clients', hero: false },
       { key: 'activeClients', label: 'Active Clients', value: String(activeClients), sub: 'Booked or ongoing', hero: false },
     ];
 
     const chipModalKey = state.chipModal;
     const CHIP_MODAL_META = {
-      thisMonth: { title: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, items: dashMonthShoots.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
+      thisMonth: { title: dashMonthKey === THIS_MONTH_KEY ? 'Shoots & Edits This Month' : `Shoots & Edits in ${dashMonthLabel}`, items: [...dashMonthShoots.map(s => ({ primary: s.client, secondary: s.dateLabel })), ...dashMonthEdits.map(s => ({ primary: s.client, secondary: 'Edit' + (s.deadline ? ' · due ' + fmtDate(s.deadline) : '') }))] },
       completed: { title: 'Completed Shoots', items: completed.map(s => ({ primary: s.client, secondary: s.dateLabel })) },
       activeClients: { title: 'Active Clients', items: state.clients.filter(c => c.leadStatus === 'Booked' || c.leadStatus === 'Client').map(c => ({ primary: c.name, secondary: leadStatusLabel(c.leadStatus) })) },
       outstandingBalances: {
@@ -1557,15 +1575,21 @@
         </div>
       </div>
       <div class="card" style="display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px">
-          <div class="card-title" style="margin-bottom:0">Shoots This Week</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div class="card-title" style="margin-bottom:0">This Week</div>
           <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${esc(ctx.weekRangeLabel)}</div>
+        </div>
+        <div style="display:flex;gap:14px;margin-bottom:16px;font-size:10.5px;color:oklch(0.5 0.015 150)">
+          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:3px;background:oklch(0.55 0.14 150)"></span>Shoot</span>
+          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:3px;background:oklch(0.78 0.07 150)"></span>Edit</span>
         </div>
         <div style="flex:1;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:0 2px">
           ${ctx.weekBars.map(wb => `
             <div title="${esc(wb.tooltip)}" style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative;cursor:default">
               ${wb.isPeak ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.4 0.13 150);color:oklch(1 0 0);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap">${wb.count}</div>` : ''}
-              <div style="width:24px;height:${wb.heightPx}px;border-radius:12px;background:${wb.fill};flex:none"></div>
+              ${wb.isEmpty
+                ? `<div style="width:24px;height:${wb.totalH}px;border-radius:12px;background:${wb.emptyFill};flex:none"></div>`
+                : `<div style="width:24px;height:${wb.totalH}px;border-radius:12px;overflow:hidden;display:flex;flex-direction:column-reverse;flex:none">${wb.shootH > 0 ? `<div style="height:${wb.shootH}px;background:${wb.shootFill}"></div>` : ''}${wb.editH > 0 ? `<div style="height:${wb.editH}px;background:${wb.editFill}"></div>` : ''}</div>`}
               <div style="font-size:11px;font-weight:600;color:${wb.labelColor}">${wb.day}</div>
               <div style="font-size:9px;color:oklch(0.55 0.015 150)">${wb.dateLabel.split(' ')[1] || ''}</div>
             </div>`).join('')}
