@@ -4,7 +4,7 @@
    Supabase API calls are cross-origin and are never touched here, so live
    data always goes straight to the network. */
 
-const CACHE = 'pol-tracker-v161';
+const CACHE = 'pol-tracker-v162';
 const SHELL = [
   './',
   './index.html',

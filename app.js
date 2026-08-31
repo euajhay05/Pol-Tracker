@@ -1619,6 +1619,29 @@
         <div style="font-size:11.5px;font-weight:700;color:${s.daysLeftColor}">${s.daysLeftLabel}</div>
         <div style="font-size:11.5px;color:oklch(0.48 0.015 150)">${s.balanceLabel}</div>
       </div>
+      <button type="button" data-action="shoot-status-open" data-id="${esc(s.id)}" style="all:unset;cursor:pointer;display:block;text-align:center;width:100%;box-sizing:border-box;margin-top:10px;padding:7px;border-radius:8px;background:oklch(0.94 0.02 150);color:oklch(0.4 0.13 150);font-size:11.5px;font-weight:700">⇄ Move stage</button>
+    </div>`;
+  }
+
+  function modalShootStatus() {
+    if (!state.shootStatusModal) return '';
+    const s = state.shoots.find(x => x.id === state.shootStatusModal);
+    if (!s) return '';
+    const isGeneral = normalizeShootType(s.shootType) !== 'Real Estate';
+    const GP_LABELS = { idea: 'To Edit', shot: 'Editing', approval: 'For Approval', posted: 'Completed' };
+    const opts = isGeneral
+      ? STATUS_META.filter(sm => ['idea', 'shot', 'approval', 'posted'].includes(sm.value)).map(sm => ({ value: sm.value, label: GP_LABELS[sm.value] || sm.label, color: sm.color }))
+      : STATUS_META.map(sm => ({ value: sm.value, label: sm.label, color: sm.color }));
+    const cur = normalizeShootStatus(s.status);
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="shootstatus">
+      <form class="modal-box" style="width:330px" data-stop>
+        <div class="modal-head"><div class="modal-title">Move stage</div><button type="button" class="modal-close" data-action="modal-close" data-which="shootstatus">✕</button></div>
+        <div style="font-size:12.5px;color:oklch(0.45 0.015 150);margin-bottom:12px">${esc(s.client || 'Shoot')}${s.location ? ` · ${esc(s.location)}` : ''}</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${opts.map(o => { const on = o.value === cur; return `<button type="button" data-action="shoot-status-set" data-id="${esc(s.id)}" data-status="${o.value}" style="all:unset;cursor:pointer;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:${on ? '700' : '500'};background:${on ? 'oklch(0.92 0.05 150)' : 'var(--card2)'};color:${on ? 'oklch(0.4 0.13 150)' : 'oklch(0.3 0.02 150)'};border:1px solid ${on ? 'oklch(0.45 0.14 150)' : 'transparent'}"><span style="width:8px;height:8px;border-radius:50%;background:${o.color};flex:none"></span>${esc(o.label)}${on ? ' ✓' : ''}</button>`; }).join('')}
+        </div>
+      </form>
     </div>`;
   }
 
@@ -3422,6 +3445,7 @@
       ${modalFinanceBreakdown()}
       ${modalFinanceExport()}
       ${modalExpenseCategory()}
+      ${modalShootStatus()}
     `;
 
     const app = document.getElementById('app');
@@ -3558,6 +3582,8 @@
       case 'shoot-add-open': openAddShoot(); break;
       case 'shoot-add-open-for-date': openAddShoot(state.selectedDate, true); break;
       case 'shoot-edit': openEditShoot(id); break;
+      case 'shoot-status-open': setState({ shootStatusModal: el.dataset.id }); break;
+      case 'shoot-status-set': { const sid = el.dataset.id, status = el.dataset.status; setState(s => { const shoots = s.shoots.map(sh => sh.id === sid ? { ...sh, status } : sh); const clients = status === 'posted' ? promoteClientToCompleted(s.clients, (s.shoots.find(sh => sh.id === sid) || {}).client) : s.clients; return { shoots, shootStatusModal: null, ...(clients !== s.clients ? { clients } : {}) }; }); break; }
       case 'shoot-delete':
         if (!confirm(`Are you sure you want to delete the shoot "${state.draft.client || 'this shoot'}"? This cannot be undone.`)) break;
         setState(s => ({ shoots: s.shoots.filter(sh => sh.id !== s.draft.id), modal: null, draft: null }));
@@ -4020,6 +4046,7 @@
     else if (which === 'financeexport') setState({ financeExportOpen: false });
     else if (which === 'chip') setState({ chipModal: null });
     else if (which === 'expcat') setState({ expReassignId: null, expNewCatDraft: '' });
+    else if (which === 'shootstatus') setState({ shootStatusModal: null });
   }
 
   function modalExpenseCategory() {
