@@ -2732,7 +2732,8 @@
             </div>`).join('') : `<div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:8px">Wala pang project — magdagdag sa baba. Ito ang magiging line items ng invoice.</div>`}
             <button type="button" data-action="shoot-project-add" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:9px;border-radius:9px;border:1.5px dashed oklch(0.5 0.13 150);background:oklch(0.97 0.02 150);color:oklch(0.4 0.13 150);font-size:12.5px;font-weight:700">＋ Add project</button>
           </div>` : (showLoc ? `<div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>` : `<div class="field" style="margin-bottom:4px"><span data-action="shoot-loc-toggle" style="cursor:pointer;font-size:12.5px;font-weight:600;color:oklch(0.45 0.14 150);text-decoration:underline">+ Add location</span></div>`)}
-          <div class="row-2">
+          ${isEditOnly ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:2px">📅 Date: <b style="color:oklch(0.32 0.02 150)">${shootDateDisplayLabel}</b> — naka‑set sa araw na ginawa mo ito (di na kailangang pumili).</div>` : ''}
+          <div class="row-2"${isEditOnly ? ' style="display:none"' : ''}>
             <div class="field" style="position:relative">
               <label>Date</label>
               ${state.draftDateLocked ? `
@@ -5057,8 +5058,12 @@
         const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
         const isForeignGP = !isRealEstate && d.currency === 'USD';
         const paidAmount = (Array.isArray(d.payments) && d.payments.length) ? d.payments.reduce((a, p) => a + (Number(p.amount) || 0), 0) : (Number(d.paid) || 0);
+        // Edit-only General Projects have no shoot date — a NEW one is stamped with today (the
+        // day it was created), and its date field is hidden in the form.
+        const isEditOnlyGP = !isRealEstate && d.serviceType === 'edit';
+        const isAddMode = !!(state.modal && state.modal.mode === 'add');
         // Foreign General Project: totals stay in PHP (= the PHP actually received); the $ charged is stored as a note only.
-        const cleaned = { ...d, package: isForeignGP ? paidAmount : (packageAmount + addonsTotal), paid: paidAmount, usdCharged: Number(d.usdCharged) || 0 };
+        const cleaned = { ...d, package: isForeignGP ? paidAmount : (packageAmount + addonsTotal), paid: paidAmount, usdCharged: Number(d.usdCharged) || 0, ...(isEditOnlyGP && isAddMode ? { date: TODAY_STR } : {}) };
         setState(s => {
           const name = (cleaned.client || '').trim();
           const hasClient = name && s.clients.some(c => c.name.trim().toLowerCase() === name.toLowerCase());
