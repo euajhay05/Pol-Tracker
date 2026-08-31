@@ -565,6 +565,8 @@
       docType: 'contract',
       invoiceCounter: Number(localStorage.getItem('shoottracker_invoice_counter')) || 1,
       wiseQr: (() => { try { return localStorage.getItem('pol_wise_qr') || ''; } catch (e) { return ''; } })(),
+      usdRate: (() => { try { return Number(localStorage.getItem('pol_usd_rate')) || 0; } catch (e) { return 0; } })(),
+      usdRateDate: (() => { try { return localStorage.getItem('pol_usd_rate_date') || ''; } catch (e) { return ''; } })(),
       docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
       docDuePickerOpen: false, docDueCalYear: TODAY.getFullYear(), docDueCalMonth: TODAY.getMonth(),
       docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true },
@@ -2165,6 +2167,12 @@
     const docType = state.docType;
     const meta = DOC_TYPE_META[docType];
     const isInvoice = docType === 'invoice';
+    // The one billing document auto-titles by currency: $ Foreign → "Invoice",
+    // ₱ Local → "Statement of Account". Reference/number label follows suit.
+    const isUSDInvoice = isInvoice && d.currency === 'USD';
+    const docTitle = isInvoice ? (isUSDInvoice ? 'Invoice' : 'Statement of Account') : meta.title;
+    const docRefLabel = isInvoice ? (isUSDInvoice ? 'Invoice No.' : 'SOA No.') : 'Reference No.';
+    const docNumberFieldLabel = isUSDInvoice ? 'Invoice Number' : 'Statement (SOA) Number';
     const paymentStatusColor = d.paymentStatus === 'Paid' ? 'oklch(0.45 0.13 150)' : d.paymentStatus === 'Partial' ? 'oklch(0.55 0.14 80)' : 'oklch(0.55 0.18 25)';
     const paymentStatusBg = d.paymentStatus === 'Paid' ? 'oklch(0.92 0.06 150)' : d.paymentStatus === 'Partial' ? 'oklch(0.93 0.07 80)' : 'oklch(0.92 0.08 25)';
     const packageRateRows = [
@@ -2296,11 +2304,12 @@
             const rd = r.draft;
             const rMeta = DOC_TYPE_META[r.type];
             const rIsInvoice = r.type === 'invoice';
+            const rTitle = rIsInvoice ? (rd.currency === 'USD' ? 'Invoice' : 'Statement of Account') : rMeta.title;
             return `
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--card);border-radius:11px;border:1px solid oklch(0 0 0 / 0.06);flex-wrap:wrap">
             <div style="min-width:0;flex:1">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span class="badge" style="background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150)">${esc(rMeta.title)}</span>
+                <span class="badge" style="background:oklch(0.92 0.06 150);color:oklch(0.4 0.13 150)">${esc(rTitle)}</span>
                 <span style="font-weight:700;font-size:13.5px">${esc(rd.clientName || 'Untitled')}</span>
                 ${rIsInvoice ? `<span style="font-size:12px;color:oklch(0.5 0.015 150)">#${esc(rd.invoiceNumber)}</span>` : ''}
               </div>
@@ -2322,7 +2331,7 @@
       <div><div class="page-title sg">Documents</div><div class="page-sub">Generate contracts, quotations, and invoices</div></div>
       <button type="button" class="btn-ghost" style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px" data-action="doc-history-toggle">${state.docsHistoryOpen ? 'Hide History' : `View History (${state.documents.length})`}</button>
     </div>
-    <div class="tabbar" style="margin-bottom:24px">${tab('contract', 'Contract')}${tab('quotation', 'Quotation')}${tab('invoice', 'Invoice')}</div>
+    <div class="tabbar" style="margin-bottom:24px">${tab('contract', 'Contract')}${tab('quotation', 'Quotation')}${tab('invoice', 'Invoice / SOA')}</div>
     ${docsHistorySection}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
       <div class="card" style="display:flex;flex-direction:column;gap:14px">
@@ -2356,7 +2365,7 @@
             </div>
           </div>
           <div class="row-2">
-            <div class="field"><label>Reference Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. SOA-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
+            <div class="field"><label>${docNumberFieldLabel}</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="${isUSDInvoice ? 'e.g. INV-2026-014' : 'e.g. SOA-2026-014'}"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate one.</div></div>
             ${docDuePicker}
           </div>
           <div class="field"><label>Line Items Breakdown</label><textarea rows="3" data-bind="docDraft.lineItems" placeholder="One item per line, e.g.&#10;Package fee - ₱10,000&#10;Transport - ₱1,000">${esc(d.lineItems)}</textarea><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Press Enter for a new item — each line becomes its own row in the invoice table.</div></div>
@@ -2391,13 +2400,13 @@
           <div class="field"><label>Inclusions</label><textarea rows="4" data-bind="docDraft.lineItems" placeholder="One per line, e.g.&#10;Full-day video shoot - ₱10,000&#10;Drone coverage - ₱3,000&#10;Editing and color grading - ₱2,000">${esc(d.lineItems)}</textarea><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">One item per line. Add "- ₱amount" at the end to show a price. Each line becomes a numbered inclusion.</div></div>
         </div>` : ''}
         ${state.editingDocId ? `
-        <div style="font-size:12px;color:oklch(0.45 0.13 260);background:oklch(0.96 0.03 260);border:1px solid oklch(0.86 0.05 260);padding:8px 11px;border-radius:9px;margin-top:4px">✎ Editing this ${meta.title.toLowerCase()}${isInvoice ? ` (#${esc(d.invoiceNumber)})` : ''} — “Update” saves it back to the same record (no new copy).</div>
+        <div style="font-size:12px;color:oklch(0.45 0.13 260);background:oklch(0.96 0.03 260);border:1px solid oklch(0.86 0.05 260);padding:8px 11px;border-radius:9px;margin-top:4px">✎ Editing this ${docTitle.toLowerCase()}${isInvoice ? ` (#${esc(d.invoiceNumber)})` : ''} — “Update” saves it back to the same record (no new copy).</div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button type="button" class="btn-primary" style="flex:1;text-align:center" data-action="doc-generate">Update ${meta.title}</button>
+          <button type="button" class="btn-primary" style="flex:1;text-align:center" data-action="doc-generate">Update ${docTitle}</button>
           <button type="button" class="btn-ghost" style="text-align:center;background:var(--card2);padding:0 16px" data-action="doc-cancel-edit">Cancel</button>
         </div>
         ` : `
-        <button type="button" class="btn-primary" style="text-align:center;margin-top:4px" data-action="doc-generate">Generate ${meta.title}</button>
+        <button type="button" class="btn-primary" style="text-align:center;margin-top:4px" data-action="doc-generate">Generate ${docTitle}</button>
         `}
       </div>
       <div id="doc-preview-panel" style="background:#fff;color:oklch(0.22 0.02 150);border-radius:16px;padding:32px;min-height:360px;border:1px solid oklch(0 0 0 / 0.06)">
@@ -2407,9 +2416,9 @@
             <span class="sg" style="color:#fff;font-weight:700;font-size:15px;letter-spacing:-0.02em">pol<span style="color:oklch(0.6 0.2 25)">.</span></span>
           </div>
           <div style="text-align:right">
-            <div class="sg" style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.02em">${esc(meta.title)}</div>
+            <div class="sg" style="font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.02em">${esc(docTitle)}</div>
             <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:3px">Pol Film Productions</div>
-            ${isInvoice ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:2px">Reference No. ${esc(d.invoiceNumber)}</div>` : ''}
+            ${isInvoice ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:2px">${docRefLabel} ${esc(d.invoiceNumber)}</div>` : ''}
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
@@ -2625,7 +2634,9 @@
     const hasAddons = addonsTotal > 0;
     const draftPaidAmount = Number(d.paid) || 0;
     const draftUsdCharged = Number(d.usdCharged) || 0;
-    const draftForeignEstPhp = Math.round(draftUsdCharged * USD_TO_PHP);
+    const usdRateIsLive = !!(state.usdRate && state.usdRate > 0);
+    const liveUsdRate = usdRateIsLive ? state.usdRate : USD_TO_PHP;
+    const draftForeignEstPhp = Math.round(draftUsdCharged * liveUsdRate);
     const showPaymentTerms = isRealEstate && draftGrandTotal > 0;
     const showSimpleTotal = !isRealEstate && draftGrandTotal > 0;
     const draftGrandTotalLabel = fmtMoney(draftGrandTotal);
@@ -2797,7 +2808,7 @@
               ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;width:100%;padding:9px;border-radius:9px;background:oklch(0.92 0.06 150);color:oklch(0.34 0.13 150);font-size:12.5px;font-weight:700">✓ Marked as received <button type="button" data-action="shoot-milestone-pick" data-amount="0" style="all:unset;cursor:pointer;font-size:11px;font-weight:600;color:oklch(0.5 0.015 150);text-decoration:underline">undo</button></div>`
               : `<button type="button" data-action="shoot-milestone-pick" data-amount="${draftForeignEstPhp}" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:9px;border-radius:9px;border:1.5px solid oklch(0.5 0.13 150);background:oklch(0.95 0.03 150);color:oklch(0.32 0.13 150);font-size:12.5px;font-weight:700">✓ Fill ₱ Received ≈ ${fmtMoney(draftForeignEstPhp)} (from $${draftUsdCharged.toLocaleString('en-US')}) — edit to actual</button>`}
           </div>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin:-1px 0 4px 2px;line-height:1.4">Estimate lang sa ₱${USD_TO_PHP}/$1 — palitan mo ng eksaktong na-receive mo sa Wise.</div>` : ''}
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin:-1px 0 4px 2px;line-height:1.4">${usdRateIsLive ? `Live mid‑market ₱${liveUsdRate.toFixed(2)}/$1${state.usdRateDate ? ` · ${state.usdRateDate}` : ''}` : `Est. ₱${USD_TO_PHP}/$1 (offline)`} — estimate lang, palitan mo ng eksaktong na‑receive mo sa Wise.</div>` : ''}
           ${isForeign ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin:-4px 0 4px 2px;line-height:1.45">In Finances, your <b style="color:oklch(0.3 0.02 150)">₱ Received</b> counts toward the totals. The <b style="color:oklch(0.3 0.02 150)">$</b> is kept as a record only.</div>` : ''}
           ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>` : ''}
           ${isRealEstate ? `
@@ -4282,6 +4293,9 @@
     const docType = overrideType || state.docType;
     const isInvoice = docType === 'invoice';
     const meta = DOC_TYPE_META[docType];
+    // Billing doc auto-titles by currency: $ Foreign → "Invoice", ₱ Local → "Statement of Account".
+    const pdfDocTitle = isInvoice ? (d.currency === 'USD' ? 'Invoice' : 'Statement of Account') : meta.title;
+    const pdfRefLabel = isInvoice ? (d.currency === 'USD' ? 'Invoice No.' : 'SOA No.') : 'Reference No.';
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
 
     const PAGE_W = 612, PAGE_H = 792;
@@ -4423,10 +4437,10 @@
     doc.setTextColor(200, 40, 35);
     doc.text('.', marginX + 9 + doc.getTextWidth('pol') + 1.5, badgeY + 30);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...INK);
-    doc.text(meta.title.toUpperCase(), rightX, badgeY + 16, { align: 'right' });
+    doc.text(pdfDocTitle.toUpperCase(), rightX, badgeY + 16, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY);
     doc.text('Pol Film Productions', rightX, badgeY + 30, { align: 'right' });
-    if (isInvoice) doc.text(`Reference No. ${d.invoiceNumber || '—'}`, rightX, badgeY + 43, { align: 'right' });
+    if (isInvoice) doc.text(`${pdfRefLabel} ${d.invoiceNumber || '—'}`, rightX, badgeY + 43, { align: 'right' });
 
     y = badgeY + badgeSize + 28;
 
@@ -4698,7 +4712,8 @@
     doc.text('Pol Film Productions · Generated via Pol Tracker', marginX, PAGE_H - 36);
     doc.text(fmtDateLong(TODAY_STR), rightX, PAGE_H - 36, { align: 'right' });
 
-    doc.save(`${docType}-${(d.clientName || 'document').replace(/\s+/g, '-')}.pdf`);
+    const filePrefix = isInvoice ? (d.currency === 'USD' ? 'Invoice' : 'Statement-of-Account') : docType;
+    doc.save(`${filePrefix}-${(d.clientName || 'document').replace(/\s+/g, '-')}.pdf`);
   }
 
   /* ---------------- generic bind handling ---------------- */
@@ -5184,6 +5199,39 @@
     } catch (e) { /* storage unavailable */ }
 
     render();
+    refreshUsdRate(); // fire-and-forget: fetch live USD→PHP for the Foreign estimate
+  }
+
+  // Fetches the current mid-market USD→PHP rate (keyless, free) once every ~12h and caches it
+  // per-device. Used ONLY for the Foreign shoot "Fill ₱ Received" estimate — Goals keep the
+  // fixed USD_TO_PHP. Fails silently (offline / blocked): the app falls back to the last cached
+  // rate, then to USD_TO_PHP, so nothing breaks without a network.
+  async function refreshUsdRate() {
+    try {
+      const ts = Number(localStorage.getItem('pol_usd_rate_ts') || 0);
+      if (state.usdRate > 0 && (Date.now() - ts) < 12 * 3600 * 1000) return; // still fresh
+    } catch (e) { /* ignore */ }
+    const sources = [
+      { url: 'https://open.er-api.com/v6/latest/USD', pick: j => ({ rate: j && j.rates && j.rates.PHP, date: j && j.time_last_update_utc ? new Date(j.time_last_update_utc).toISOString().slice(0, 10) : '' }) },
+      { url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', pick: j => ({ rate: j && j.usd && j.usd.php, date: (j && j.date) || '' }) },
+    ];
+    for (const s of sources) {
+      try {
+        const r = await fetch(s.url, { cache: 'no-store' });
+        if (!r.ok) continue;
+        const { rate, date } = s.pick(await r.json());
+        if (rate && rate > 0) {
+          const d = date || new Date().toISOString().slice(0, 10);
+          try {
+            localStorage.setItem('pol_usd_rate', String(rate));
+            localStorage.setItem('pol_usd_rate_date', d);
+            localStorage.setItem('pol_usd_rate_ts', String(Date.now()));
+          } catch (e) { /* storage full/unavailable */ }
+          setState({ usdRate: rate, usdRateDate: d });
+          return;
+        }
+      } catch (e) { /* try next source */ }
+    }
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
