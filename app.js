@@ -90,6 +90,14 @@
     const hasCents = Math.round(n * 100) % 100 !== 0;
     return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2 });
   }
+  // Currency-aware money formatter for documents (invoices can be billed in USD for foreign
+  // clients). PHP uses the ₱ sign; USD uses "$". Same whole-number/2-decimal rule as fmtMoney.
+  function fmtMoneyCur(n, cur) {
+    n = Number(n) || 0;
+    const hasCents = Math.round(n * 100) % 100 !== 0;
+    if (cur === 'USD') return '$' + n.toLocaleString('en-US', { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2 });
+    return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2 });
+  }
   // Splits a free-text "Line Items Breakdown" field (one entry per line, e.g.
   // "Package fee - ₱10,000") into { label, amount } rows for the itemized invoice table.
   // Used by both the on-screen preview and the generated PDF so they stay in sync.
@@ -98,7 +106,7 @@
       const idx = line.lastIndexOf(' - ');
       const label = idx === -1 ? line : line.slice(0, idx).trim();
       const tail = idx === -1 ? '' : line.slice(idx + 3).trim();
-      const cleaned = tail.replace(/PHP/gi, '').replace(/₱/g, '').replace(/,/g, '').trim();
+      const cleaned = tail.replace(/PHP/gi, '').replace(/₱/g, '').replace(/\$/g, '').replace(/,/g, '').trim();
       const amount = cleaned && !isNaN(Number(cleaned)) ? Number(cleaned) : null;
       return { label, amount };
     });
@@ -556,9 +564,10 @@
       gearSearch: '',
       docType: 'contract',
       invoiceCounter: Number(localStorage.getItem('shoottracker_invoice_counter')) || 1,
+      wiseQr: (() => { try { return localStorage.getItem('pol_wise_qr') || ''; } catch (e) { return ''; } })(),
       docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
       docDuePickerOpen: false, docDueCalYear: TODAY.getFullYear(), docDueCalMonth: TODAY.getMonth(),
-      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '' },
+      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true },
       documents: [],
       docsHistoryOpen: false,
       editingDocId: null,
@@ -2334,12 +2343,18 @@
         <div class="field"><label>Client Address / Contact</label><input type="text" value="${esc(d.clientContact)}" data-bind="docDraft.clientContact" placeholder="Address, phone, or email"/></div>
         <div class="field"><label>Project / Service</label><input type="text" value="${esc(d.description)}" data-bind="docDraft.description" placeholder="e.g. Vlog Collab - Tagaytay"/></div>
         <div class="row-2">
-          <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="docDraft.amount" data-fmt="money"/></div>
+          <div class="field"><label>Amount (${isInvoice && d.currency === 'USD' ? '$' : '₱'})</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="docDraft.amount" data-fmt="money"/></div>
           ${docDatePicker}
         </div>
         <div class="field"><label>Terms / Notes</label><input type="text" value="${esc(d.notes)}" data-bind="docDraft.notes" placeholder="e.g. 50% downpayment, balance on delivery"/></div>
         ${isInvoice ? `
         <div style="border-top:1px solid oklch(0 0 0 / 0.07);margin-top:4px;padding-top:14px;display:flex;flex-direction:column;gap:14px">
+          <div class="field"><label>Currency</label>
+            <div style="display:flex;gap:8px">
+              <button type="button" data-action="doc-currency" data-cur="PHP" style="all:unset;cursor:pointer;flex:1;text-align:center;box-sizing:border-box;padding:9px;border-radius:9px;font-size:13px;font-weight:700;border:1.5px solid ${d.currency !== 'USD' ? 'oklch(0.5 0.13 150)' : 'var(--border3)'};background:${d.currency !== 'USD' ? 'oklch(0.94 0.04 150)' : 'transparent'};color:${d.currency !== 'USD' ? 'oklch(0.34 0.13 150)' : 'oklch(0.5 0.015 150)'}">₱ PHP <span style="font-weight:500;font-size:11px">— local</span></button>
+              <button type="button" data-action="doc-currency" data-cur="USD" style="all:unset;cursor:pointer;flex:1;text-align:center;box-sizing:border-box;padding:9px;border-radius:9px;font-size:13px;font-weight:700;border:1.5px solid ${d.currency === 'USD' ? 'oklch(0.5 0.13 150)' : 'var(--border3)'};background:${d.currency === 'USD' ? 'oklch(0.94 0.04 150)' : 'transparent'};color:${d.currency === 'USD' ? 'oklch(0.34 0.13 150)' : 'oklch(0.5 0.015 150)'}">$ USD <span style="font-weight:500;font-size:11px">— foreign</span></button>
+            </div>
+          </div>
           <div class="row-2">
             <div class="field"><label>Reference Number</label><input type="text" value="${esc(d.invoiceNumber)}" data-bind="docDraft.invoiceNumber" placeholder="e.g. SOA-2026-014"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Auto-suggested — increments each time you generate an invoice.</div></div>
             ${docDuePicker}
@@ -2352,6 +2367,22 @@
               <option value="Partial" ${d.paymentStatus === 'Partial' ? 'selected' : ''}>Partial</option>
               <option value="Paid" ${d.paymentStatus === 'Paid' ? 'selected' : ''}>Paid</option>
             </select>
+          </div>
+          <div class="field"><label>Payment QR <span style="font-weight:500;color:oklch(0.5 0.015 150)">— e.g. your Wise QR (optional)</span></label>
+            ${state.wiseQr ? `
+            <div style="display:flex;align-items:center;gap:12px;background:var(--card2);border:1px solid var(--border3);border-radius:10px;padding:10px 12px">
+              <img src="${state.wiseQr}" alt="Payment QR" style="width:52px;height:52px;object-fit:contain;border-radius:6px;background:#fff;flex:none"/>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;font-weight:700;color:oklch(0.34 0.13 150)">QR saved on this device</div>
+                <button type="button" data-action="doc-qr-include" style="all:unset;cursor:pointer;font-size:11.5px;color:${d.includeQr !== false ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)'};margin-top:3px">${d.includeQr !== false ? '☑' : '☐'} Show on this invoice's PDF</button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;flex:none">
+                <button type="button" data-action="doc-qr-upload" style="all:unset;cursor:pointer;font-size:11.5px;font-weight:700;color:oklch(0.4 0.13 150)">Replace</button>
+                <button type="button" data-action="doc-qr-remove" style="all:unset;cursor:pointer;font-size:11.5px;color:oklch(0.5 0.18 25)">Remove</button>
+              </div>
+            </div>` : `
+            <button type="button" data-action="doc-qr-upload" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:11px;border-radius:10px;border:1.5px dashed var(--border3);background:var(--card2);color:oklch(0.4 0.13 150);font-size:12.5px;font-weight:700">＋ Upload payment QR image</button>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Upload once — it's saved on this device and can appear on every invoice you generate here. Client scans it to pay.</div>`}
           </div>
         </div>` : ''}
         ${docType === 'quotation' ? `
@@ -2411,14 +2442,14 @@
           </div>
           ${(parseLineItems(d.lineItems).length ? parseLineItems(d.lineItems) : [{ label: 'No items listed', amount: null }]).map(it => `
           <div style="display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-top:1px solid oklch(0 0 0 / 0.06);font-size:12.5px">
-            <span>${esc(it.label)}</span><span style="font-weight:600;flex:none">${it.amount != null ? fmtMoney(it.amount) : '—'}</span>
+            <span>${esc(it.label)}</span><span style="font-weight:600;flex:none">${it.amount != null ? fmtMoneyCur(it.amount, d.currency) : '—'}</span>
           </div>`).join('')}
         </div>` : `
         <div style="font-size:13px;line-height:1.7;margin-bottom:18px">${esc(meta.body(d))}</div>`}
         ${isInvoice && d.packageTotal ? `
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom:16px">
-          <div style="display:flex;justify-content:space-between;width:230px;font-size:12px;color:oklch(0.5 0.015 150)"><span>Total Package</span><span>${fmtMoney(d.packageTotal)}</span></div>
-          ${Number(d.paidToDate) > 0 ? `<div style="display:flex;justify-content:space-between;width:230px;font-size:12px;color:oklch(0.5 0.015 150)"><span>Less: Paid to Date</span><span>− ${fmtMoney(d.paidToDate)}</span></div>` : ''}
+          <div style="display:flex;justify-content:space-between;width:230px;font-size:12px;color:oklch(0.5 0.015 150)"><span>Total Package</span><span>${fmtMoneyCur(d.packageTotal, d.currency)}</span></div>
+          ${Number(d.paidToDate) > 0 ? `<div style="display:flex;justify-content:space-between;width:230px;font-size:12px;color:oklch(0.5 0.015 150)"><span>Less: Paid to Date</span><span>− ${fmtMoneyCur(d.paidToDate, d.currency)}</span></div>` : ''}
           <div style="width:230px;border-top:1px solid oklch(0 0 0 / 0.1);margin-top:2px"></div>
         </div>` : ''}
         <div style="display:flex;${isInvoice ? 'justify-content:space-between;align-items:flex-start' : 'justify-content:flex-end'};gap:20px;margin-bottom:18px">
@@ -2430,9 +2461,17 @@
           <div style="background:oklch(0.97 0.015 150);border-radius:10px;padding:14px 16px;min-width:190px">
             <div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:6px">${isInvoice ? 'Total Amount Due' : (docType === 'quotation' ? 'Proposed Rate' : 'Total Contract Value')}</div>
             ${isInvoice && d.milestoneLabel ? `<div style="font-size:10.5px;color:oklch(0.5 0.015 150);margin-bottom:4px">${esc(d.milestoneLabel)}</div>` : ''}
-            <div class="sg" style="font-size:20px;font-weight:700">${fmtMoney(d.amount)}</div>
+            <div class="sg" style="font-size:20px;font-weight:700">${fmtMoneyCur(d.amount, d.currency)}</div>
           </div>
         </div>
+        ${isInvoice && d.includeQr !== false && state.wiseQr ? `
+        <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid oklch(0 0 0 / 0.08);margin-bottom:4px">
+          <img src="${state.wiseQr}" alt="Payment QR" style="width:78px;height:78px;object-fit:contain;background:#fff;border-radius:8px;flex:none"/>
+          <div>
+            <div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;margin-bottom:4px">Scan to Pay</div>
+            <div style="font-size:12px;color:oklch(0.35 0.02 150)">Scan this QR with your banking or Wise app to settle the amount above.</div>
+          </div>
+        </div>` : ''}
         ${d.notes ? `<div style="padding-top:14px;border-top:1px solid oklch(0 0 0 / 0.08);font-size:12px;color:oklch(0.5 0.015 150);white-space:pre-line"><div style="font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;font-size:9.5px;margin-bottom:6px">Notes</div>${esc(d.notes)}</div>` : ''}
         `}
       </div>
@@ -3934,6 +3973,45 @@
         }
         return { docType: doctype };
       }); break;
+      case 'doc-currency': setState(s => ({ docDraft: { ...s.docDraft, currency: el.dataset.cur } })); break;
+      case 'doc-qr-include': setState(s => ({ docDraft: { ...s.docDraft, includeQr: s.docDraft.includeQr === false } })); break;
+      case 'doc-qr-remove':
+        try { localStorage.removeItem('pol_wise_qr'); } catch (e) {}
+        setState({ wiseQr: '' });
+        break;
+      case 'doc-qr-upload': {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.addEventListener('change', () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+              const max = 480;
+              let w = img.width, h = img.height;
+              if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              const cctx = canvas.getContext('2d');
+              cctx.fillStyle = '#fff'; cctx.fillRect(0, 0, w, h);
+              cctx.drawImage(img, 0, 0, w, h);
+              let dataUrl;
+              try { dataUrl = canvas.toDataURL('image/png'); } catch (e) { dataUrl = reader.result; }
+              try { localStorage.setItem('pol_wise_qr', dataUrl); }
+              catch (e) { alert('Sorry, that image is too large to save on this device — try a smaller screenshot of your QR.'); return; }
+              setState(s => ({ wiseQr: dataUrl, docDraft: { ...s.docDraft, includeQr: true } }));
+            };
+            img.onerror = () => alert("Couldn't read that image — please try a PNG or JPG screenshot of your QR.");
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+        });
+        input.click();
+        break;
+      }
       case 'doc-generate':
         if (!(state.docDraft.clientName || '').trim()) { alert('Please enter a client name before generating.'); break; }
         generateDocPdf();
@@ -3970,7 +4048,7 @@
       case 'doc-cancel-edit':
         setState(s => ({
           editingDocId: null,
-          docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(s.invoiceCounter), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '' },
+          docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(s.invoiceCounter), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true },
         }));
         break;
       case 'doc-history-toggle': setState(s => ({ docsHistoryOpen: !s.docsHistoryOpen })); break;
@@ -4207,7 +4285,10 @@
     // a garbled symbol and text overflow. For amounts embedded in flowing sentences we use
     // a plain "PHP" prefix (safe, correctly measured). For standalone amount displays we
     // hand-draw an actual peso sign (a bold "P" with two strike bars) so it still reads as ₱.
-    const pdfFmtMoney = (n) => 'PHP ' + (Number(n) || 0).toLocaleString('en-PH');
+    // Invoices can be billed in USD for foreign clients. The "$" glyph exists in the standard
+    // PDF fonts, so USD amounts render directly; PHP still needs the "PHP" prefix / hand-drawn ₱.
+    const isUSD = isInvoice && d.currency === 'USD';
+    const pdfFmtMoney = (n) => (isUSD ? '$' : 'PHP ') + (Number(n) || 0).toLocaleString(isUSD ? 'en-US' : 'en-PH');
     // Any free-text field (line items, payment details, notes) can contain a real ₱ character
     // typed by the user or embedded by the app's own fmtMoney() helper — same font problem as
     // above, so strip it before it ever reaches doc.text()/splitTextToSize().
@@ -4245,6 +4326,23 @@
       const pW = doc.getTextWidth('P');
       const amtStr = (Number(amount) || 0).toLocaleString('en-PH');
       return pW + fontSize * 0.1 + doc.getTextWidth(amtStr);
+    };
+    // Currency-aware wrappers for prominent standalone amounts: USD draws a normal "$1,234"
+    // (the glyph exists), PHP falls back to the hand-drawn peso sign.
+    const drawMoney = (amount, x, yPos, fontSize, color, bold) => {
+      if (!isUSD) return drawPeso(amount, x, yPos, fontSize, color, bold);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(...color);
+      const str = '$' + (Number(amount) || 0).toLocaleString('en-US');
+      doc.text(str, x, yPos);
+      return x + doc.getTextWidth(str);
+    };
+    const measureMoney = (amount, fontSize, bold) => {
+      if (!isUSD) return measurePeso(amount, fontSize, bold);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(fontSize);
+      return doc.getTextWidth('$' + (Number(amount) || 0).toLocaleString('en-US'));
     };
 
     // Hand-drawn "pol." mark (ring-style p/o, solid l, dot, red rec-dot) — recreated as
@@ -4479,9 +4577,28 @@
         doc.text(sanitizePeso(d.milestoneLabel), boxX + 14, startY + 22);
         pesoY = startY + 50;
       }
-      const totW = measurePeso(d.amount, 18, true);
-      drawPeso(d.amount, boxX + boxW - 14 - totW, pesoY, 18, INK, true);
+      const totW = measureMoney(d.amount, 18, true);
+      drawMoney(d.amount, boxX + boxW - 14 - totW, pesoY, 18, INK, true);
       y = Math.max(ly, startY - 8 + boxH) + 26;
+
+      // Optional payment QR (e.g. Wise) — embedded under the payment area so the client can scan.
+      // Reusable image stored on the device; shown only when the invoice opts in and a QR exists.
+      let _qr = '';
+      try { _qr = (d.includeQr !== false) ? (localStorage.getItem('pol_wise_qr') || '') : ''; } catch (e) { _qr = ''; }
+      if (_qr) {
+        const qrSize = 96;
+        ensureSpace(qrSize + 24);
+        try { doc.addImage(_qr, 'PNG', marginX, y, qrSize, qrSize); } catch (err) { _qr = ''; }
+        if (_qr) {
+          const qtx = marginX + qrSize + 16;
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...BRAND);
+          doc.text('SCAN TO PAY', qtx, y + 16);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+          doc.splitTextToSize('Scan this QR with your banking or Wise app to settle the amount due above.', contentW - qrSize - 30)
+            .forEach((ln, i) => doc.text(ln, qtx, y + 32 + i * 13));
+          y += qrSize + 20;
+        }
+      }
     } else if (docType === 'quotation') {
       // subtotal + prominent Total Proposed Rate box (mirrors preview)
       const qi = parseLineItems(d.lineItems);
