@@ -40,6 +40,22 @@
     { key: 'aiScene',     label: 'AI Scene', price: 1000, unitLabel: 'per scene' },
   ];
   const USD_TO_PHP = 58;
+  // The one place the 20% / 30% / 50% payment schedule is defined. `cumulative` is the running
+  // total after that milestone; multiply by the grand total to get the amount due to reach it.
+  const MILESTONE_DEFS = [
+    { key: 'dp', label: '20% Down Payment', shortLabel: '20% DP', weight: 20, cumulative: 0.2 },
+    { key: 'shoot', label: '30% After Shoot', shortLabel: '30% Shoot', weight: 30, cumulative: 0.5 },
+    { key: 'final', label: '50% Final Delivery', shortLabel: '50% Final', weight: 50, cumulative: 1 },
+  ];
+  // Given a grand total and how much has been paid, the next milestone still owed and the exact
+  // amount needed to reach it (never more than the remaining balance).
+  function nextMilestoneDue(grandTotal, paid) {
+    const g = Number(grandTotal) || 0, p = Number(paid) || 0;
+    const fullBalance = Math.max(g - p, 0);
+    const next = MILESTONE_DEFS.map(m => ({ ...m, target: g * m.cumulative })).find(m => p < m.target);
+    const due = next ? Math.max(Math.min(next.target - p, fullBalance), 0) : 0;
+    return { next, due, fullBalance };
+  }
   const SHOOT_TYPES = ['Real Estate', 'General Project'];
   const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -82,6 +98,27 @@
   function formatInvoiceNumber(n, kind) {
     const prefix = kind === 'invoice' ? 'INV' : 'SOA';
     return `${prefix}-${TODAY_STR.slice(0, 4)}-${String(n).padStart(3, '0')}`;
+  }
+  // Cross-device numbering: derive the next sequence number from the synced documents
+  // themselves (highest existing "-NNN" suffix + 1) so it never restarts at 1 on a new
+  // device and never reissues a number already saved in the cloud history.
+  function deriveInvoiceCounter(documents) {
+    let max = 0;
+    (documents || []).forEach(r => {
+      const m = /-(\d+)\s*$/.exec((r && r.draft && r.draft.invoiceNumber) || '');
+      if (m) max = Math.max(max, Number(m[1]) || 0);
+    });
+    return max + 1;
+  }
+  // The next number to suggest, using the synced documents as the source of truth and the
+  // device-local counter only as a floor (covers the brand-new-account, no-documents case).
+  function nextInvoiceNumber(s, kind) {
+    return formatInvoiceNumber(Math.max(Number(s.invoiceCounter) || 1, deriveInvoiceCounter(s.documents)), kind);
+  }
+  // Single source of truth for a fresh billing-document draft (was duplicated verbatim in
+  // several places, which drifted whenever a field was added).
+  function blankDocDraft(invoiceNumber) {
+    return { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber, dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true, billingKind: 'soa' };
   }
   function fmtMoney(n) {
     n = Number(n) || 0;
@@ -237,7 +274,6 @@
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  function getPath(obj, path) { return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj); }
   function setPath(obj, path, value) {
     const keys = path.split('.');
     const root = Array.isArray(obj) ? obj.slice() : { ...obj };
@@ -570,7 +606,7 @@
       usdRateDate: (() => { try { return localStorage.getItem('pol_usd_rate_date') || ''; } catch (e) { return ''; } })(),
       docDatePickerOpen: false, docDateCalYear: TODAY.getFullYear(), docDateCalMonth: TODAY.getMonth(),
       docDuePickerOpen: false, docDueCalYear: TODAY.getFullYear(), docDueCalMonth: TODAY.getMonth(),
-      docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1, 'soa'), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true, billingKind: 'soa' },
+      docDraft: blankDocDraft(formatInvoiceNumber(Number(localStorage.getItem('shoottracker_invoice_counter')) || 1, 'soa')),
       documents: [],
       docsHistoryOpen: false,
       editingDocId: null,
@@ -809,11 +845,6 @@
     const ps = shootPaymentsOf(s);
     if (ps.length) return ps.reduce((sum, p) => sum + (((p.date || '').slice(0, 7) === monthKey) ? (Number(p.amount) || 0) : 0), 0);
     return ((s.date || '').slice(0, 7) === monthKey) ? (Number(s.paid) || 0) : 0;
-  }
-  function shootCollectedInRange(s, startStr, endStr) {
-    const ps = shootPaymentsOf(s);
-    if (ps.length) return ps.reduce((sum, p) => { const d = p.date || ''; return sum + ((d >= startStr && d <= endStr) ? (Number(p.amount) || 0) : 0); }, 0);
-    return (s.date && s.date >= startStr && s.date <= endStr) ? (Number(s.paid) || 0) : 0;
   }
 
   /* ---------------- backup reminder + PWA install ---------------- */
@@ -1345,7 +1376,7 @@
     // selected in the Overview chart above it, instead of always being "this month".
     const selMonthLabel = new Date(selectedMonthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const selMonthRevenue = (fullTimeIncome.filter(f => f.date && f.date.slice(0, 7) === selectedMonthKey).reduce((s, f) => s + (Number(f.amount) || 0), 0))
-      + (shoots.filter(s => s.date && s.date.slice(0, 7) === selectedMonthKey).reduce((s, x) => s + (Number(x.paid) || 0), 0));
+      + (shoots.reduce((s, x) => s + shootCollectedInMonth(x, selectedMonthKey), 0));
     const selMonthExpenses = expenses.filter(e => e.date && e.date.slice(0, 7) === selectedMonthKey).reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const selMonthNetProfit = selMonthRevenue - selMonthExpenses;
     const selMonthChartMax = Math.max(selMonthRevenue, selMonthExpenses, 1);
@@ -1353,11 +1384,13 @@
     // Top Clients & Biggest Expenses follow the SELECTED month (like Revenue vs Expenses),
     // so clicking a month in the chart re-scopes the whole page to that month.
     const clientTotals = {};
-    shoots.filter(s => s.date && s.date.slice(0, 7) === selectedMonthKey).forEach(s => {
+    shoots.forEach(s => {
+      const collected = shootCollectedInMonth(s, selectedMonthKey);
+      if (collected <= 0) return;
       const name = (s.client || '').trim();
       if (!name) return;
       if (!clientTotals[name]) clientTotals[name] = { name, total: 0, count: 0 };
-      clientTotals[name].total += Number(s.paid) || 0;
+      clientTotals[name].total += collected;
       clientTotals[name].count += 1;
     });
     const topClients = Object.values(clientTotals)
@@ -2280,7 +2313,6 @@
       </div>
       <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
         <div style="min-width:250px">
-          ${qHasAmounts ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:oklch(0.5 0.015 150);padding:3px 2px"><span>Subtotal</span><span>${fmtMoney(qSubtotal)}</span></div>` : ''}
           <div style="background:oklch(0.97 0.015 150);border-radius:12px;padding:14px 18px;margin-top:8px">
             <div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:7px">Total Proposed Rate</div>
             <div class="sg" style="font-size:23px;font-weight:700;line-height:1">${fmtMoney(d.amount)}</div>
@@ -2338,13 +2370,6 @@
     ${docsHistorySection}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
       <div class="card" style="display:flex;flex-direction:column;gap:14px">
-        <div class="field"><label>Fill from Existing Project (optional)</label>
-          <select data-action-change="doc-shoot-pick">
-            <option value="">— Choose from Shoots —</option>
-            ${[...state.shoots].sort((a, b) => new Date(b.date) - new Date(a.date)).map(sh => `<option value="${esc(sh.id)}">${esc(sh.client)} — ${esc(sh.shootType)} (${fmtDate(sh.date)})</option>`).join('')}
-          </select>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Pulls in client, project, and package details from that shoot — Amount is pre-filled with the next unpaid milestone (20% DP / 30% Shoot / 50% Final), still editable.</div>
-        </div>
         <div class="field"><label>Select Existing Client (optional)</label>
           <select data-action-change="doc-client-pick">
             <option value="">— Choose from Clients —</option>
@@ -2657,11 +2682,7 @@
     const draftGrandTotalLabel = fmtMoney(draftGrandTotal);
     const draftBalanceLabel = fmtMoney(Math.max(draftGrandTotal - draftPaidAmount, 0));
 
-    const milestoneDefs = [
-      { key: 'dp', label: '20% Down Payment', shortLabel: '20% DP', weight: 20, portion: draftGrandTotal * 0.2, target: draftGrandTotal * 0.2 },
-      { key: 'shoot', label: '30% After Shoot', shortLabel: '30% Shoot', weight: 30, portion: draftGrandTotal * 0.3, target: draftGrandTotal * 0.5 },
-      { key: 'final', label: '50% Final Delivery', shortLabel: '50% Final', weight: 50, portion: draftGrandTotal * 0.5, target: draftGrandTotal },
-    ];
+    const milestoneDefs = MILESTONE_DEFS.map(m => ({ ...m, portion: draftGrandTotal * (m.weight / 100), target: draftGrandTotal * m.cumulative }));
     const paymentMilestones = milestoneDefs.map(m => {
       const covered = draftPaidAmount >= m.target;
       return {
@@ -2907,7 +2928,7 @@
           </div>` : ''}
           ${isRealEstate && !isScriptedShootType ? `<div style="background:oklch(0.92 0.06 150 / 0.4);border-radius:9px;padding:10px 12px;font-size:12.5px;color:oklch(0.4 0.13 150)">Script is provided by the client for this package tier.</div>` : ''}
           <div class="field"><input type="text" value="${esc(d.notes)}" data-bind="draft.notes" placeholder="Notes (optional)"/></div>
-          ${isEdit && !isRealEstate ? `
+          ${isEdit ? `
           <div style="border-top:1px solid var(--border3);margin-top:6px;padding-top:14px">
             <button type="button" data-action="shoot-create-billing" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:11px;border-radius:10px;border:1.5px solid oklch(0.5 0.13 150);background:oklch(0.95 0.03 150);color:oklch(0.32 0.13 150);font-size:13px;font-weight:700">Create ${isForeign ? 'Invoice' : 'Statement of Account'} from this shoot</button>
             <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px;text-align:center;line-height:1.45">Pulls in the client and details — add the due date and QR in Documents.</div>
@@ -3679,21 +3700,36 @@
       case 'shoot-status-open': setState({ shootStatusModal: el.dataset.id }); break;
       case 'shoot-status-set': { const sid = el.dataset.id, status = el.dataset.status; setState(s => { const shoots = s.shoots.map(sh => sh.id === sid ? { ...sh, status } : sh); const clients = status === 'posted' ? promoteClientToCompleted(s.clients, (s.shoots.find(sh => sh.id === sid) || {}).client) : s.clients; return { shoots, shootStatusModal: null, ...(clients !== s.clients ? { clients } : {}) }; }); break; }
       case 'shoot-create-billing': {
-        // Jump from a General Project shoot straight into a prefilled billing document.
-        // Foreign → Invoice (USD, amount = $ charged); Local → Statement of Account (₱, remaining balance).
+        // Jump from a shoot straight into a prefilled billing document (this is the single
+        // "bill from a shoot" path — the old Documents dropdown was removed).
+        //   Foreign General Project → Invoice (USD, amount = $ charged)
+        //   Real Estate            → Statement of Account (₱, next 20/30/50 milestone due)
+        //   Local General Project  → Statement of Account (₱, full remaining balance)
         // The user then adds the due date and QR in Documents before generating.
         const dr = state.draft || {};
-        const foreign = dr.currency === 'USD';
+        const isRealEstate = dr.shootType === 'Real Estate';
+        const foreign = !isRealEstate && dr.currency === 'USD';
         const cl = state.clients.find(c => c.name && dr.client && c.name.trim().toLowerCase() === (dr.client || '').trim().toLowerCase());
         const contact = cl ? [cl.phone, cl.email].filter(Boolean).join(' · ') : '';
         const desc = `${dr.shootType || 'Project'}${dr.location ? ' - ' + dr.location : ''}`;
         const kind = foreign ? 'invoice' : 'soa';
-        // Edit-only projects carry a list of deliverables — use those as the invoice line items.
+        // Edit-only projects carry a list of deliverables — use those as the line items.
         const items = (Array.isArray(dr.projectItems) ? dr.projectItems : []).map(x => String(x || '').trim()).filter(Boolean);
         let extra;
         if (foreign) {
           const usd = Number(dr.usdCharged) || 0;
           extra = { currency: 'USD', billingKind: 'invoice', amount: String(usd), lineItems: items.length ? items.join('\n') : `${desc} - $${usd.toLocaleString('en-US')}`, packageTotal: '', paidToDate: '', milestoneLabel: '', paymentStatus: 'Unpaid' };
+        } else if (isRealEstate) {
+          const dec = decorate(dr);
+          const grandTotal = Number(dr.package) || 0, paid = Number(dr.paid) || 0;
+          const addons = dr.addons || {};
+          const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
+          const baseAmt = grandTotal - addonsTotal;
+          const baseLabel = (dec.packageTierLabel.split(' - ')[1] || dec.packageTierLabel).split(' (')[0];
+          const addonLines = ADDON_DEFS.filter(ad => (addons[ad.key] || 0) > 0).map(ad => `${ad.label}${ad.flat ? '' : ' x' + addons[ad.key]} - ${fmtMoney(ad.price * addons[ad.key])}`);
+          const lineItems = [`${baseLabel} - ${fmtMoney(baseAmt)}`, ...addonLines].join('\n');
+          const { next, due } = nextMilestoneDue(grandTotal, paid);
+          extra = { currency: 'PHP', billingKind: 'soa', amount: String(due), lineItems, packageTotal: String(grandTotal), paidToDate: String(paid), milestoneLabel: next ? next.label : 'Fully Paid', paymentStatus: due > 0 ? 'Unpaid' : 'Paid' };
         } else {
           const pkg = Number(dr.package) || 0, paid = Number(dr.paid) || 0;
           const remaining = Math.max(pkg - paid, 0);
@@ -3701,7 +3737,7 @@
         }
         setState(s => ({
           view: 'docs', docType: 'invoice', modal: null, draft: null, docsHistoryOpen: false,
-          docDraft: { ...s.docDraft, clientName: dr.client || '', clientContact: contact || s.docDraft.clientContact, description: desc, date: TODAY_STR, dueDate: addDays(TODAY_STR, 10), invoiceNumber: formatInvoiceNumber(s.invoiceCounter, kind), notes: s.docDraft.notes || '', ...extra },
+          docDraft: { ...s.docDraft, clientName: dr.client || '', clientContact: contact || s.docDraft.clientContact, description: desc, date: TODAY_STR, dueDate: addDays(TODAY_STR, 10), invoiceNumber: nextInvoiceNumber(s, kind), notes: s.docDraft.notes || '', ...extra },
         }));
         try { localStorage.setItem('shoottracker_last_view', 'docs'); } catch (e) { /* ignore */ }
         break;
@@ -4052,7 +4088,7 @@
         const doctype = el.dataset.doctype;
         if (doctype === 'invoice') {
           const kind = s.docDraft.billingKind || 'soa';
-          return { docType: doctype, docDraft: { ...s.docDraft, billingKind: kind, invoiceNumber: formatInvoiceNumber(s.invoiceCounter, kind) } };
+          return { docType: doctype, docDraft: { ...s.docDraft, billingKind: kind, invoiceNumber: nextInvoiceNumber(s, kind) } };
         }
         if (doctype === 'quotation') {
           return { docType: doctype, docDraft: { ...s.docDraft, dueDate: addDays(s.docDraft.date || TODAY_STR, 30) } };
@@ -4064,7 +4100,7 @@
         const kind = el.dataset.kind === 'invoice' ? 'invoice' : 'soa';
         const prefix = kind === 'invoice' ? 'INV' : 'SOA';
         const swapped = (s.docDraft.invoiceNumber || '').replace(/^(SOA|INV)-/, prefix + '-');
-        return { docDraft: { ...s.docDraft, billingKind: kind, invoiceNumber: swapped || formatInvoiceNumber(s.invoiceCounter, kind) } };
+        return { docDraft: { ...s.docDraft, billingKind: kind, invoiceNumber: swapped || nextInvoiceNumber(s, kind) } };
       }); break;
       case 'doc-qr-include': setState(s => ({ docDraft: { ...s.docDraft, includeQr: s.docDraft.includeQr === false } })); break;
       case 'doc-qr-remove':
@@ -4124,7 +4160,7 @@
           }));
           if (state.docType === 'invoice') {
             setState(s => {
-              const nextCounter = s.invoiceCounter + 1;
+              const nextCounter = Math.max(s.invoiceCounter + 1, deriveInvoiceCounter(s.documents));
               localStorage.setItem('shoottracker_invoice_counter', String(nextCounter));
               return { invoiceCounter: nextCounter, docDraft: { ...s.docDraft, invoiceNumber: formatInvoiceNumber(nextCounter, s.docDraft.billingKind || 'soa') } };
             });
@@ -4140,7 +4176,7 @@
       case 'doc-cancel-edit':
         setState(s => ({
           editingDocId: null,
-          docDraft: { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber: formatInvoiceNumber(s.invoiceCounter, s.docDraft.billingKind || 'soa'), dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true, billingKind: s.docDraft.billingKind || 'soa' },
+          docDraft: blankDocDraft(nextInvoiceNumber(s, 'soa')),
         }));
         break;
       case 'doc-history-toggle': setState(s => ({ docsHistoryOpen: !s.docsHistoryOpen })); break;
@@ -4696,18 +4732,11 @@
         }
       }
     } else if (docType === 'quotation') {
-      // subtotal + prominent Total Proposed Rate box (mirrors preview)
-      const qi = parseLineItems(d.lineItems);
-      const qHasAmt = qi.some(it => it.amount != null);
-      const qSub = qi.reduce((a, it) => a + (it.amount != null ? Number(it.amount) : 0), 0);
+      // Prominent Total Proposed Rate box (mirrors preview). No separate "Subtotal" row —
+      // per-item prices already appear in the inclusions list, and a subtotal that didn't
+      // match the headline rate read as a contradiction on the client-facing quote.
       ensureSpace(90);
       const boxW = 250, boxX = rightX - boxW;
-      if (qHasAmt) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
-        doc.text('Subtotal', boxX, y);
-        doc.text(pdfFmtMoney(qSub), rightX, y, { align: 'right' });
-        y += 16;
-      }
       doc.setDrawColor(...LINE); doc.setFillColor(...BRAND_PALE);
       doc.roundedRect(boxX, y, boxW, 56, 10, 10, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
@@ -4934,63 +4963,6 @@
 
     app.addEventListener('change', (e) => {
       const el = e.target;
-      if (el.dataset.actionChange === 'doc-shoot-pick') {
-        const shootId = el.value;
-        if (shootId) {
-          const sh = state.shoots.find(s => s.id === shootId);
-          if (sh) {
-            const dec = decorate(sh);
-            const client = state.clients.find(c => c.name.trim().toLowerCase() === sh.client.trim().toLowerCase());
-            const contact = client ? [client.phone, client.email].filter(Boolean).join(' · ') : '';
-            const addons = sh.addons || {};
-            const addonsTotal = ADDON_DEFS.reduce((sum, ad) => sum + (addons[ad.key] || 0) * ad.price, 0);
-            const grandTotal = Number(sh.package) || 0;
-            const paidAmt = Number(sh.paid) || 0;
-            const baseAmt = grandTotal - addonsTotal;
-            const baseLabel = (dec.packageTierLabel.split(' - ')[1] || dec.packageTierLabel).split(' (')[0];
-            const addonLines = ADDON_DEFS.filter(ad => (addons[ad.key] || 0) > 0)
-              .map(ad => `${ad.label}${ad.flat ? '' : ' x' + addons[ad.key]} - ${fmtMoney(ad.price * addons[ad.key])}`);
-            // Same 20% DP / 30% Shoot / 50% Final milestone schedule used in the shoot's own
-            // "Payment Terms" section — find the first milestone not yet covered by sh.paid,
-            // and bill exactly what's still needed to reach it (not the full remaining balance).
-            const milestoneDefs = [
-              { shortLabel: '20% DP', label: '20% Down Payment', target: grandTotal * 0.2 },
-              { shortLabel: '30% Shoot', label: '30% After Shoot', target: grandTotal * 0.5 },
-              { shortLabel: '50% Final', label: '50% Final Delivery', target: grandTotal },
-            ];
-            const fullBalance = Math.max(grandTotal - paidAmt, 0);
-            const nextMilestone = milestoneDefs.find(m => paidAmt < m.target);
-            const dueAmount = nextMilestone ? Math.max(Math.min(nextMilestone.target - paidAmt, fullBalance), 0) : 0;
-            // Line Items holds only the actual package/add-on charges — the running totals
-            // (package total, what's already paid, what's due now) are kept as separate
-            // structured fields so the invoice can show them as a clearly-labeled summary
-            // instead of mixing them into the item table as if they were more line items.
-            const lineItems = [
-              `${baseLabel} - ${fmtMoney(baseAmt)}`,
-              ...addonLines,
-            ].join('\n');
-            const balance = dueAmount;
-            const paymentStatus = dueAmount > 0 ? 'Unpaid' : 'Paid';
-            state = {
-              ...state,
-              docDraft: {
-                ...state.docDraft,
-                clientName: sh.client,
-                clientContact: contact || state.docDraft.clientContact,
-                description: `${sh.shootType}${sh.location ? ' - ' + sh.location : ''}`,
-                amount: String(balance),
-                lineItems,
-                packageTotal: String(grandTotal),
-                paidToDate: String(paidAmt),
-                milestoneLabel: nextMilestone ? nextMilestone.label : 'Fully Paid',
-                paymentStatus,
-              },
-            };
-            render();
-          }
-        }
-        return;
-      }
       if (el.dataset.actionChange === 'doc-client-pick') {
         const id = el.value;
         if (id) {
