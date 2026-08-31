@@ -2632,6 +2632,11 @@
     const isGeneral = !isRealEstate;
     const isForeign = isGeneral && (d.currency === 'USD');
     const showLoc = isRealEstate || state.shootLocOpen || (isGeneral && !!(d.location || '').trim());
+    // For "Edit only" General Projects (usually several reels/edits for one client), the venue
+    // makes no sense — instead we list the individual projects/deliverables, which become the
+    // invoice line items when billing.
+    const isEditOnly = isGeneral && (d.serviceType === 'edit');
+    const projectItems = Array.isArray(d.projectItems) ? d.projectItems : [];
     const liveTiers = getLiveTiers(state.packageRates);
     const isCustomPackage = isRealEstate && (d.packageTier || 'custom') === 'custom';
     const isScriptedShootType = isRealEstate && d.packageTier !== 'basic' && d.packageTier !== 'standard';
@@ -2718,7 +2723,15 @@
         <div class="modal-fields">
           <div class="field"><label>Client / Project</label><input type="text" value="${esc(d.client)}" data-bind="draft.client" data-fmt="autocomplete" placeholder="e.g. Globe Telecom Anthem" required autocomplete="off"/>
           </div>
-          ${showLoc ? `<div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>` : `<div class="field" style="margin-bottom:4px"><span data-action="shoot-loc-toggle" style="cursor:pointer;font-size:12.5px;font-weight:600;color:oklch(0.45 0.14 150);text-decoration:underline">+ Add location</span></div>`}
+          ${isEditOnly ? `
+          <div class="field"><label>Projects / Deliverables</label>
+            ${projectItems.length ? projectItems.map((p, i) => `
+            <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+              <input type="text" value="${esc(p)}" data-proj-idx="${i}" placeholder="e.g. Maui Lane - Real Estate #${i + 1}" style="flex:1"/>
+              <button type="button" data-action="shoot-project-remove" data-idx="${i}" style="all:unset;cursor:pointer;flex:none;width:34px;height:34px;border-radius:8px;background:oklch(0.95 0.02 25);color:oklch(0.5 0.18 25);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">✕</button>
+            </div>`).join('') : `<div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:8px">Wala pang project — magdagdag sa baba. Ito ang magiging line items ng invoice.</div>`}
+            <button type="button" data-action="shoot-project-add" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:9px;border-radius:9px;border:1.5px dashed oklch(0.5 0.13 150);background:oklch(0.97 0.02 150);color:oklch(0.4 0.13 150);font-size:12.5px;font-weight:700">＋ Add project</button>
+          </div>` : (showLoc ? `<div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>` : `<div class="field" style="margin-bottom:4px"><span data-action="shoot-loc-toggle" style="cursor:pointer;font-size:12.5px;font-weight:600;color:oklch(0.45 0.14 150);text-decoration:underline">+ Add location</span></div>`)}
           <div class="row-2">
             <div class="field" style="position:relative">
               <label>Date</label>
@@ -3674,14 +3687,16 @@
         const contact = cl ? [cl.phone, cl.email].filter(Boolean).join(' · ') : '';
         const desc = `${dr.shootType || 'Project'}${dr.location ? ' - ' + dr.location : ''}`;
         const kind = foreign ? 'invoice' : 'soa';
+        // Edit-only projects carry a list of deliverables — use those as the invoice line items.
+        const items = (Array.isArray(dr.projectItems) ? dr.projectItems : []).map(x => String(x || '').trim()).filter(Boolean);
         let extra;
         if (foreign) {
           const usd = Number(dr.usdCharged) || 0;
-          extra = { currency: 'USD', billingKind: 'invoice', amount: String(usd), lineItems: `${desc} - $${usd.toLocaleString('en-US')}`, packageTotal: '', paidToDate: '', milestoneLabel: '', paymentStatus: 'Unpaid' };
+          extra = { currency: 'USD', billingKind: 'invoice', amount: String(usd), lineItems: items.length ? items.join('\n') : `${desc} - $${usd.toLocaleString('en-US')}`, packageTotal: '', paidToDate: '', milestoneLabel: '', paymentStatus: 'Unpaid' };
         } else {
           const pkg = Number(dr.package) || 0, paid = Number(dr.paid) || 0;
           const remaining = Math.max(pkg - paid, 0);
-          extra = { currency: 'PHP', billingKind: 'soa', amount: String(remaining || pkg), lineItems: `${desc} - ${fmtMoney(pkg)}`, packageTotal: String(pkg), paidToDate: String(paid), milestoneLabel: '', paymentStatus: remaining > 0 ? 'Unpaid' : 'Paid' };
+          extra = { currency: 'PHP', billingKind: 'soa', amount: String(remaining || pkg), lineItems: items.length ? items.join('\n') : `${desc} - ${fmtMoney(pkg)}`, packageTotal: String(pkg), paidToDate: String(paid), milestoneLabel: '', paymentStatus: remaining > 0 ? 'Unpaid' : 'Paid' };
         }
         setState(s => ({
           view: 'docs', docType: 'invoice', modal: null, draft: null, docsHistoryOpen: false,
@@ -3696,6 +3711,8 @@
         break;
       case 'shoot-type-pick': setState(s => { const st = el.dataset.type; const draft = { ...s.draft, shootType: st }; if (st === 'General Project' && (draft.status === 'tentative' || draft.status === 'resched')) draft.status = 'idea'; return { draft }; }); break;
       case 'shoot-service-pick': setState(s => ({ draft: { ...s.draft, serviceType: el.dataset.service } })); break;
+      case 'shoot-project-add': setState(s => ({ draft: { ...s.draft, projectItems: [...(Array.isArray(s.draft.projectItems) ? s.draft.projectItems : []), ''] } })); break;
+      case 'shoot-project-remove': setState(s => { const arr = (Array.isArray(s.draft.projectItems) ? s.draft.projectItems : []).slice(); arr.splice(Number(el.dataset.idx), 1); return { draft: { ...s.draft, projectItems: arr } }; }); break;
       case 'shoot-currency-pick': setState(s => ({ draft: { ...s.draft, currency: el.dataset.currency } })); break;
       case 'shoot-loc-toggle': setState(s => ({ shootLocOpen: true })); break;
       case 'shoot-addons-toggle': setState(s => ({ shootAddonsOpen: !s.shootAddonsOpen })); break;
@@ -4858,6 +4875,15 @@
       // are atomic choices anyway, so let 'change' alone handle them.
       if (e.target.tagName === 'SELECT') return;
       const el = e.target;
+      // Project/deliverable rows (Edit-only General Projects): update the array element in place
+      // WITHOUT re-rendering, so the caret doesn't jump mid-typing. State stays in sync for save.
+      if (el.dataset.projIdx != null) {
+        const idx = Number(el.dataset.projIdx);
+        const arr = (Array.isArray(state.draft && state.draft.projectItems) ? state.draft.projectItems : []).slice();
+        arr[idx] = el.value;
+        state = { ...state, draft: { ...state.draft, projectItems: arr } };
+        return;
+      }
       const bind = el.dataset.bind;
       if (!bind) return;
       if (el.dataset.fmt === 'money') {
