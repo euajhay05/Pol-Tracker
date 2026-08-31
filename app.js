@@ -2366,7 +2366,7 @@
               <button type="button" data-action="doc-billing-kind" data-kind="soa" style="all:unset;cursor:pointer;flex:1;text-align:center;box-sizing:border-box;padding:10px;border-radius:9px;font-size:13px;font-weight:700;border:1.5px solid ${!isInv ? 'oklch(0.5 0.13 150)' : 'var(--border3)'};background:${!isInv ? 'oklch(0.94 0.04 150)' : 'transparent'};color:${!isInv ? 'oklch(0.34 0.13 150)' : 'oklch(0.5 0.015 150)'}">Statement of Account</button>
               <button type="button" data-action="doc-billing-kind" data-kind="invoice" style="all:unset;cursor:pointer;flex:1;text-align:center;box-sizing:border-box;padding:10px;border-radius:9px;font-size:13px;font-weight:700;border:1.5px solid ${isInv ? 'oklch(0.5 0.13 150)' : 'var(--border3)'};background:${isInv ? 'oklch(0.94 0.04 150)' : 'transparent'};color:${isInv ? 'oklch(0.34 0.13 150)' : 'oklch(0.5 0.015 150)'}">Invoice</button>
             </div>
-            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">Ito ang magiging pamagat ng file at PDF (${isInv ? 'INVOICE' : 'STATEMENT OF ACCOUNT'}).</div>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">This becomes the PDF title and file name (${isInv ? 'INVOICE' : 'STATEMENT OF ACCOUNT'}).</div>
           </div>
           <div class="field"><label>Currency</label>
             <div style="display:flex;gap:8px">
@@ -2676,8 +2676,8 @@
     });
 
     const shootTypePills = [
-      { value: 'Real Estate', label: 'Real Estate', icon: '🏠' },
-      { value: 'General Project', label: 'General Project', icon: '🎬' },
+      { value: 'Real Estate', label: 'Real Estate', icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M3 11l9-8 9 8"/><path d="M5 9.5V21h14V9.5"/></svg>' },
+      { value: 'General Project', label: 'General Project', icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><rect x="2.5" y="6" width="13.5" height="12" rx="2"/><path d="M16 10l5.5-3v10L16 14z"/></svg>' },
     ].map(tp => {
       const active = d.shootType === tp.value;
       const accent = tp.value === 'Real Estate' ? { color: 'oklch(0.5 0.16 235)', bg: 'oklch(0.55 0.15 240 / 0.16)' } : { color: 'oklch(0.45 0.14 150)', bg: 'oklch(0.5 0.13 150 / 0.14)' };
@@ -2729,10 +2729,10 @@
             <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
               <input type="text" value="${esc(p)}" data-proj-idx="${i}" placeholder="e.g. Maui Lane - Real Estate #${i + 1}" style="flex:1"/>
               <button type="button" data-action="shoot-project-remove" data-idx="${i}" style="all:unset;cursor:pointer;flex:none;width:34px;height:34px;border-radius:8px;background:oklch(0.95 0.02 25);color:oklch(0.5 0.18 25);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">✕</button>
-            </div>`).join('') : `<div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:8px">Wala pang project — magdagdag sa baba. Ito ang magiging line items ng invoice.</div>`}
+            </div>`).join('') : `<div style="font-size:12px;color:oklch(0.5 0.015 150);margin-bottom:8px">No projects yet — add one below. These become the invoice line items.</div>`}
             <button type="button" data-action="shoot-project-add" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:9px;border-radius:9px;border:1.5px dashed oklch(0.5 0.13 150);background:oklch(0.97 0.02 150);color:oklch(0.4 0.13 150);font-size:12.5px;font-weight:700">＋ Add project</button>
           </div>` : (showLoc ? `<div class="field"><label>Location / Venue</label><input type="text" value="${esc(d.location)}" data-bind="draft.location" placeholder="e.g. BGC Studio"/></div>` : `<div class="field" style="margin-bottom:4px"><span data-action="shoot-loc-toggle" style="cursor:pointer;font-size:12.5px;font-weight:600;color:oklch(0.45 0.14 150);text-decoration:underline">+ Add location</span></div>`)}
-          ${isEditOnly ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:2px">📅 Date: <b style="color:oklch(0.32 0.02 150)">${shootDateDisplayLabel}</b> — naka‑set sa araw na ginawa mo ito (di na kailangang pumili).</div>` : ''}
+          ${isEditOnly ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:2px">Date: <b style="color:oklch(0.32 0.02 150)">${shootDateDisplayLabel}</b> — set to the day you created this (no need to pick).</div>` : ''}
           <div class="row-2"${isEditOnly ? ' style="display:none"' : ''}>
             <div class="field" style="position:relative">
               <label>Date</label>
@@ -2832,7 +2832,7 @@
               ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;width:100%;padding:9px;border-radius:9px;background:oklch(0.92 0.06 150);color:oklch(0.34 0.13 150);font-size:12.5px;font-weight:700">✓ Marked as received <button type="button" data-action="shoot-milestone-pick" data-amount="0" style="all:unset;cursor:pointer;font-size:11px;font-weight:600;color:oklch(0.5 0.015 150);text-decoration:underline">undo</button></div>`
               : `<button type="button" data-action="shoot-milestone-pick" data-amount="${draftForeignEstPhp}" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:9px;border-radius:9px;border:1.5px solid oklch(0.5 0.13 150);background:oklch(0.95 0.03 150);color:oklch(0.32 0.13 150);font-size:12.5px;font-weight:700">✓ Fill ₱ Received ≈ ${fmtMoney(draftForeignEstPhp)} (from $${draftUsdCharged.toLocaleString('en-US')}) — edit to actual</button>`}
           </div>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin:-1px 0 4px 2px;line-height:1.4">${usdRateIsLive ? `Live mid‑market ₱${liveUsdRate.toFixed(2)}/$1${state.usdRateDate ? ` · ${state.usdRateDate}` : ''}` : `Est. ₱${USD_TO_PHP}/$1 (offline)`} — estimate lang, palitan mo ng eksaktong na‑receive mo sa Wise.</div>` : ''}
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin:-1px 0 4px 2px;line-height:1.4">${usdRateIsLive ? `Live mid‑market ₱${liveUsdRate.toFixed(2)}/$1${state.usdRateDate ? ` · ${state.usdRateDate}` : ''}` : `Est. ₱${USD_TO_PHP}/$1 (offline)`} — estimate only, replace with the exact amount you received in Wise.</div>` : ''}
           ${isForeign ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin:-4px 0 4px 2px;line-height:1.45">In Finances, your <b style="color:oklch(0.3 0.02 150)">₱ Received</b> counts toward the totals. The <b style="color:oklch(0.3 0.02 150)">$</b> is kept as a record only.</div>` : ''}
           ${isCustomPackage ? `<div class="field"><label>Custom Package Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>` : ''}
           ${isRealEstate ? `
@@ -2905,12 +2905,12 @@
           <div class="field"><label>Script Status</label>
             <select data-bind="draft.scriptStatus">${Object.keys(SCRIPT_STATUS_META).map(v => `<option value="${v}" ${d.scriptStatus === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
           </div>` : ''}
-          ${isRealEstate && !isScriptedShootType ? `<div style="background:oklch(0.92 0.06 150 / 0.4);border-radius:9px;padding:10px 12px;font-size:12.5px;color:oklch(0.4 0.13 150)">📝 Script is provided by the client for this package tier.</div>` : ''}
+          ${isRealEstate && !isScriptedShootType ? `<div style="background:oklch(0.92 0.06 150 / 0.4);border-radius:9px;padding:10px 12px;font-size:12.5px;color:oklch(0.4 0.13 150)">Script is provided by the client for this package tier.</div>` : ''}
           <div class="field"><input type="text" value="${esc(d.notes)}" data-bind="draft.notes" placeholder="Notes (optional)"/></div>
           ${isEdit && !isRealEstate ? `
           <div style="border-top:1px solid var(--border3);margin-top:6px;padding-top:14px">
-            <button type="button" data-action="shoot-create-billing" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:11px;border-radius:10px;border:1.5px solid oklch(0.5 0.13 150);background:oklch(0.95 0.03 150);color:oklch(0.32 0.13 150);font-size:13px;font-weight:700">🧾 Create ${isForeign ? 'Invoice' : 'Statement of Account'} from this shoot</button>
-            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px;text-align:center;line-height:1.45">Kukunin nito ang client at details → sa Documents mo idadagdag ang due date at QR code.</div>
+            <button type="button" data-action="shoot-create-billing" style="all:unset;cursor:pointer;display:block;text-align:center;box-sizing:border-box;width:100%;padding:11px;border-radius:10px;border:1.5px solid oklch(0.5 0.13 150);background:oklch(0.95 0.03 150);color:oklch(0.32 0.13 150);font-size:13px;font-weight:700">Create ${isForeign ? 'Invoice' : 'Statement of Account'} from this shoot</button>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px;text-align:center;line-height:1.45">Pulls in the client and details — add the due date and QR in Documents.</div>
           </div>` : ''}
         </div>
         <div class="modal-actions">
