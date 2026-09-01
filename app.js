@@ -848,7 +848,9 @@
   function shootCollectedInMonth(s, monthKey) {
     const ps = shootPaymentsOf(s);
     if (ps.length) return ps.reduce((sum, p) => sum + (((p.date || '').slice(0, 7) === monthKey) ? (Number(p.amount) || 0) : 0), 0);
-    return ((s.date || '').slice(0, 7) === monthKey) ? (Number(s.paid) || 0) : 0;
+    // No payment log: attribute the plain paid amount to the month it was RECEIVED
+    // (paidDate) if the user set one; otherwise fall back to the shoot date's month.
+    return (((s.paidDate || s.date) || '').slice(0, 7) === monthKey) ? (Number(s.paid) || 0) : 0;
   }
 
   /* ---------------- backup reminder + PWA install ---------------- */
@@ -1297,39 +1299,35 @@
     // day in positive-UTC zones like PH) so bars line up with the stored dates.
     const todayISO = TODAY_STR;
     const localDayStr = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    const weekCounts = WEEK_LABELS.map((label, i) => {
-      const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-      const dStr = localDayStr(d);
-      const dayItems = shoots.filter(s => dashDateOf(s) === dStr);
-      const shootCount = dayItems.filter(s => s.serviceType !== 'edit').length;
-      const editCount = dayItems.filter(s => s.serviceType === 'edit').length;
-      return { day: label, dateStr: dStr, count: dayItems.length, shootCount, editCount, isToday: dStr === todayISO, dayItems };
-    });
-    const maxWeekCount = Math.max(...weekCounts.map(w => w.count), 1);
-    const peakCount = Math.max(...weekCounts.map(w => w.count));
-    const weekEmptyFill = 'repeating-linear-gradient(135deg, oklch(0.91 0.012 150), oklch(0.91 0.012 150) 4px, oklch(0.95 0.008 150) 4px, oklch(0.95 0.008 150) 8px)';
-    const weekBars = weekCounts.map(w => {
-      const totalH = w.count > 0 ? Math.max(24, Math.round((w.count / maxWeekCount) * 130)) : 130;
-      const shootH = w.count > 0 ? Math.round(totalH * (w.shootCount / w.count)) : 0;
-      const editH = w.count > 0 ? totalH - shootH : 0;
-      const parts = [];
-      if (w.shootCount > 0) parts.push(`${w.shootCount} shoot${w.shootCount > 1 ? 's' : ''}`);
-      if (w.editCount > 0) parts.push(`${w.editCount} edit${w.editCount > 1 ? 's' : ''}`);
-      const names = w.dayItems.map(s => `${s.client}${s.serviceType === 'edit' ? ' (edit)' : ''}`).join(', ');
-      return {
-        day: w.day, count: w.count, totalH, shootH, editH, isEmpty: w.count === 0,
-        dateLabel: fmtDate(w.dateStr),
-        tooltip: w.count > 0 ? `${fmtDate(w.dateStr)} — ${parts.join(', ')}: ${names}` : `${fmtDate(w.dateStr)}: Nothing booked`,
-        isPeak: w.count > 0 && w.count === peakCount,
-        emptyFill: weekEmptyFill,
-        shootFill: w.isToday ? 'linear-gradient(180deg, oklch(0.6 0.15 150), oklch(0.45 0.14 150))' : 'oklch(0.55 0.14 150)',
-        editFill: 'oklch(0.78 0.07 150)',
-        labelColor: w.isToday ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)',
-      };
-    });
+    // "This Week" agenda: everything happening this week — shoots on their shoot date,
+    // edits on their deadline (falling back to creation day) — as a dated list, not a chart.
+    const weekStartStr = localDayStr(weekStart);
+    const weekEndStr = localDayStr(weekEnd);
+    const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekAgendaAll = shoots
+      .filter(s => { const dt = dashDateOf(s); return dt && dt >= weekStartStr && dt <= weekEndStr; })
+      .map(s => {
+        const dt = dashDateOf(s);
+        const dd = new Date(dt + 'T00:00:00');
+        const isEditItem = s.serviceType === 'edit';
+        return {
+          d: dt,
+          dayLabel: WEEKDAY_ABBR[dd.getDay()],
+          dayNum: dd.getDate(),
+          client: s.client || 'Untitled',
+          sub: isEditItem ? 'Edit / delivery due' : ((s.location || '').trim() || 'Shoot day'),
+          kindLabel: isEditItem ? 'Edit' : 'Shoot',
+          kindColor: isEditItem ? 'oklch(0.42 0.05 150)' : 'oklch(0.99 0.01 150)',
+          kindBg: isEditItem ? 'oklch(0.9 0.03 150)' : 'oklch(0.5 0.14 150)',
+          isToday: dt === todayISO,
+        };
+      })
+      .sort((a, b) => a.d.localeCompare(b.d));
+    const weekAgenda = weekAgendaAll.slice(0, 6);
+    const weekAgendaMore = Math.max(0, weekAgendaAll.length - weekAgenda.length);
 
     const statCards = [
-      { key: 'thisMonth', label: dashMonthKey === THIS_MONTH_KEY ? 'Shoots This Month' : `Shoots in ${dashMonthLabel}`, value: String(dashMonthShoots.length), sub: dashMonthEdits.length ? `+ ${dashMonthEdits.length} edit${dashMonthEdits.length > 1 ? 's' : ''} ${dashMonthKey === THIS_MONTH_KEY ? 'this month' : dashMonthLabel}` : (dashMonthKey === THIS_MONTH_KEY ? 'Booked for this month' : `Booked for ${dashMonthLabel}`), hero: true },
+      { key: 'thisMonth', hero: true, split: true, label: dashMonthKey === THIS_MONTH_KEY ? 'This Month' : dashMonthLabel, shootsCount: dashMonthShoots.length, editsCount: dashMonthEdits.length },
       { key: 'completed', label: 'Completed', value: String(completed.length), sub: 'Delivered to clients', hero: false },
       { key: 'activeClients', label: 'Active Clients', value: String(activeClients), sub: 'Booked or ongoing', hero: false },
     ];
@@ -1446,7 +1444,7 @@
       selMonthLabel, selMonthRevenue, selMonthExpenses, selMonthNetProfit, selMonthChartMax, selMonthOutstanding,
       topClients, biggestExpenses,
       dashMonthKey, dashMonthLabel, dashMonthlyRevenue, dashMonthExpenses, dashNetProfit,
-      userFirstName, liveDateTimeLabel, weekRangeLabel, weekBars, statCards,
+      userFirstName, liveDateTimeLabel, weekRangeLabel, weekAgenda, weekAgendaMore, statCards,
       chipModalKey, chipModalData, insightCards, chartMax,
     };
   }
@@ -1575,30 +1573,50 @@
         </div>
       </div>
       <div class="card" style="display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
           <div class="card-title" style="margin-bottom:0">This Week</div>
           <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${esc(ctx.weekRangeLabel)}</div>
         </div>
-        <div style="display:flex;gap:14px;margin-bottom:16px;font-size:10.5px;color:oklch(0.5 0.015 150)">
-          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:3px;background:oklch(0.55 0.14 150)"></span>Shoot</span>
-          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:3px;background:oklch(0.78 0.07 150)"></span>Edit</span>
-        </div>
-        <div style="flex:1;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:0 2px">
-          ${ctx.weekBars.map(wb => `
-            <div title="${esc(wb.tooltip)}" style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;height:100%;justify-content:flex-end;position:relative;cursor:default">
-              ${wb.isPeak ? `<div style="position:absolute;top:-4px;transform:translateY(-100%);background:oklch(0.4 0.13 150);color:oklch(1 0 0);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap">${wb.count}</div>` : ''}
-              ${wb.isEmpty
-                ? `<div style="width:24px;height:${wb.totalH}px;border-radius:12px;background:${wb.emptyFill};flex:none"></div>`
-                : `<div style="width:24px;height:${wb.totalH}px;border-radius:12px;overflow:hidden;display:flex;flex-direction:column-reverse;flex:none">${wb.shootH > 0 ? `<div style="height:${wb.shootH}px;background:${wb.shootFill}"></div>` : ''}${wb.editH > 0 ? `<div style="height:${wb.editH}px;background:${wb.editFill}"></div>` : ''}</div>`}
-              <div style="font-size:11px;font-weight:600;color:${wb.labelColor}">${wb.day}</div>
-              <div style="font-size:9px;color:oklch(0.55 0.015 150)">${wb.dateLabel.split(' ')[1] || ''}</div>
+        ${ctx.weekAgenda.length === 0
+          ? `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:oklch(0.55 0.015 150);font-size:12.5px;min-height:120px">Nothing scheduled this week.</div>`
+          : `<div style="display:flex;flex-direction:column;gap:10px">
+          ${ctx.weekAgenda.map((it, i) => `
+            ${i > 0 ? `<div style="height:1px;background:oklch(0 0 0 / 0.05)"></div>` : ''}
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="width:42px;text-align:center;flex:none">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:${it.isToday ? 'oklch(0.45 0.14 150)' : 'oklch(0.5 0.015 150)'}">${it.dayLabel}</div>
+                <div style="font-size:18px;font-weight:700;line-height:1;color:${it.isToday ? 'oklch(0.4 0.13 150)' : 'inherit'}">${it.dayNum}</div>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it.client)}</div>
+                <div style="font-size:11.5px;color:oklch(0.5 0.015 150);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it.sub)}</div>
+              </div>
+              <span style="flex:none;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:${it.kindBg};color:${it.kindColor}">${it.kindLabel}</span>
             </div>`).join('')}
-        </div>
+          ${ctx.weekAgendaMore > 0 ? `<div style="font-size:11px;color:oklch(0.5 0.015 150);text-align:center;margin-top:2px">+ ${ctx.weekAgendaMore} more this week</div>` : ''}
+        </div>`}
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
-      ${ctx.statCards.map(sc => `
+      ${ctx.statCards.map(sc => sc.split ? `
+        <button type="button" data-action="chip-open" data-key="${sc.key}" style="all:unset;cursor:pointer;min-width:0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;background:linear-gradient(160deg, oklch(0.4 0.13 150), oklch(0.3 0.1 150));color:oklch(1 0 0)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:13px;font-weight:600;color:oklch(0.95 0.03 150)">${esc(sc.label)}</div>
+            <div style="width:26px;height:26px;border-radius:50%;background:oklch(1 0 0 / 0.15);display:flex;align-items:center;justify-content:center;font-size:12px;color:oklch(1 0 0);flex:none">↗</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:oklch(0.9 0.04 150)"><span style="width:9px;height:9px;border-radius:3px;background:oklch(0.72 0.13 150)"></span>Shoots</div>
+              <div class="sg" data-count-up="${sc.shootsCount}" style="font-size:24px;font-weight:700;line-height:1">0</div>
+            </div>
+            <div style="height:1px;background:oklch(1 0 0 / 0.12)"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:oklch(0.9 0.04 150)"><span style="width:9px;height:9px;border-radius:3px;background:oklch(0.82 0.06 150)"></span>Edits</div>
+              <div class="sg" data-count-up="${sc.editsCount}" style="font-size:24px;font-weight:700;line-height:1">0</div>
+            </div>
+          </div>
+        </button>` : `
         <button type="button" data-action="chip-open" data-key="${sc.key}" style="all:unset;cursor:pointer;min-width:0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px;${sc.hero
           ? 'background:linear-gradient(160deg, oklch(0.4 0.13 150), oklch(0.3 0.1 150));color:oklch(1 0 0)'
           : 'background:var(--panel);border:1px solid var(--border);color:var(--text)'}">
@@ -2865,6 +2883,12 @@
             <div class="field"><label>Project Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.package))}" data-bind="draft.package" data-fmt="money" placeholder="0"/></div>`}
             <div class="field"><label>${isForeign ? '₱ Received (actual)' : 'Amount Received (₱)'}</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.paid))}" data-bind="draft.paid" data-fmt="money" placeholder="0"/></div>
           </div>
+          ${draftPaidAmount > 0 ? `
+          <div class="field" style="margin-top:2px">
+            <label>Received on</label>
+            <input type="date" value="${esc(d.paidDate || '')}" data-bind="draft.paidDate" max="${TODAY_STR}" style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit"/>
+            <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">When you received this payment — so it counts toward the right month's income. If left blank, the shoot date is used.</div>
+          </div>` : ''}
           ${!isForeign && draftGrandTotal > 0 ? `
           <div style="margin:-2px 0 2px">
             ${draftGrandTotal - draftPaidAmount > 0
@@ -3637,7 +3661,7 @@
         id: null, client: rd.clientName || '', location: '', date: initialDate, deadline: '', time: '09:00',
         status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', serviceType: 'shoot',
         notes: rd.description ? `From quotation: ${rd.description}` : '',
-        packageTier: 'custom', package: String(rd.amount || ''), paid: '', addons: {},
+        packageTier: 'custom', package: String(rd.amount || ''), paid: '', paidDate: TODAY_STR, addons: {},
       },
     });
   }
@@ -3650,7 +3674,7 @@
       shootDateCalYear: calBase.getFullYear(), shootDateCalMonth: calBase.getMonth(),
       shootDeadlineCalYear: calBase.getFullYear(), shootDeadlineCalMonth: calBase.getMonth(),
       draftDateLocked: !!lockDate, shootLocOpen: false,
-      draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', serviceType: 'shoot', currency: 'PHP', notes: '', packageTier: 'basic', package: '', paid: '', addons: {} },
+      draft: { id: null, client: '', location: '', date: initialDate, deadline: '', time: '09:00', status: 'idea', scriptStatus: 'Not Started', shootType: 'Real Estate', serviceType: 'shoot', currency: 'PHP', notes: '', packageTier: 'basic', package: '', paid: '', paidDate: TODAY_STR, addons: {} },
     });
   }
   function openEditShoot(id) {
