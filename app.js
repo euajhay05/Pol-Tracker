@@ -2747,9 +2747,14 @@
       return { ...tp, bg: active ? accent.bg : 'oklch(0.97 0.006 150)', color: active ? accent.color : 'oklch(0.5 0.015 150)', border: active ? accent.color : 'oklch(0 0 0 / 0.08)' };
     });
 
-    const GP_STATUS_LABELS = { idea: 'To Edit', shot: 'Editing', approval: 'For Approval', posted: 'Completed' };
+    // Edit-only projects start straight at editing; Shoot+Edit projects have a shoot to do
+    // first, so they get a pre-shoot stage ("To Shoot", plus Tentative if not yet confirmed).
+    const GP_STATUS_LABELS = isEditOnly
+      ? { idea: 'To Edit', shot: 'Editing', approval: 'For Approval', posted: 'Completed' }
+      : { tentative: 'Tentative', idea: 'To Shoot', shot: 'Editing', approval: 'For Approval', posted: 'Completed' };
+    const GP_STATUS_VALUES = isEditOnly ? ['idea','shot','approval','posted'] : ['tentative','idea','shot','approval','posted'];
     const statusOptions = isGeneral
-      ? STATUS_META.filter(sm => ['idea','shot','approval','posted'].includes(sm.value)).map(sm => ({ ...sm, label: GP_STATUS_LABELS[sm.value] || sm.label }))
+      ? STATUS_META.filter(sm => GP_STATUS_VALUES.includes(sm.value)).map(sm => ({ ...sm, label: GP_STATUS_LABELS[sm.value] || sm.label }))
       : (isEdit ? STATUS_META : STATUS_META.filter(sm => sm.value === 'tentative' || sm.value === 'idea'));
 
     const shootDateDisplayLabel = d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select date';
