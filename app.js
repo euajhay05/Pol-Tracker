@@ -2340,7 +2340,7 @@
         <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase;margin-bottom:3px">Project</div><div style="font-size:12.5px;font-weight:700">${esc(d.description) || '—'}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
-        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;margin-bottom:6px">Prepared By</div><div style="font-weight:700;font-size:13.5px;margin-bottom:2px">Pol Film Productions</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Video Production &amp; Editing Services</div></div>
+        <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;margin-bottom:6px">Prepared By</div><div style="font-weight:700;font-size:13.5px;margin-bottom:2px">John Pol Nuestro</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Video Production &amp; Editing Services</div></div>
         <div><div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;margin-bottom:6px">Prepared For</div><div style="font-weight:700;font-size:13.5px;margin-bottom:2px">${esc(d.clientName) || '[Client Name]'}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150)">${esc(d.clientContact) || 'No contact details provided'}</div></div>
       </div>
       <div style="font-size:12.5px;line-height:1.7;color:oklch(0.35 0.02 150);margin-bottom:20px">${esc(meta.body(d))}</div>
@@ -2512,7 +2512,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid oklch(0 0 0 / 0.08)">
           <div>
             <div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;margin-bottom:6px">Billed By</div>
-            <div style="font-weight:700;font-size:13.5px;margin-bottom:2px">Pol Film Productions</div>
+            <div style="font-weight:700;font-size:13.5px;margin-bottom:2px">John Pol Nuestro</div>
             <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Video Production &amp; Editing Services</div>
           </div>
           <div>
@@ -4633,7 +4633,7 @@
     doc.text(docType === 'quotation' ? 'PREPARED FOR' : 'BILLED TO', col2X, y);
     y += 16;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...INK);
-    doc.text('Pol Film Productions', marginX, y);
+    doc.text('John Pol Nuestro', marginX, y);
     doc.text(sanitizePeso(d.clientName) || '[Client Name]', col2X, y);
     y += 15;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
