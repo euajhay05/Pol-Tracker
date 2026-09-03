@@ -1242,7 +1242,7 @@
     const ftMonthRows = ftMonthIncome.slice().sort((a, b) => b.date.localeCompare(a.date)).map(f => ({ ...f, dateLabel: fmtDate(f.date), amountLabel: fmtMoney(f.amount) }));
     // Shoots relevant to the selected month: dated this month, OR received a
     // payment this month (so a July DP shows in July even if the shoot is in Sept).
-    const monthShoots = shoots.filter(s => (s.date && s.date.slice(0, 7) === financeMonthKey) || shootPaymentsOf(s).some(p => (p.date || '').slice(0, 7) === financeMonthKey));
+    const monthShoots = shoots.filter(s => (s.date && s.date.slice(0, 7) === financeMonthKey) || shootPaymentsOf(s).some(p => (p.date || '').slice(0, 7) === financeMonthKey) || (!shootPaymentsOf(s).length && ((s.paidDate || s.date) || '').slice(0, 7) === financeMonthKey));
     // The subset actually BOOKED in this month — drives the package/remaining cards
     // so those totals aren't double-counted across months.
     const monthShootsDated = monthShoots.filter(s => (s.date || '').slice(0, 7) === financeMonthKey);
@@ -1939,7 +1939,7 @@
       ...ctx.monthShoots.flatMap(s => {
         const ps = shootPaymentsOf(s).filter(p => (p.date || '').slice(0, 7) === ctx.financeMonthKey);
         if (ps.length) return ps.map(p => ({ date: p.date, dateLabel: fmtDate(p.date), source: 'Side Hustle', label: (s.client || 'Shoot') + (p.label ? ' · ' + p.label : ''), amountLabel: fmtMoney(p.amount) }));
-        if (shootPaymentsOf(s).length === 0 && (s.date || '').slice(0, 7) === ctx.financeMonthKey && (Number(s.paid) || 0) > 0) return [{ date: s.date, dateLabel: s.dateLabel, source: 'Side Hustle', label: s.client || 'Shoot', amountLabel: fmtMoney(s.paid) }];
+        if (shootPaymentsOf(s).length === 0 && ((s.paidDate || s.date) || '').slice(0, 7) === ctx.financeMonthKey && (Number(s.paid) || 0) > 0) { const pd = s.paidDate || s.date; return [{ date: pd, dateLabel: fmtDate(pd), source: 'Side Hustle', label: s.client || 'Shoot', amountLabel: fmtMoney(s.paid) }]; }
         return [];
       }),
     ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -3027,7 +3027,7 @@
       state.shoots.forEach(s => {
         const ps = shootPaymentsOf(s).filter(p => (p.date || '').slice(0, 7) === mKey);
         if (ps.length) ps.forEach(p => rowsSH.push({ label: (s.client || 'Untitled') + (p.label ? ' · ' + p.label : ''), sub: fmtDate(p.date), amount: Number(p.amount) || 0 }));
-        else if (shootPaymentsOf(s).length === 0 && (s.date || '').slice(0, 7) === mKey && (Number(s.paid) || 0) > 0) rowsSH.push({ label: s.client || 'Untitled', sub: fmtDate(s.date), amount: Number(s.paid) || 0 });
+        else if (shootPaymentsOf(s).length === 0 && ((s.paidDate || s.date) || '').slice(0, 7) === mKey && (Number(s.paid) || 0) > 0) rowsSH.push({ label: s.client || 'Untitled', sub: fmtDate(s.paidDate || s.date), amount: Number(s.paid) || 0 });
       });
       rows = rowsSH;
     } else if (key === 'package') {
@@ -3046,7 +3046,7 @@
       state.shoots.forEach(s => {
         const ps = shootPaymentsOf(s).filter(p => (p.date || '').slice(0, 7) === mKey);
         if (ps.length) ps.forEach(p => sh.push({ label: (s.client || 'Shoot') + (p.label ? ' · ' + p.label : ''), sub: 'Side Hustle · ' + fmtDate(p.date), amount: Number(p.amount) || 0, date: p.date }));
-        else if (shootPaymentsOf(s).length === 0 && (s.date || '').slice(0, 7) === mKey && (Number(s.paid) || 0) > 0) sh.push({ label: s.client || 'Shoot', sub: 'Side Hustle · ' + fmtDate(s.date), amount: Number(s.paid) || 0, date: s.date });
+        else if (shootPaymentsOf(s).length === 0 && ((s.paidDate || s.date) || '').slice(0, 7) === mKey && (Number(s.paid) || 0) > 0) { const pd = s.paidDate || s.date; sh.push({ label: s.client || 'Shoot', sub: 'Side Hustle · ' + fmtDate(pd), amount: Number(s.paid) || 0, date: pd }); }
       });
       rows = [...ft, ...sh].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     }
@@ -3070,8 +3070,9 @@
 
   function financeExportData(rangeKey) {
     const months = { '1m': 1, '3m': 3, '6m': 6, '1y': 12 }[rangeKey] || 3;
-    const start = new Date(TODAY);
-    start.setMonth(start.getMonth() - months);
+    // Anchor to the 1st of the month N months back so a 29-31 "today" can't overflow
+    // a shorter month (e.g. Feb) and drift the start boundary a few days.
+    const start = new Date(TODAY.getFullYear(), TODAY.getMonth() - months, 1);
     const pad = n => String(n).padStart(2, '0');
     const startStr = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
     const inRange = ds => ds && ds >= startStr && ds <= TODAY_STR;
@@ -3079,7 +3080,7 @@
     const sh = state.shoots.flatMap(s => {
       const ps = shootPaymentsOf(s).filter(p => inRange(p.date));
       if (ps.length) return ps.map(p => ({ date: p.date, type: 'Side Hustle', label: (s.client || 'Shoot') + (p.label ? ' · ' + p.label : ''), amount: Number(p.amount) || 0 }));
-      if (shootPaymentsOf(s).length === 0 && inRange(s.date) && (Number(s.paid) || 0) > 0) return [{ date: s.date, type: 'Side Hustle', label: s.client || 'Shoot', amount: Number(s.paid) || 0 }];
+      if (shootPaymentsOf(s).length === 0 && (Number(s.paid) || 0) > 0) { const pd = s.paidDate || s.date; if (inRange(pd)) return [{ date: pd, type: 'Side Hustle', label: s.client || 'Shoot', amount: Number(s.paid) || 0 }]; }
       return [];
     });
     const rows = [...ft, ...sh].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -4358,8 +4359,10 @@
     const statusCounts = {};
     monthShoots.forEach(s => { const st = normalizeShootStatus(s.status); statusCounts[st] = (statusCounts[st] || 0) + 1; });
     const booked = monthShoots.reduce((a, s) => a + (Number(s.package) || 0), 0);
-    const collected = monthShoots.reduce((a, s) => a + (Number(s.paid) || 0), 0);
-    const outstanding = monthShoots.reduce((a, s) => a + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
+    // Collected = money actually received IN this month (by payment date / paidDate),
+    // so the report agrees with the Dashboard and Finances instead of the shoot-date total.
+    const collected = state.shoots.reduce((a, s) => a + shootCollectedInMonth(s, monthKey), 0);
+    const outstanding = monthShoots.filter(s => s.status !== 'tentative').reduce((a, s) => a + Math.max((Number(s.package) || 0) - shootPaidTotal(s), 0), 0);
     const expenses = state.expenses.filter(e => e.date && e.date.slice(0, 7) === monthKey).reduce((a, e) => a + (Number(e.amount) || 0), 0);
     const net = collected - expenses;
 
@@ -5177,7 +5180,7 @@
               // First time logging on a shoot that already had a plain "Amount Received":
               // migrate that legacy total into a dated entry so no money is lost.
               if (payments.length === 0 && (Number(sh.paid) || 0) > 0) {
-                payments.push({ id: 'sp' + Date.now() + 'm', amount: Number(sh.paid) || 0, date: sh.date || payDate, label: 'Earlier payment' });
+                payments.push({ id: 'sp' + Date.now() + 'm', amount: Number(sh.paid) || 0, date: sh.paidDate || sh.date || payDate, label: 'Earlier payment' });
               }
               payments.push({ id: 'sp' + Date.now(), amount: amt, date: payDate, label: payLabel });
               const paid = payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
