@@ -4339,6 +4339,17 @@
 
   // One-click "boss-ready" PDF: a full summary of the current month —
   // shoots by status, revenue (booked vs collected), outstanding, expenses, and net.
+  // Status label that matches what the board shows for each project kind: Real Estate uses
+  // the base labels; General Project Shoot+Edit uses To Shoot/Editing/…, Edit-only uses To Edit/….
+  function shootStatusLabel(s) {
+    const st = normalizeShootStatus(s.status);
+    const isGeneral = normalizeShootType(s.shootType) !== 'Real Estate';
+    if (!isGeneral) return statusMeta(st).label;
+    const map = (s.serviceType === 'edit')
+      ? { idea: 'To Edit', shot: 'Editing', approval: 'For Approval', posted: 'Completed' }
+      : { tentative: 'Tentative', idea: 'To Shoot', shot: 'Editing', approval: 'For Approval', posted: 'Completed' };
+    return map[st] || statusMeta(st).label;
+  }
   function generateMonthlyReportPdf() {
     const jspdf = window.jspdf;
     if (!jspdf || !jspdf.jsPDF) { window.print(); return; }
@@ -4357,7 +4368,7 @@
     const monthLabel = new Date(monthKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const monthShoots = state.shoots.filter(s => s.date && s.date.slice(0, 7) === monthKey);
     const statusCounts = {};
-    monthShoots.forEach(s => { const st = normalizeShootStatus(s.status); statusCounts[st] = (statusCounts[st] || 0) + 1; });
+    monthShoots.forEach(s => { const lbl = shootStatusLabel(s); statusCounts[lbl] = (statusCounts[lbl] || 0) + 1; });
     const booked = monthShoots.reduce((a, s) => a + (Number(s.package) || 0), 0);
     // Collected = money actually received IN this month (by payment date / paidDate),
     // so the report agrees with the Dashboard and Finances instead of the shoot-date total.
@@ -4408,7 +4419,9 @@
       doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
       doc.text('No dated shoots this month.', marginX, y); y += 16;
     } else {
-      STATUS_META.forEach(sm => { if (statusCounts[sm.value]) kv(sm.label, String(statusCounts[sm.value])); });
+      const STATUS_LABEL_ORDER = ['Tentative', 'Booked', 'To Shoot', 'To Edit', 'Resched', 'Editing', 'For Approval', 'Completed'];
+      STATUS_LABEL_ORDER.forEach(lbl => { if (statusCounts[lbl]) kv(lbl, String(statusCounts[lbl])); });
+      Object.keys(statusCounts).forEach(lbl => { if (STATUS_LABEL_ORDER.indexOf(lbl) < 0) kv(lbl, String(statusCounts[lbl])); });
     }
     y += 12;
 
@@ -4431,7 +4444,7 @@
         const name = String(s.client || 'Untitled');
         doc.text(name.length > 30 ? name.slice(0, 29) + '…' : name, cName, y);
         doc.setFontSize(9); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-        doc.text(statusMeta(s.status).label, cStatus, y);
+        doc.text(shootStatusLabel(s), cStatus, y);
         doc.setFontSize(10); doc.setTextColor(INK[0], INK[1], INK[2]);
         doc.text(money(s.package || 0), cPkg, y, { align: 'right' });
         doc.text(money(s.paid || 0), cPaid, y, { align: 'right' });
