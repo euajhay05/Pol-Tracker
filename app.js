@@ -589,6 +589,8 @@
       expensesListOpen: true,
       loanModal: null,
       loanDraft: null,
+      loanStartPickerOpen: false,
+      loanStartCalYear: TODAY.getFullYear(),
       loanPaymentModal: null,
       loanPaymentDraft: null,
       shootPaymentModal: null,
@@ -3320,6 +3322,9 @@
       const _sd = new Date(d.startMonth + '-01T00:00:00');
       loanEndLabel = new Date(_sd.getFullYear(), _sd.getMonth() + loanTermNum - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     }
+    const loanStartLabel = d.startMonth ? new Date(d.startMonth + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Select month';
+    const loanStartYear = state.loanStartCalYear || (d.startMonth ? Number(d.startMonth.slice(0, 4)) : TODAY.getFullYear());
+    const LOAN_MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="loan">
       <form class="modal-box" style="width:420px" data-stop data-action="save-loan">
@@ -3332,7 +3337,20 @@
           </div>
           <div class="row-2">
             <div class="field"><label>Term (months)</label><input type="number" min="1" value="${esc(d.termMonths)}" data-bind="loanDraft.termMonths" placeholder="e.g. 60"/></div>
-            <div class="field"><label>First due (start)</label><input type="month" value="${esc(d.startMonth || '')}" data-bind="loanDraft.startMonth" style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit"/></div>
+            <div class="field" style="position:relative"><label>First due (start)</label>
+              <button type="button" data-action="loan-start-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between"><span>${loanStartLabel}</span></button>
+              ${state.loanStartPickerOpen ? `
+              <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:240px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                  <button type="button" data-action="loan-start-year-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+                  <div class="sg" style="font-weight:700;font-size:15px">${loanStartYear}</div>
+                  <button type="button" data-action="loan-start-year-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+                  ${LOAN_MONTH_ABBR.map((m, i) => { const mk = loanStartYear + '-' + String(i + 1).padStart(2, '0'); const sel = d.startMonth === mk; return `<div data-action="loan-start-pick" data-month="${mk}" style="text-align:center;padding:9px 0;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:600;background:${sel ? 'oklch(0.45 0.14 150)' : 'var(--card2)'};color:${sel ? 'oklch(1 0 0)' : 'oklch(0.3 0.02 150)'}">${m}</div>`; }).join('')}
+                </div>
+              </div>` : ''}
+            </div>
           </div>
           <div class="field"><label>Balance left (₱), optional</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.remainingBalance))}" data-bind="loanDraft.remainingBalance" data-fmt="money" placeholder="Leave blank if nothing paid yet"/></div>
           ${(loanMonthlyNum > 0 && loanTermNum > 0) ? `<div style="background:oklch(0.5 0.13 150 / 0.08);border:1px solid oklch(0.5 0.13 150 / 0.2);border-radius:10px;padding:12px 14px"><div style="font-size:11px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:4px">Auto computed</div><div style="font-size:14px"><b>Total loan: ${fmtMoney(loanMonthlyNum * loanTermNum)}</b> <span style="color:oklch(0.5 0.015 150)">(${formatMoneyLiveDisplay(String(d.monthlyDue))} &times; ${loanTermNum})</span></div>${loanEndLabel ? `<div style="font-size:12.5px;color:oklch(0.5 0.015 150);margin-top:2px">Ends ~${loanEndLabel}</div>` : ''}</div>` : ''}
@@ -3731,7 +3749,7 @@
     // Older records may only have a one-time dueDate rather than a recurring dueDay —
     // derive dueDay from it so the edit form still pre-fills correctly.
     const dueDay = l.dueDay || (l.dueDate ? new Date(l.dueDate + 'T00:00:00').getDate() : '');
-    setState({ loanModal: { mode: 'edit', id }, loanDraft: { ...l, dueDay } });
+    setState({ loanModal: { mode: 'edit', id }, loanStartPickerOpen: false, loanDraft: { ...l, dueDay } });
   }
   function openEditGoal(id) {
     const g = state.goals.find(x => x.id === id);
@@ -3830,6 +3848,10 @@
       case 'shoot-addon-toggle': setState(s => ({ draft: { ...s.draft, addons: { ...s.draft.addons, [el.dataset.key]: ((s.draft.addons && s.draft.addons[el.dataset.key]) || 0) > 0 ? 0 : 1 } } })); break;
       case 'shoot-milestone-pick': setState(s => ({ draft: { ...s.draft, paid: Number(el.dataset.amount) || 0 } })); break;
       case 'date-picker-toggle': setState(s => ({ shootDatePickerOpen: !s.shootDatePickerOpen, timePickerOpen: false })); break;
+      case 'loan-start-toggle': setState(s => ({ loanStartPickerOpen: !s.loanStartPickerOpen, loanStartCalYear: (s.loanDraft && s.loanDraft.startMonth) ? Number(s.loanDraft.startMonth.slice(0, 4)) : TODAY.getFullYear() })); break;
+      case 'loan-start-year-prev': setState(s => ({ loanStartCalYear: (s.loanStartCalYear || TODAY.getFullYear()) - 1 })); break;
+      case 'loan-start-year-next': setState(s => ({ loanStartCalYear: (s.loanStartCalYear || TODAY.getFullYear()) + 1 })); break;
+      case 'loan-start-pick': setState(s => ({ loanDraft: { ...s.loanDraft, startMonth: el.dataset.month }, loanStartPickerOpen: false })); break;
       case 'shoot-date-unlock': setState({ draftDateLocked: false }); break;
       case 'time-picker-toggle': setState(s => ({ timePickerOpen: !s.timePickerOpen, shootDatePickerOpen: false })); break;
       case 'shoot-date-cal-prev': setState(s => { let m = s.shootDateCalMonth - 1, y = s.shootDateCalYear; if (m < 0) { m = 11; y--; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
@@ -4057,7 +4079,7 @@
         break;
       }
 
-      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', termMonths: '', startMonth: THIS_MONTH_KEY, remainingBalance: '', dueDay: '', endDate: '', status: 'ongoing' } }); break;
+      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanStartPickerOpen: false, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', termMonths: '', startMonth: THIS_MONTH_KEY, remainingBalance: '', dueDay: '', endDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
       case 'loan-delete':
         if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
@@ -4313,7 +4335,7 @@
   function closeModalOf(which) {
     if (which === 'shoot') setState({ modal: null, draft: null, shootConfirmCloseOpen: false });
     else if (which === 'telegram') setState({ telegramModalOpen: false });
-    else if (which === 'loan') setState({ loanModal: null, loanDraft: null });
+    else if (which === 'loan') setState({ loanModal: null, loanDraft: null, loanStartPickerOpen: false });
     else if (which === 'loanpayment') setState({ loanPaymentModal: null, loanPaymentDraft: null });
     else if (which === 'shootpayment') setState({ shootPaymentModal: null, shootPaymentDraft: null });
     else if (which === 'goal') setState({ goalModal: null, goalDraft: null });
@@ -5045,6 +5067,10 @@
         return;
       }
       applyBind(bind, el.value);
+      // Number inputs don't support setSelectionRange, so a mid-typing re-render drops the
+      // caret to the start and reverses digits (36 becomes 63). Store the value only; the
+      // view refreshes on blur via the change handler below.
+      if (el.type === 'number') return;
       render();
     });
 
