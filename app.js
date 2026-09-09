@@ -3340,7 +3340,7 @@
             <div class="field" style="position:relative"><label>First due (start)</label>
               <button type="button" data-action="loan-start-toggle" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between"><span>${loanStartLabel}</span></button>
               ${state.loanStartPickerOpen ? `
-              <div data-picker-popover style="position:absolute;left:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:240px">
+              <div data-picker-popover style="position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:240px;max-width:min(280px,86vw)">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                   <button type="button" data-action="loan-start-year-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
                   <div class="sg" style="font-weight:700;font-size:15px">${loanStartYear}</div>
