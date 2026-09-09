@@ -1079,7 +1079,12 @@
       let monthsLeft = null;
       if (!isPaid) {
         if (l.termMonths && monthlyDueNum > 0 && remainingNum > 0) {
-          monthsLeft = Math.ceil(remainingNum / monthlyDueNum);
+          // Count how many monthly dues are already settled against the fixed term, instead of
+          // ceil-dividing the leftover balance. A balance that is a few pesos off a clean multiple
+          // (e.g. 18,334 vs 5 x 3,666 = 18,330) used to round UP a whole extra month.
+          const paidSoFar = Math.max(0, (Number(l.amount) || 0) - remainingNum);
+          const paymentsMade = Math.round(paidSoFar / monthlyDueNum);
+          monthsLeft = Math.max(1, Number(l.termMonths) - paymentsMade);
         } else if (l.endDate && nextDue) {
           const _end = new Date(l.endDate + 'T00:00:00');
           const _next = new Date(nextDue + 'T00:00:00');
