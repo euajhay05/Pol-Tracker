@@ -331,6 +331,44 @@
     return cells;
   }
 
+  // Generic day-grid date picker, matching the shoot date picker chrome. Replaces the old
+  // native <input type="date"> fields so every date field across the app looks the same.
+  // opts: { align: 'left'|'right', future: bool (true = allow future dates), placeholder }
+  function dpField(label, bind, value, opts) {
+    opts = opts || {};
+    const align = opts.align === 'right' ? 'right:0' : 'left:0';
+    const disableFuture = !opts.future;
+    const open = state.dpKey === bind;
+    const dispLabel = value
+      ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+      : (opts.placeholder || 'Select date');
+    const y = (state.dpYear != null ? state.dpYear : TODAY.getFullYear());
+    const m = (state.dpMonth != null ? state.dpMonth : TODAY.getMonth());
+    const monLabel = new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const cells = buildCalendarCells(y, m, [], value, disableFuture);
+    return `<div class="field" style="position:relative"><label>${label}</label>
+      <button type="button" data-action="dp-toggle" data-bind="${bind}" data-value="${esc(value || '')}" style="all:unset;cursor:pointer;width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:${value ? 'inherit' : 'oklch(0.6 0.01 150)'};font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:space-between"><span>${dispLabel}</span><span style="font-size:13px;opacity:0.5">\u{1F4C5}</span></button>
+      ${open ? `
+      <div data-picker-popover style="position:absolute;${align};top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:16px;box-shadow:0 12px 28px oklch(0 0 0 / 0.14);z-index:80;min-width:260px;max-width:min(300px,86vw)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="sg" style="font-weight:700;font-size:15px">${monLabel}</div>
+          <div style="display:flex;gap:6px">
+            <button type="button" data-action="dp-prev" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">‹</button>
+            <button type="button" data-action="dp-next" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:7px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px">›</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+          ${WEEKDAY_LABELS.map(w => `<div style="text-align:center;font-size:10.5px;font-weight:700;color:oklch(0.55 0.015 150)">${w}</div>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+          ${cells.map(c => c.blank ? `<div></div>` : (c.disabled
+            ? `<div style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:${c.textColor};opacity:0.4">${c.dayNum}</div>`
+            : `<div data-action="dp-pick" data-bind="${bind}" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`)).join('')}
+        </div>
+      </div>` : ''}
+    </div>`;
+  }
+
   function buildExpenseCalendarCells(year, month, expenses, selectedDate) {
     const firstDay = new Date(year, month, 1);
     const startWeekday = firstDay.getDay();
@@ -571,6 +609,9 @@
       timePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(),
       shootDateCalMonth: TODAY.getMonth(),
+      dpKey: null,
+      dpYear: TODAY.getFullYear(),
+      dpMonth: TODAY.getMonth(),
       shootDeadlinePickerOpen: false,
       shootDeadlineCalYear: TODAY.getFullYear(),
       shootDeadlineCalMonth: TODAY.getMonth(),
@@ -2901,9 +2942,8 @@
             <div class="field"><label>${isForeign ? '₱ Received (actual)' : 'Amount Received (₱)'}</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.paid))}" data-bind="draft.paid" data-fmt="money" placeholder="0"/></div>
           </div>
           ${draftPaidAmount > 0 ? `
-          <div class="field" style="margin-top:2px">
-            <label>Received on</label>
-            <input type="date" value="${esc(d.paidDate || '')}" data-bind="draft.paidDate" max="${TODAY_STR}" style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit"/>
+          <div style="margin-top:2px">
+            ${dpField('Received on', 'draft.paidDate', d.paidDate || '', { align: 'left', placeholder: 'Same as shoot date' })}
             <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:4px">When you received this payment — so it counts toward the right month's income. If left blank, the shoot date is used.</div>
           </div>` : ''}
           ${!isForeign && draftGrandTotal > 0 ? `
@@ -3230,7 +3270,7 @@
             ${quick.map(q => `<button type="button" data-action="shoot-payment-quick" data-amount="${q.amount}" data-label="${esc(q.label)}" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">${esc(q.label)} (${fmtMoney(q.amount)})</button>`).join('')}
             ${remaining > 0 ? `<button type="button" data-action="shoot-payment-quick" data-amount="${remaining}" data-label="Payment" style="all:unset;cursor:pointer;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--card2);color:oklch(0.35 0.02 150)">Pay remaining (${fmtMoney(remaining)})</button>` : ''}
           </div>
-          <div class="field"><label>Date paid</label><input type="date" value="${esc(d.date || TODAY_STR)}" max="${TODAY_STR}" data-bind="shootPaymentDraft.date"/></div>
+          ${dpField('Date paid', 'shootPaymentDraft.date', d.date || TODAY_STR, { align: 'left' })}
           <div style="font-size:12.5px;color:oklch(0.45 0.015 150)">New remaining: <strong>${fmtMoney(previewRemaining)}</strong>${previewRemaining === 0 && amt > 0 ? ' — Paid up ✓' : ''}</div>
           ${history.length > 0 ? `
           <div style="border-top:1px solid var(--border2);padding-top:12px">
@@ -3262,7 +3302,7 @@
           <div class="field"><label>What did you spend on?</label><input type="text" value="${esc(d.description)}" data-bind="expenseDraft.description" placeholder="e.g. Grab to BGC shoot" required/></div>
           <div class="row-2">
             <div class="field"><label>Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="expenseDraft.amount" data-fmt="money" placeholder="0" required/></div>
-            <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" max="${TODAY_STR}" data-bind="expenseDraft.date"/></div>
+            ${dpField('Date', 'expenseDraft.date', d.date || '', { align: 'right' })}
           </div>
           <button type="submit" class="btn-primary" style="text-align:center;margin-top:4px">Add Expense</button>
         </form>
@@ -3446,7 +3486,7 @@
         <div class="modal-fields">
           <div class="field"><label>Item Name</label><input type="text" value="${esc(d.name)}" data-bind="gearDraft.name" placeholder="e.g. A7V with 35 GM" required/></div>
           <div class="row-2">
-            <div class="field"><label>Date of Purchase</label><input type="date" value="${esc(d.date)}" data-bind="gearDraft.date"/></div>
+            ${dpField('Date of Purchase', 'gearDraft.date', d.date || '', { align: 'left', future: true })}
             <div class="field"><label>Cost (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.cost))}" data-bind="gearDraft.cost" data-fmt="money" placeholder="0"/></div>
           </div>
           <div class="field"><label>Status</label>
@@ -3460,7 +3500,7 @@
             <div class="field"><label>Sold As / Note</label><input type="text" value="${esc(d.soldName)}" data-bind="gearDraft.soldName" placeholder="e.g. Gimbal RS4 18K"/></div>
             <div class="row-2">
               <div class="field"><label>Sold For (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.soldFor))}" data-bind="gearDraft.soldFor" data-fmt="money" placeholder="0"/></div>
-              <div class="field"><label>Date Sold</label><input type="date" value="${esc(d.soldDate)}" data-bind="gearDraft.soldDate"/></div>
+              ${dpField('Date Sold', 'gearDraft.soldDate', d.soldDate || '', { align: 'right', future: true })}
             </div>
             <div style="font-size:11.5px;color:oklch(0.5 0.015 150)">Money from the sale is subtracted from the amount you need to recover.</div>
           </div>` : ''}
@@ -3576,7 +3616,7 @@
             <div class="field"><label>Lead Status</label>
               <select data-bind="clientDraft.leadStatus">${LEAD_STATUSES.map(v => `<option value="${v}" ${d.leadStatus === v ? 'selected' : ''}>${leadStatusLabel(v)}</option>`).join('')}</select>
             </div>
-            <div class="field"><label>Follow-up Date</label><input type="date" value="${esc(d.followUpDate)}" data-bind="clientDraft.followUpDate"/></div>
+            ${dpField('Follow-up Date', 'clientDraft.followUpDate', d.followUpDate || '', { align: 'right', future: true })}
           </div>
           <div class="field"><label>Notes</label><input type="text" value="${esc(d.notes)}" data-bind="clientDraft.notes" placeholder="Optional notes"/></div>
         </div>
@@ -3857,6 +3897,10 @@
       case 'shoot-date-cal-prev': setState(s => { let m = s.shootDateCalMonth - 1, y = s.shootDateCalYear; if (m < 0) { m = 11; y--; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
       case 'shoot-date-cal-next': setState(s => { let m = s.shootDateCalMonth + 1, y = s.shootDateCalYear; if (m > 11) { m = 0; y++; } return { shootDateCalMonth: m, shootDateCalYear: y }; }); break;
       case 'date-picker-pick': setState(s => ({ draft: { ...s.draft, date: el.dataset.date }, shootDatePickerOpen: false })); break;
+      case 'dp-toggle': { const bind = el.dataset.bind; const val = el.dataset.value; const base = val ? new Date(val + 'T00:00:00') : TODAY; setState(s => ({ dpKey: s.dpKey === bind ? null : bind, dpYear: base.getFullYear(), dpMonth: base.getMonth() })); break; }
+      case 'dp-prev': setState(s => { let m = s.dpMonth - 1, y = s.dpYear; if (m < 0) { m = 11; y--; } return { dpMonth: m, dpYear: y }; }); break;
+      case 'dp-next': setState(s => { let m = s.dpMonth + 1, y = s.dpYear; if (m > 11) { m = 0; y++; } return { dpMonth: m, dpYear: y }; }); break;
+      case 'dp-pick': { const parts = el.dataset.bind.split('.'); const obj = parts[0], key = parts[1]; const date = el.dataset.date; setState(s => ({ [obj]: { ...s[obj], [key]: date }, dpKey: null })); break; }
       case 'deadline-picker-toggle': setState(s => ({ shootDeadlinePickerOpen: !s.shootDeadlinePickerOpen, shootDatePickerOpen: false, timePickerOpen: false })); break;
       case 'shoot-deadline-cal-prev': setState(s => { let m = s.shootDeadlineCalMonth - 1, y = s.shootDeadlineCalYear; if (m < 0) { m = 11; y--; } return { shootDeadlineCalMonth: m, shootDeadlineCalYear: y }; }); break;
       case 'shoot-deadline-cal-next': setState(s => { let m = s.shootDeadlineCalMonth + 1, y = s.shootDeadlineCalYear; if (m > 11) { m = 0; y++; } return { shootDeadlineCalMonth: m, shootDeadlineCalYear: y }; }); break;
@@ -4333,6 +4377,7 @@
   }
 
   function closeModalOf(which) {
+    if (state.dpKey) setState({ dpKey: null });
     if (which === 'shoot') setState({ modal: null, draft: null, shootConfirmCloseOpen: false });
     else if (which === 'telegram') setState({ telegramModalOpen: false });
     else if (which === 'loan') setState({ loanModal: null, loanDraft: null, loanStartPickerOpen: false });
@@ -4949,10 +4994,10 @@
 
     app.addEventListener('click', (e) => {
       const actionEl = e.target.closest('[data-action]');
-      if ((state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) && !e.target.closest('[data-picker-popover]')) {
+      if ((state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen || state.loanStartPickerOpen || state.dpKey) && !e.target.closest('[data-picker-popover]')) {
         const action = actionEl ? actionEl.dataset.action : null;
-        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle' && action !== 'ftdraft-date-toggle') {
-          setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
+        if (action !== 'date-picker-toggle' && action !== 'time-picker-toggle' && action !== 'deadline-picker-toggle' && action !== 'doc-date-toggle' && action !== 'doc-due-toggle' && action !== 'ftdraft-date-toggle' && action !== 'loan-start-toggle' && action !== 'dp-toggle') {
+          setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false, loanStartPickerOpen: false, dpKey: null });
         }
       }
       if (!actionEl) return;
@@ -5114,9 +5159,9 @@
       if (state.shootConfirmCloseOpen) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: false });
-      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen) {
+      } else if (state.shootDatePickerOpen || state.timePickerOpen || state.shootDeadlinePickerOpen || state.docDatePickerOpen || state.docDuePickerOpen || state.ftDraftDatePickerOpen || state.loanStartPickerOpen || state.dpKey) {
         e.preventDefault(); e.stopPropagation();
-        setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false });
+        setState({ shootDatePickerOpen: false, timePickerOpen: false, shootDeadlinePickerOpen: false, docDatePickerOpen: false, docDuePickerOpen: false, ftDraftDatePickerOpen: false, loanStartPickerOpen: false, dpKey: null });
       } else if (state.modal) {
         e.preventDefault(); e.stopPropagation();
         setState({ shootConfirmCloseOpen: true });
