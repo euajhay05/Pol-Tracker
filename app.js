@@ -1017,6 +1017,11 @@
       // or today is past its payoff / end date (matatapos na).
       const pastEnd = l.endDate ? (TODAY_STR > l.endDate) : false;
       const isPaid = l.status === 'paid' || (Number(l.remainingBalance) || 0) <= 0 || pastEnd;
+      // Upcoming: payments have not started yet (first due month is still in the future),
+      // so the loan should read as "not started", never as behind/overdue.
+      const startKey = l.startMonth || null;
+      const isUpcoming = !isPaid && !!startKey && startKey > THIS_MONTH_KEY;
+      const startLabel = startKey ? new Date(startKey + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
       // dueDay (1-31) is the recurring monthly due day (e.g. "every 23rd"); older records may
       // only have a one-time dueDate, so fall back to that date's day-of-month for compatibility.
       const dueDay = l.dueDay ? Number(l.dueDay) : (l.dueDate ? new Date(l.dueDate + 'T00:00:00').getDate() : null);
@@ -1030,7 +1035,9 @@
       // month instead of guessing from balance. Otherwise fall back to balance / monthly due.
       let monthsLeft = null;
       if (!isPaid) {
-        if (l.endDate && nextDue) {
+        if (l.termMonths && monthlyDueNum > 0 && remainingNum > 0) {
+          monthsLeft = Math.ceil(remainingNum / monthlyDueNum);
+        } else if (l.endDate && nextDue) {
           const _end = new Date(l.endDate + 'T00:00:00');
           const _next = new Date(nextDue + 'T00:00:00');
           monthsLeft = Math.max(0, (_end.getFullYear() - _next.getFullYear()) * 12 + (_end.getMonth() - _next.getMonth()) + 1);
@@ -1042,16 +1049,19 @@
       // based on any logged payment dated within the current calendar month (resets each month).
       const hasMonthlyDue = !!(dueDay && monthlyDueNum > 0);
       const paidThisMonth = (l.paymentHistory || []).some(h => (h.date || '').slice(0, 7) === THIS_MONTH_KEY);
-      const showMonthPay = !isPaid && hasMonthlyDue;
+      const nearDue = dueDays !== null && dueDays <= 7;
+      const showMonthPay = !isPaid && !isUpcoming && hasMonthlyDue;
       return {
         ...l, paidPercent, dueDay, dueDays,
-        showMonthPay, paidThisMonth,
-        monthPayLabel: paidThisMonth ? 'Paid this month ✓' : 'Not paid yet this month',
-        monthPayColor: paidThisMonth ? 'oklch(0.42 0.14 150)' : 'oklch(0.5 0.17 55)',
-        monthPayBg: paidThisMonth ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.82 0.15 65 / 0.18)',
-        statusLabel: isPaid ? 'Paid Off' : 'Ongoing',
-        statusColor: isPaid ? 'oklch(0.5 0.15 150)' : 'oklch(0.58 0.16 80)',
-        statusBg: isPaid ? 'oklch(0.75 0.15 160 / 0.16)' : 'oklch(0.78 0.14 80 / 0.16)',
+        showMonthPay, paidThisMonth, isUpcoming,
+        startBadgeLabel: startLabel ? `Starts ${startLabel}` : 'Not started yet',
+        monthPayShowDue: !paidThisMonth && nearDue,
+        monthPayLabel: paidThisMonth ? 'Paid this month ✓' : (nearDue ? 'Not paid yet' : (dueDays !== null ? `Due in ${dueDays}d` : 'Not paid yet this month')),
+        monthPayColor: paidThisMonth ? 'oklch(0.42 0.14 150)' : (nearDue ? 'oklch(0.5 0.17 55)' : 'oklch(0.45 0.015 150)'),
+        monthPayBg: paidThisMonth ? 'oklch(0.75 0.15 160 / 0.16)' : (nearDue ? 'oklch(0.82 0.15 65 / 0.18)' : 'oklch(0.9 0.02 150)'),
+        statusLabel: isPaid ? 'Paid Off' : (isUpcoming ? 'Upcoming' : 'Ongoing'),
+        statusColor: isPaid ? 'oklch(0.5 0.15 150)' : (isUpcoming ? 'oklch(0.48 0.14 245)' : 'oklch(0.58 0.16 80)'),
+        statusBg: isPaid ? 'oklch(0.75 0.15 160 / 0.16)' : (isUpcoming ? 'oklch(0.68 0.11 245 / 0.16)' : 'oklch(0.78 0.14 80 / 0.16)'),
         amountLabel: fmtMoney(l.amount), remainingLabel: fmtMoney(l.remainingBalance), monthlyDueLabel: fmtMoney(l.monthlyDue),
         dueLabel: dueDay ? `Due every ${ordinal(dueDay)} of the month` : 'No active due date',
         showDueBadge: !!dueBadge, dueBadgeLabel: dueBadge ? dueBadge.label : '', dueBadgeColor: dueBadge ? dueBadge.color : '',
@@ -1061,7 +1071,7 @@
     // Loans whose next monthly payment is due within a week (or already overdue) —
     // surfaced on the dashboard so a payment is less likely to be missed.
     const loansDueSoon = loanCards
-      .filter(l => l.showDueBadge && l.dueDays !== null && l.dueDays <= 7 && !l.paidThisMonth)
+      .filter(l => l.showDueBadge && l.dueDays !== null && l.dueDays <= 7 && !l.paidThisMonth && !l.isUpcoming)
       .sort((a, b) => a.dueDays - b.dueDays);
 
     // Backup reminder state (device-local last-backup date).
@@ -2198,12 +2208,12 @@
             <div style="height:100%;width:${l.paidPercent}%;background:linear-gradient(90deg, oklch(0.5 0.13 165), oklch(0.42 0.12 155));border-radius:5px"></div>
           </div>
           ${l.monthsLeftLabel ? `<div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:${l.showMonthPay ? '10px' : '18px'}">${l.monthsLeftLabel}</div>` : `<div style="margin-bottom:${l.showMonthPay ? '4px' : '18px'}"></div>`}
-          ${l.showMonthPay ? `<div style="margin-bottom:16px"><span style="display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:20px;background:${l.monthPayBg};color:${l.monthPayColor}">${l.monthPayLabel}${!l.paidThisMonth && l.showDueBadge ? ` · ${l.dueBadgeLabel}` : ''}</span></div>` : ''}
+          ${l.isUpcoming ? `<div style="margin-bottom:16px"><span style="display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:20px;background:oklch(0.68 0.11 245 / 0.16);color:oklch(0.45 0.14 245)">${esc(l.startBadgeLabel)}</span></div>` : (l.showMonthPay ? `<div style="margin-bottom:16px"><span style="display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:20px;background:${l.monthPayBg};color:${l.monthPayColor}">${l.monthPayLabel}${l.monthPayShowDue && l.showDueBadge ? ` · ${l.dueBadgeLabel}` : ''}</span></div>` : '')}
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div style="font-size:13.5px;color:oklch(0.45 0.015 150)">Monthly due: <span style="color:oklch(0.2 0.02 150);font-weight:700">${l.monthlyDueLabel}</span></div>
             ${l.showDueBadge ? `<div style="font-size:12px;font-weight:700;color:${l.dueBadgeColor}">${l.dueBadgeLabel}</div>` : ''}
           </div>
-          ${l.remainingBalance > 0 ? `<button type="button" data-action="loan-payment-open" data-id="${esc(l.id)}" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:14px;padding:8px;border-radius:8px;background:oklch(0.92 0.06 150);color:oklch(0.45 0.14 150);font-size:12.5px;font-weight:700">Log Payment</button>` : ''}
+          ${l.isUpcoming ? `<div style="text-align:center;margin-top:14px;padding:8px;border-radius:8px;background:oklch(0.95 0.01 150);color:oklch(0.5 0.015 150);font-size:12.5px;font-weight:600">Not started yet</div>` : (l.remainingBalance > 0 ? `<button type="button" data-action="loan-payment-open" data-id="${esc(l.id)}" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:14px;padding:8px;border-radius:8px;background:oklch(0.92 0.06 150);color:oklch(0.45 0.14 150);font-size:12.5px;font-weight:700">Log Payment</button>` : '')}
         </div>`).join('')}
     </div>`;
   }
@@ -3303,6 +3313,13 @@
     if (!state.loanModal) return '';
     const d = state.loanDraft;
     const isEdit = state.loanModal.mode === 'edit';
+    const loanTermNum = Number(d.termMonths) || 0;
+    const loanMonthlyNum = Number(d.monthlyDue) || 0;
+    let loanEndLabel = '';
+    if (loanTermNum > 0 && d.startMonth) {
+      const _sd = new Date(d.startMonth + '-01T00:00:00');
+      loanEndLabel = new Date(_sd.getFullYear(), _sd.getMonth() + loanTermNum - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="loan">
       <form class="modal-box" style="width:420px" data-stop data-action="save-loan">
@@ -3310,14 +3327,15 @@
         <div class="modal-fields">
           <div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan" required/></div>
           <div class="row-2">
-            <div class="field"><label>Loan Amount (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.amount))}" data-bind="loanDraft.amount" data-fmt="money" required/></div>
-            <div class="field"><label>Remaining Balance (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.remainingBalance))}" data-bind="loanDraft.remainingBalance" data-fmt="money"/></div>
-          </div>
-          <div class="row-2">
-            <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.monthlyDue))}" data-bind="loanDraft.monthlyDue" data-fmt="money"/></div>
+            <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.monthlyDue))}" data-bind="loanDraft.monthlyDue" data-fmt="money" required/></div>
             <div class="field"><label>Due Day of Month</label><input type="number" min="1" max="31" value="${esc(d.dueDay)}" data-bind="loanDraft.dueDay" placeholder="e.g. 23"/></div>
           </div>
-          <div class="field"><label>Payoff / End Date (optional)</label><input type="date" value="${esc(d.endDate || '')}" data-bind="loanDraft.endDate"/><div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:5px">If set, the months-left count is based on this date, and the loan is automatically marked "Paid off" once today is past it.</div></div>
+          <div class="row-2">
+            <div class="field"><label>Term (months)</label><input type="number" min="1" value="${esc(d.termMonths)}" data-bind="loanDraft.termMonths" placeholder="e.g. 60"/></div>
+            <div class="field"><label>First due (start)</label><input type="month" value="${esc(d.startMonth || '')}" data-bind="loanDraft.startMonth" style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border3);border-radius:9px;padding:10px 12px;color:inherit;font-size:14px;font-family:inherit"/></div>
+          </div>
+          <div class="field"><label>Balance left (₱), optional</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.remainingBalance))}" data-bind="loanDraft.remainingBalance" data-fmt="money" placeholder="Leave blank if nothing paid yet"/></div>
+          ${(loanMonthlyNum > 0 && loanTermNum > 0) ? `<div style="background:oklch(0.5 0.13 150 / 0.08);border:1px solid oklch(0.5 0.13 150 / 0.2);border-radius:10px;padding:12px 14px"><div style="font-size:11px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:4px">Auto computed</div><div style="font-size:14px"><b>Total loan: ${fmtMoney(loanMonthlyNum * loanTermNum)}</b> <span style="color:oklch(0.5 0.015 150)">(${formatMoneyLiveDisplay(String(d.monthlyDue))} &times; ${loanTermNum})</span></div>${loanEndLabel ? `<div style="font-size:12.5px;color:oklch(0.5 0.015 150);margin-top:2px">Ends ~${loanEndLabel}</div>` : ''}</div>` : ''}
           <div class="field"><label>Status</label>
             <select data-bind="loanDraft.status">
               <option value="ongoing" ${d.status === 'ongoing' ? 'selected' : ''}>Ongoing</option>
@@ -4039,7 +4057,7 @@
         break;
       }
 
-      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', remainingBalance: '', dueDay: '', endDate: '', status: 'ongoing' } }); break;
+      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', termMonths: '', startMonth: THIS_MONTH_KEY, remainingBalance: '', dueDay: '', endDate: '', status: 'ongoing' } }); break;
       case 'loan-edit': openEditLoan(id); break;
       case 'loan-delete':
         if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
@@ -5153,10 +5171,13 @@
         setState(s => ({ fullTimeIncome: [...s.fullTimeIncome, entry], ftDraft: { sourceType: '1st', sourceOther: '', amount: '', date: TODAY_STR }, financeMonthKey: entryDate.slice(0, 7) }));
       } else if (action === 'save-loan') {
         const d = state.loanDraft;
-        if (!(d.lender || '').trim() || !d.amount) { alert('Please enter a lender / source name and a loan amount.'); return; }
-        const loanAmountNum = Number(d.amount) || 0;
+        const monthlyNum = Number(d.monthlyDue) || 0;
+        const termNum = Number(d.termMonths) || 0;
+        if (!(d.lender || '').trim() || monthlyNum <= 0) { alert('Please enter a lender / source name and a monthly due.'); return; }
+        // Total is derived from monthly x term when a term is set; older loans keep their amount.
+        const loanAmountNum = termNum > 0 ? monthlyNum * termNum : (Number(d.amount) || 0);
         const remainingBalanceNum = (d.remainingBalance === '' || d.remainingBalance === null || d.remainingBalance === undefined) ? loanAmountNum : (Number(d.remainingBalance) || 0);
-        const cleaned = { ...d, amount: loanAmountNum, monthlyDue: Number(d.monthlyDue) || 0, remainingBalance: remainingBalanceNum, dueDay: d.dueDay ? Number(d.dueDay) : null, endDate: d.endDate || null };
+        const cleaned = { ...d, amount: loanAmountNum, monthlyDue: monthlyNum, termMonths: termNum || null, startMonth: d.startMonth || null, remainingBalance: remainingBalanceNum, dueDay: d.dueDay ? Number(d.dueDay) : null, endDate: d.endDate || null };
         delete cleaned.dueDate;
         setState(s => s.loanModal.mode === 'add'
           ? { loans: [...s.loans, { ...cleaned, id: 'ln' + Date.now() }], loanModal: null, loanDraft: null }
