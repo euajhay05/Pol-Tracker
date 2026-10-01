@@ -605,6 +605,9 @@
       financeBreakdown: null,
       financeExportOpen: false,
       financeExportRange: '3m',
+      expenseExportOpen: false,
+      expenseExportRange: '3m',
+      exportCustom: { from: '', to: '' },
       shootDatePickerOpen: false,
       timePickerOpen: false,
       shootDateCalYear: TODAY.getFullYear(),
@@ -2109,7 +2112,7 @@
       <div><div class="page-title sg">Expenses</div><div class="page-sub">Everything you've spent, logged via Telegram or manually</div></div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         ${expensesMonthPicker}
-        <button type="button" class="btn-ghost" style="padding:9px 14px;border-radius:9px;background:var(--card2);font-size:13px;font-weight:600;color:oklch(0.35 0.02 150)" data-action="expenses-report-export" title="Download the year's itemized expenses as a CSV">⬇ Export</button>
+        <button type="button" class="btn-ghost" style="padding:9px 14px;border-radius:9px;background:var(--card2);font-size:13px;font-weight:600;color:oklch(0.35 0.02 150)" data-action="expense-export-open" title="Export your expenses as CSV or PDF for a date range">⬇ Export</button>
         <button type="button" class="btn-telegram" data-action="telegram-open">+ Add Expense</button>
       </div>
     </div>
@@ -3123,16 +3126,60 @@
     </div>`;
   }
 
-  /* ---------------- income export (CSV / PDF) ---------------- */
+  /* ---------------- shared export range (used by income + expenses) ---------------- */
 
-  function financeExportData(rangeKey) {
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function fmtDateStr(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  // Default custom window: start of the current month to today.
+  function defaultCustomFrom() { return new Date(TODAY.getFullYear(), TODAY.getMonth(), 1).toISOString().slice(0, 7) + '-01'; }
+
+  // Turn a range key into concrete start/end date strings + a human label. Shared so Income
+  // and Expenses behave identically. Rolling presets end today; This/Last Year and Custom
+  // use real calendar boundaries.
+  function resolveExportRange(rangeKey) {
+    const Y = TODAY.getFullYear();
+    if (rangeKey === 'custom') {
+      const c = state.exportCustom || {};
+      let s = c.from || defaultCustomFrom();
+      let e = c.to || TODAY_STR;
+      if (s > e) { const t = s; s = e; e = t; }
+      return { startStr: s, endStr: e, rangeLabel: 'Custom (' + s + ' to ' + e + ')' };
+    }
+    if (rangeKey === 'thisyear') return { startStr: Y + '-01-01', endStr: TODAY_STR, rangeLabel: 'This Year' };
+    if (rangeKey === 'lastyear') return { startStr: (Y - 1) + '-01-01', endStr: (Y - 1) + '-12-31', rangeLabel: 'Last Year' };
     const months = { '1m': 1, '3m': 3, '6m': 6, '1y': 12 }[rangeKey] || 3;
     // Anchor to the 1st of the month N months back so a 29-31 "today" can't overflow
     // a shorter month (e.g. Feb) and drift the start boundary a few days.
-    const start = new Date(TODAY.getFullYear(), TODAY.getMonth() - months, 1);
-    const pad = n => String(n).padStart(2, '0');
-    const startStr = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
-    const inRange = ds => ds && ds >= startStr && ds <= TODAY_STR;
+    const start = new Date(Y, TODAY.getMonth() - months, 1);
+    const rangeLabel = { '1m': 'Last Month', '3m': 'Last 3 Months', '6m': 'Last 6 Months', '1y': 'Last 1 Year' }[rangeKey] || 'Last 3 Months';
+    return { startStr: fmtDateStr(start), endStr: TODAY_STR, rangeLabel };
+  }
+
+  // The range-picker grid + custom From/To fields, shared by both export modals.
+  // prefix is 'finance' or 'expense' so the range buttons fire the right action.
+  function exportRangeControls(rk, prefix) {
+    const ranges = [['1m', 'Last Month'], ['3m', 'Last 3 Months'], ['6m', 'Last 6 Months'], ['1y', 'Last 1 Year'], ['thisyear', 'This Year'], ['lastyear', 'Last Year']];
+    const btn = (k, l, wide) => { const a = rk === k; return `<button type="button" data-action="${prefix}-export-range" data-range="${k}" style="all:unset;cursor:pointer;text-align:center;padding:10px 6px;border-radius:10px;font-weight:700;font-size:12px;${wide ? 'grid-column:span 3;' : ''}background:${a ? 'oklch(0.5 0.13 150 / 0.14)' : 'oklch(0.97 0.006 150)'};color:${a ? 'oklch(0.42 0.13 150)' : 'oklch(0.5 0.015 150)'};border:1px solid ${a ? 'oklch(0.45 0.14 150)' : 'oklch(0 0 0 / 0.08)'}">${l}</button>`; };
+    let html = `<div style="font-size:12px;color:oklch(0.48 0.015 150);font-weight:600;margin-bottom:8px">Time range</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:${rk === 'custom' ? '12px' : '18px'}">
+        ${ranges.map(([k, l]) => btn(k, l, false)).join('')}
+        ${btn('custom', 'Custom range', true)}
+      </div>`;
+    if (rk === 'custom') {
+      const c = state.exportCustom || {};
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
+        ${dpField('From', 'exportCustom.from', c.from || '', { align: 'left' })}
+        ${dpField('To', 'exportCustom.to', c.to || '', { align: 'right' })}
+      </div>`;
+    }
+    return html;
+  }
+
+  /* ---------------- income export (CSV / PDF) ---------------- */
+
+  function financeExportData(rangeKey) {
+    const { startStr, endStr, rangeLabel } = resolveExportRange(rangeKey);
+    const inRange = ds => ds && ds >= startStr && ds <= endStr;
     const ft = state.fullTimeIncome.filter(f => inRange(f.date)).map(f => ({ date: f.date, type: 'Full-Time', label: f.source || 'Full-Time Income', amount: Number(f.amount) || 0 }));
     const sh = state.shoots.flatMap(s => {
       const ps = shootPaymentsOf(s).filter(p => inRange(p.date));
@@ -3142,8 +3189,7 @@
     });
     const rows = [...ft, ...sh].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const total = rows.reduce((a, b) => a + b.amount, 0);
-    const rangeLabel = { '1m': 'Last Month', '3m': 'Last 3 Months', '6m': 'Last 6 Months', '1y': 'Last 1 Year' }[rangeKey] || 'Last 3 Months';
-    return { rows, total, rangeLabel, startStr, endStr: TODAY_STR };
+    return { rows, total, rangeLabel, startStr, endStr };
   }
 
   function triggerDownload(blob, filename) {
@@ -3208,20 +3254,117 @@
   function modalFinanceExport() {
     if (!state.financeExportOpen) return '';
     const rk = state.financeExportRange || '3m';
-    const ranges = [['1m', 'Last Month'], ['3m', 'Last 3 Months'], ['6m', 'Last 6 Months'], ['1y', 'Last 1 Year']];
     return `
     <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="financeexport">
       <div class="modal-box" style="width:400px" data-stop>
         <div class="modal-head"><div class="modal-title">Export Income</div><button type="button" class="modal-close" data-action="modal-close" data-which="financeexport">✕</button></div>
-        <div style="font-size:12px;color:oklch(0.48 0.015 150);font-weight:600;margin-bottom:8px">Time range</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
-          ${ranges.map(([k, l]) => { const a = rk === k; return `<button type="button" data-action="finance-export-range" data-range="${k}" style="all:unset;cursor:pointer;text-align:center;padding:10px 8px;border-radius:10px;font-weight:700;font-size:12.5px;background:${a ? 'oklch(0.5 0.13 150 / 0.14)' : 'oklch(0.97 0.006 150)'};color:${a ? 'oklch(0.42 0.13 150)' : 'oklch(0.5 0.015 150)'};border:1px solid ${a ? 'oklch(0.45 0.14 150)' : 'oklch(0 0 0 / 0.08)'}">${l}</button>`; }).join('')}
-        </div>
+        ${exportRangeControls(rk, 'finance')}
         <div style="display:flex;gap:10px">
           <button type="button" class="btn-primary" style="flex:1;justify-content:center;text-align:center" data-action="finance-export-csv">Download CSV</button>
           <button type="button" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 16px;border-radius:9px;background:oklch(0.55 0.14 235 / 0.14);color:oklch(0.42 0.13 235);font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center" data-action="finance-export-pdf">Download PDF</button>
         </div>
         <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:12px;line-height:1.5">Income only (Full-Time + Side Hustle collected) for the selected range. Separate from expenses.</div>
+      </div>
+    </div>`;
+  }
+
+  /* ---------------- expenses export (CSV / PDF) ---------------- */
+
+  function expenseExportData(rangeKey) {
+    const { startStr, endStr, rangeLabel } = resolveExportRange(rangeKey);
+    const inRange = ds => ds && ds >= startStr && ds <= endStr;
+    const items = state.expenses.filter(e => inRange(e.date)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const total = items.reduce((a, e) => a + (Number(e.amount) || 0), 0);
+    return { items, total, rangeLabel, startStr, endStr };
+  }
+
+  function exportExpenseCSV() {
+    const { items, total, rangeLabel, startStr, endStr } = expenseExportData(state.expenseExportRange);
+    const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const lines = [];
+    lines.push('Pol Tracker - Expense Report');
+    lines.push('Range,' + cell(rangeLabel + ' (' + startStr + ' to ' + endStr + ')'));
+    lines.push('');
+    lines.push(['Month', 'Date', 'Description', 'Amount (PHP)'].join(','));
+    // Group by month with a subtotal after each, so the file is easy to scan.
+    let curMonth = null, monthTotal = 0;
+    const flush = () => { if (curMonth !== null) { lines.push(['', '', curMonth + ' Subtotal', monthTotal].join(',')); lines.push(''); } };
+    items.forEach(e => {
+      const mk = (e.date || '').slice(0, 7);
+      const monthName = mk ? new Date(mk + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+      if (mk !== curMonth) { flush(); curMonth = mk; monthTotal = 0; }
+      const amt = Number(e.amount) || 0; monthTotal += amt;
+      lines.push([cell(monthName), cell(e.date), cell(e.description || ''), amt].join(','));
+    });
+    flush();
+    lines.push(['', '', 'Total', total].join(','));
+    triggerDownload(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }), 'pol-expenses-' + state.expenseExportRange + '-' + endStr + '.csv');
+    setState({ expenseExportOpen: false });
+  }
+
+  function exportExpensePDF() {
+    const jspdf = window.jspdf;
+    if (!jspdf || !jspdf.jsPDF) { alert('PDF tool is still loading. Please try again in a moment.'); return; }
+    const { jsPDF } = jspdf;
+    const { items, total, rangeLabel, startStr, endStr } = expenseExportData(state.expenseExportRange);
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const PAGE_W = 612, PAGE_H = 792, marginX = 56, rightX = PAGE_W - marginX;
+    const money = n => 'PHP ' + (Number(n) || 0).toLocaleString('en-PH');
+    let y = 64;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(31, 107, 64);
+    doc.text('Expense Report', marginX, y);
+    y += 20; doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(110, 115, 110);
+    doc.text(rangeLabel + '  -  ' + startStr + ' to ' + endStr, marginX, y);
+    y += 10; doc.setDrawColor(222, 228, 222); doc.line(marginX, y, rightX, y); y += 22;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(110, 115, 110);
+    doc.text('DATE', marginX, y); doc.text('DESCRIPTION', marginX + 92, y); doc.text('AMOUNT', rightX, y, { align: 'right' });
+    y += 6; doc.line(marginX, y, rightX, y); y += 16;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(30, 32, 30);
+    if (!items.length) { doc.setTextColor(150, 150, 150); doc.text('No expenses in this range.', marginX, y); y += 16; }
+    let curMonth = null, monthTotal = 0;
+    const flushMonth = () => {
+      if (curMonth !== null) {
+        if (y > PAGE_H - 90) { doc.addPage(); y = 64; }
+        const mName = new Date(curMonth + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(90, 95, 90);
+        doc.text(mName + ' subtotal', marginX + 92, y); doc.text(money(monthTotal), rightX, y, { align: 'right' });
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 32, 30);
+        y += 18;
+      }
+    };
+    items.forEach(e => {
+      const mk = (e.date || '').slice(0, 7);
+      if (mk !== curMonth) { flushMonth(); curMonth = mk; monthTotal = 0; }
+      if (y > PAGE_H - 90) { doc.addPage(); y = 64; }
+      monthTotal += Number(e.amount) || 0;
+      doc.setTextColor(30, 32, 30);
+      doc.text(String(e.date || ''), marginX, y);
+      const label = (doc.splitTextToSize(String(e.description || '').replace(/₱/g, 'PHP '), 280)[0]) || '';
+      doc.text(label, marginX + 92, y);
+      doc.text(money(e.amount), rightX, y, { align: 'right' });
+      y += 16;
+    });
+    flushMonth();
+    y += 6; doc.setDrawColor(222, 228, 222); doc.line(marginX, y, rightX, y); y += 22;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 32, 30);
+    doc.text('Total Expenses', marginX, y); doc.text(money(total), rightX, y, { align: 'right' });
+    doc.save('pol-expenses-' + state.expenseExportRange + '-' + endStr + '.pdf');
+    setState({ expenseExportOpen: false });
+  }
+
+  function modalExpenseExport() {
+    if (!state.expenseExportOpen) return '';
+    const rk = state.expenseExportRange || '3m';
+    return `
+    <div class="modal-backdrop chip" data-action="modal-backdrop-close" data-which="expenseexport">
+      <div class="modal-box" style="width:400px" data-stop>
+        <div class="modal-head"><div class="modal-title">Export Expenses</div><button type="button" class="modal-close" data-action="modal-close" data-which="expenseexport">✕</button></div>
+        ${exportRangeControls(rk, 'expense')}
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn-primary" style="flex:1;justify-content:center;text-align:center" data-action="expense-export-csv">Download CSV</button>
+          <button type="button" style="all:unset;cursor:pointer;flex:1;text-align:center;padding:10px 16px;border-radius:9px;background:oklch(0.55 0.14 235 / 0.14);color:oklch(0.42 0.13 235);font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center" data-action="expense-export-pdf">Download PDF</button>
+        </div>
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:12px;line-height:1.5">Expenses only, itemized with a subtotal per month, for the selected range. Separate from income.</div>
       </div>
     </div>`;
   }
@@ -3694,6 +3837,7 @@
       ${modalReschedule()}
       ${modalFinanceBreakdown()}
       ${modalFinanceExport()}
+      ${modalExpenseExport()}
       ${modalExpenseCategory()}
       ${modalShootStatus()}
     `;
@@ -4369,10 +4513,14 @@
         closeModalOf(el.dataset.which);
         break;
       case 'finance-breakdown': setState({ financeBreakdown: el.dataset.key }); break;
-      case 'finance-export-open': setState({ financeExportOpen: true }); break;
-      case 'finance-export-range': setState({ financeExportRange: el.dataset.range }); break;
+      case 'finance-export-open': setState({ financeExportOpen: true, dpKey: null, exportCustom: { from: defaultCustomFrom(), to: TODAY_STR } }); break;
+      case 'finance-export-range': setState({ financeExportRange: el.dataset.range, dpKey: null }); break;
       case 'finance-export-csv': exportIncomeCSV(); break;
       case 'finance-export-pdf': exportIncomePDF(); break;
+      case 'expense-export-open': setState({ expenseExportOpen: true, dpKey: null, exportCustom: { from: defaultCustomFrom(), to: TODAY_STR } }); break;
+      case 'expense-export-range': setState({ expenseExportRange: el.dataset.range, dpKey: null }); break;
+      case 'expense-export-csv': exportExpenseCSV(); break;
+      case 'expense-export-pdf': exportExpensePDF(); break;
       case 'reschedule-cancel': setState({ rescheduleDraft: null }); break;
       case 'reschedule-confirm': setState(s => { const d = s.rescheduleDraft; if (!d) return { rescheduleDraft: null }; return { shoots: s.shoots.map(sh => sh.id === d.id ? { ...sh, date: d.to } : sh), rescheduleDraft: null, selectedDate: d.to }; }); break;
       case 'shoot-confirm-close-cancel': setState({ shootConfirmCloseOpen: false }); break;
@@ -4394,6 +4542,7 @@
     else if (which === 'gear') setState({ gearModal: null, gearDraft: null });
     else if (which === 'financebreakdown') setState({ financeBreakdown: null });
     else if (which === 'financeexport') setState({ financeExportOpen: false });
+    else if (which === 'expenseexport') setState({ expenseExportOpen: false });
     else if (which === 'chip') setState({ chipModal: null });
     else if (which === 'expcat') setState({ expReassignId: null, expNewCatDraft: '' });
     else if (which === 'shootstatus') setState({ shootStatusModal: null });
