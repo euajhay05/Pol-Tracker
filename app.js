@@ -544,7 +544,167 @@
     return res;
   }
 
-  function renderLockScreen(showError) {
+  /* ---------------- password: invite links, forgot password, change password ---------------- */
+
+  // Where Supabase should send people back to after they click an email link.
+  const APP_HOME_URL = window.location.origin + window.location.pathname;
+
+  // Supabase email links (invite, password reset) come back to the app with the
+  // session or an error in the URL hash. Read it once, then clean the address bar.
+  function parseAuthHash() {
+    const raw = (window.location.hash || '').replace(/^#/, '');
+    if (!raw || (raw.indexOf('access_token=') === -1 && raw.indexOf('error=') === -1)) return null;
+    const q = new URLSearchParams(raw);
+    try { history.replaceState(null, '', APP_HOME_URL); } catch (e) { /* ignore */ }
+    if (q.get('error')) {
+      const code = q.get('error_code') || '';
+      const message = code === 'otp_expired'
+        ? 'That email link has expired or was already used. Ask for a new link and open it right away.'
+        : (q.get('error_description') || 'That email link did not work. Please ask for a new one.').replace(/\+/g, ' ');
+      return { error: true, message };
+    }
+    return {
+      type: q.get('type') || '',
+      session: {
+        access_token: q.get('access_token'),
+        refresh_token: q.get('refresh_token'),
+        expires_in: Number(q.get('expires_in')) || 3600,
+      },
+    };
+  }
+
+  async function requestPasswordReset(email) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(APP_HOME_URL)}`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (res.status === 429) throw new Error('Too many reset emails were sent recently. Please wait a while and try again.');
+    if (!res.ok) throw new Error('Could not send the reset email. Please try again.');
+  }
+
+  async function updatePassword(password) {
+    const res = await authedFetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) {
+      let msg = 'Could not update your password. Please try again.';
+      try {
+        const j = await res.json();
+        const m = j.msg || j.message || j.error_description || '';
+        if (/different from the old/i.test(m)) msg = 'Your new password must be different from your current one.';
+        else if (/session|jwt|token/i.test(m)) msg = 'Your session expired. Please sign in again, then change your password.';
+        else if (m) msg = m;
+      } catch (e) { /* keep default */ }
+      throw new Error(msg);
+    }
+  }
+
+  function authCard(inner) {
+    return `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
+        <form id="auth-form" style="width:340px;max-width:100%;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;justify-content:center;margin-bottom:2px"><div class="logo-badge">pol.</div></div>
+          ${inner}
+        </form>
+      </div>`;
+  }
+  const authErrorHtml = (msg) => msg ? `<div style="color:oklch(0.58 0.19 25);font-size:12.5px">${esc(msg)}</div>` : '';
+  const authNoteHtml = (msg) => msg ? `<div style="color:var(--text-dim);font-size:12.5px;line-height:1.5">${esc(msg)}</div>` : '';
+  const linkBtnStyle = 'background:none;border:none;padding:0;color:var(--text-dim);font-size:12.5px;cursor:pointer;text-decoration:underline;align-self:center';
+
+  // mode: 'invite' (first time setup), 'recovery' (forgot password link), 'change' (already signed in)
+  function renderSetPasswordScreen(mode, errorMsg) {
+    const title = mode === 'invite' ? 'Set your password' : mode === 'recovery' ? 'Choose a new password' : 'Change password';
+    const note = mode === 'invite'
+      ? 'Welcome to Pol Tracker. Create a password you will use to sign in.'
+      : 'Use at least 8 characters. Avoid passwords you use on other sites.';
+    const app = document.getElementById('app');
+    app.innerHTML = authCard(`
+      <div class="sg" style="font-weight:700;font-size:16px;text-align:center">${title}</div>
+      ${authNoteHtml(note)}
+      <div class="field">
+        <label>New password</label>
+        <input type="password" id="pw-new" placeholder="At least 8 characters" autocomplete="new-password"/>
+      </div>
+      <div class="field">
+        <label>Confirm new password</label>
+        <input type="password" id="pw-confirm" placeholder="Type it again" autocomplete="new-password"/>
+      </div>
+      ${authErrorHtml(errorMsg)}
+      <button type="submit" class="btn-primary" style="text-align:center" id="pw-submit">Save password</button>
+      ${mode === 'change' ? `<button type="button" id="pw-cancel" style="${linkBtnStyle}">Cancel</button>` : ''}`);
+    document.getElementById('pw-new').focus();
+    const cancel = document.getElementById('pw-cancel');
+    if (cancel) cancel.addEventListener('click', () => render());
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pw = document.getElementById('pw-new').value;
+      const pw2 = document.getElementById('pw-confirm').value;
+      if (pw.length < 8) { renderSetPasswordScreen(mode, 'Password must be at least 8 characters.'); return; }
+      if (pw !== pw2) { renderSetPasswordScreen(mode, 'The two passwords do not match.'); return; }
+      const btn = document.getElementById('pw-submit');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await updatePassword(pw);
+        if (mode === 'change') { render(); alertSoft('Password updated.'); }
+        else init();
+      } catch (err) {
+        renderSetPasswordScreen(mode, err.message);
+      }
+    });
+  }
+
+  function renderForgotPasswordScreen(errorMsg, sentTo) {
+    const app = document.getElementById('app');
+    if (sentTo) {
+      app.innerHTML = authCard(`
+        <div class="sg" style="font-weight:700;font-size:16px;text-align:center">Check your email</div>
+        ${authNoteHtml(`If ${sentTo} has a Pol Tracker account, a reset link is on its way. Open it on this device. Check Spam too.`)}
+        <button type="button" id="fp-back" class="btn-primary" style="text-align:center">Back to sign in</button>`);
+      document.getElementById('fp-back').addEventListener('click', () => renderLockScreen(false));
+      return;
+    }
+    app.innerHTML = authCard(`
+      <div class="sg" style="font-weight:700;font-size:16px;text-align:center">Forgot password</div>
+      ${authNoteHtml('Enter your email and we will send you a link to choose a new password.')}
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="fp-email" placeholder="you@email.com" autocomplete="username"/>
+      </div>
+      ${authErrorHtml(errorMsg)}
+      <button type="submit" class="btn-primary" style="text-align:center" id="fp-submit">Send reset link</button>
+      <button type="button" id="fp-back" style="${linkBtnStyle}">Back to sign in</button>`);
+    const emailInput = document.getElementById('fp-email');
+    emailInput.focus();
+    document.getElementById('fp-back').addEventListener('click', () => renderLockScreen(false));
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailInput.value.trim();
+      if (!email) { renderForgotPasswordScreen('Please enter your email.'); return; }
+      const btn = document.getElementById('fp-submit');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        await requestPasswordReset(email);
+        renderForgotPasswordScreen(null, email);
+      } catch (err) {
+        renderForgotPasswordScreen(err.message);
+      }
+    });
+  }
+
+  // Small non blocking confirmation (no browser alert dialogs).
+  function alertSoft(msg) {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.12)';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  function renderLockScreen(showError, notice) {
     const app = document.getElementById('app');
     app.innerHTML = `
       <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
@@ -560,12 +720,15 @@
             <input type="password" id="lock-password" placeholder="Enter password" autocomplete="current-password"/>
           </div>
           ${showError ? `<div style="color:oklch(0.58 0.19 25);font-size:12.5px">Incorrect email or password. Please try again.</div>` : ''}
+          ${notice ? `<div style="color:oklch(0.58 0.19 25);font-size:12.5px;line-height:1.5">${esc(notice)}</div>` : ''}
           <button type="submit" class="btn-primary" style="text-align:center">Sign in</button>
+          <button type="button" id="lock-forgot" style="background:none;border:none;padding:0;color:var(--text-dim);font-size:12.5px;cursor:pointer;text-decoration:underline;align-self:center">Forgot password?</button>
         </form>
       </div>`;
     const emailInput = document.getElementById('lock-email');
     const input = document.getElementById('lock-password');
     emailInput.focus();
+    document.getElementById('lock-forgot').addEventListener('click', () => renderForgotPasswordScreen());
     document.getElementById('lock-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
@@ -1559,7 +1722,10 @@
         ${navBtn('docs', 'file-text', 'Documents')}
         ${navBtn('insights', 'chart-bar', 'Insights')}
       </nav>
-      <button type="button" class="nav-btn" style="margin-top:auto;color:oklch(0.58 0.19 25)" data-action="logout" title="Log out">
+      <button type="button" class="nav-btn" style="margin-top:auto" data-action="change-password" title="Change password">
+        <span class="ic"><i class="ti ti-key" aria-hidden="true"></i></span><span class="nav-label">Change password</span>
+      </button>
+      <button type="button" class="nav-btn" style="color:oklch(0.58 0.19 25)" data-action="logout" title="Log out">
         <span class="ic"><i class="ti ti-logout" aria-hidden="true"></i></span><span class="nav-label">Log out</span>
       </button>
     </aside>`;
@@ -3969,6 +4135,7 @@
         return { sidebarCollapsed: next };
       }); break;
       case 'logout': clearUnlocked(); renderLockScreen(false); break;
+      case 'change-password': renderSetPasswordScreen('change'); break;
       case 'chip-open': setState({ chipModal: el.dataset.key }); break;
       case 'telegram-open': setState({ telegramModalOpen: true, expenseDraft: { description: '', amount: '', date: TODAY_STR } }); break;
       case 'search-clear': setState({ [el.dataset.field]: '' }); break;
@@ -5620,6 +5787,14 @@
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
+    const fromEmail = parseAuthHash();
+    if (fromEmail && fromEmail.error) { clearSession(); renderLockScreen(false, fromEmail.message); return; }
+    if (fromEmail && fromEmail.session && fromEmail.session.access_token) {
+      saveSession(fromEmail.session);
+      markActive();
+      renderSetPasswordScreen(fromEmail.type === 'recovery' ? 'recovery' : 'invite');
+      return;
+    }
     if (await ensureSession()) init();
     else renderLockScreen(false);
   });
