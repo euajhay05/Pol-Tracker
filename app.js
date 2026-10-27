@@ -1418,6 +1418,38 @@
       },
     };
 
+    // ---- "Where it goes" donut: category share for month / year / all time ----
+    const ewRange = state.expWhereRange || 'month';
+    const ewRows = ewRange === 'all' ? expenses
+      : ewRange === 'year' ? expenses.filter(e => e.date && e.date.slice(0, 4) === ebYM[0])
+      : ebRows;
+    const ewMap = {};
+    ewRows.forEach(e => { const c = categoryOfExpense(e, ebRules); ewMap[c] = (ewMap[c] || 0) + (Number(e.amount) || 0); });
+    let ewArr = Object.keys(ewMap).map(k => ({ name: k, amount: ewMap[k] })).filter(x => x.amount > 0).sort((a, b) => b.amount - a.amount);
+    let ewOverflow = 0;
+    if (ewArr.length > 6) { ewOverflow = ewArr.slice(5).reduce((s, x) => s + x.amount, 0); ewArr = ewArr.slice(0, 5); }
+    const ewMains = ewArr.filter(x => x.name !== 'Other');
+    const ewOtherTotal = ewOverflow + ewArr.filter(x => x.name === 'Other').reduce((s, x) => s + x.amount, 0);
+    const ewCatsRaw = ewMains.slice();
+    if (ewOtherTotal > 0) ewCatsRaw.push({ name: 'Other', amount: ewOtherTotal });
+    const ewTotal = ewCatsRaw.reduce((s, x) => s + x.amount, 0);
+    const EW_RAMP = ['oklch(0.42 0.14 150)', 'oklch(0.5 0.14 152)', 'oklch(0.57 0.13 156)', 'oklch(0.64 0.12 160)', 'oklch(0.72 0.1 165)', 'oklch(0.8 0.065 162)'];
+    const ewC = 2 * Math.PI * 82, ewGap = 5;
+    let ewAcc = 0;
+    const ewSeg = ewCatsRaw.map((c, i) => {
+      const len = ewTotal ? (c.amount / ewTotal) * ewC : 0;
+      const dash = Math.max(len - ewGap, 1);
+      const seg = { color: EW_RAMP[i] || EW_RAMP[5], dash: dash.toFixed(2), rest: (ewC - dash).toFixed(2), offset: (-ewAcc).toFixed(2) };
+      ewAcc += len;
+      return seg;
+    });
+    const ewCats = ewCatsRaw.map((c, i) => ({
+      name: c.name, color: EW_RAMP[i] || EW_RAMP[5],
+      amountLabel: fmtMoney(c.amount),
+      pct: ewTotal ? Math.round((c.amount / ewTotal) * 1000) / 10 : 0,
+    }));
+    expenseBreakdown.where = { range: ewRange, hasData: ewCatsRaw.length > 0, totalLabel: fmtMoney(ewTotal), seg: ewSeg, cats: ewCats };
+
     const expensesSelectedDate = state.expensesSelectedDate || TODAY_STR;
     const expensesSelectedDayLabel = expensesSelectedDate === TODAY_STR ? 'Today' : fmtDate(expensesSelectedDate);
     const expensesSelectedDayRows = allExpenseRows.filter(e => e.date === expensesSelectedDate);
@@ -2368,6 +2400,34 @@
         </div>
         ${eb.selDetail.hasItems ? eb.selDetail.items.map(it => `<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px"><span style="color:oklch(0.35 0.02 150);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.desc)}</span><span style="font-weight:600;flex:none">${esc(it.amountLabel)}</span></div>`).join('') : `<div style="font-size:12px;color:oklch(0.55 0.015 150)">No spending logged this day.</div>`}
       </div>` : `<div style="font-size:11.5px;color:oklch(0.55 0.015 150);margin-top:8px;text-align:center;padding:8px">👆 Tap a point on the chart above to see that day's expenses.</div>`}
+      <div class="sg" style="font-weight:700;font-size:12.5px;margin:22px 0 2px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>Where it goes</span>
+        <span style="display:inline-flex;gap:2px;background:var(--card2);border-radius:10px;padding:3px">
+          ${[{ k: 'month', l: 'This month' }, { k: 'year', l: 'This year' }, { k: 'all', l: 'All time' }].map(o => { const on = eb.where.range === o.k; return `<button type="button" data-action="exp-where-range" data-range="${o.k}" style="all:unset;cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:700;color:${on ? 'oklch(0.3 0.02 150)' : 'oklch(0.5 0.015 150)'};background:${on ? 'var(--panel)' : 'transparent'};box-shadow:${on ? '0 1px 2px oklch(0 0 0 / 0.08)' : 'none'};padding:5px 10px;border-radius:8px">${o.l}</button>`; }).join('')}
+        </span>
+      </div>
+      <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-bottom:10px">Share of your spending per category.</div>
+      ${eb.where.hasData ? `
+      <div style="display:flex;justify-content:center;margin:6px 0 2px">
+        <div style="position:relative;width:208px;height:208px">
+          <svg viewBox="0 0 208 208" width="208" height="208" style="display:block">
+            <circle cx="104" cy="104" r="82" fill="none" stroke="var(--card2)" stroke-width="19"/>
+            ${eb.where.seg.map(s => `<circle cx="104" cy="104" r="82" fill="none" stroke="${s.color}" stroke-width="19" stroke-dasharray="${s.dash} ${s.rest}" stroke-dashoffset="${s.offset}" transform="rotate(-90 104 104)"/>`).join('')}
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+            <div class="sg" style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:oklch(0.5 0.015 150)">Total out</div>
+            <div class="sg" style="font-size:24px;font-weight:700;margin-top:3px">${eb.where.totalLabel}</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin:12px 0 6px">
+        ${eb.where.cats.map((c, i) => `<div style="display:flex;align-items:center;gap:11px;padding:9px 8px;${i > 0 ? 'border-top:1px solid var(--border2);' : ''}">
+          <span style="width:12px;height:12px;border-radius:4px;flex:none;background:${c.color}"></span>
+          <span style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
+          <span class="sg" style="font-size:12px;color:oklch(0.5 0.015 150);font-weight:600;width:48px;text-align:right">${c.pct}%</span>
+          <span class="sg" style="font-size:13px;font-weight:700;width:86px;text-align:right">${esc(c.amountLabel)}</span>
+        </div>`).join('')}
+      </div>` : `<div style="font-size:11.5px;color:oklch(0.55 0.015 150);text-align:center;padding:16px">No spending to show for this range yet.</div>`}
       <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 2px">By Category</div>
       <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-bottom:8px">Tap a category to see its items — tap "Move" to fix any that landed in the wrong place. The app remembers your fix for next time.</div>
       ${eb.cats.map(c => `
@@ -4357,6 +4417,7 @@
       case 'expenses-list-toggle': setState(s => ({ expensesListOpen: !s.expensesListOpen })); break;
       case 'expenses-tab': setState({ expensesTab: el.dataset.tab }); break;
       case 'exp-day-select': setState({ expChartDay: Number(el.dataset.day) }); break;
+      case 'exp-where-range': setState({ expWhereRange: el.dataset.range }); break;
       case 'exp-cat-toggle': setState(s => ({ expCatOpen: s.expCatOpen === el.dataset.cat ? null : el.dataset.cat })); break;
       case 'exp-item-reassign': setState({ expReassignId: el.dataset.id, expNewCatDraft: '' }); break;
       case 'exp-cat-set': { const id = el.dataset.id, cat = el.dataset.cat; setState(s => ({ expenses: s.expenses.map(x => x.id === id ? { ...x, category: cat } : x), expReassignId: null, expNewCatDraft: '' })); break; }
