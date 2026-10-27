@@ -1785,10 +1785,42 @@
       .filter(s => s.date && s.date.slice(0, 7) === selectedMonthKey && s.status !== 'tentative')
       .reduce((a, s) => a + Math.max((Number(s.package) || 0) - (Number(s.paid) || 0), 0), 0);
 
+    // ---- Smart Insights: computed from data, no API. Pace, projection, biggest mover, gear payback. ----
+    const siDay = TODAY.getDate();
+    const siThisMK = THIS_MONTH_KEY;
+    const siLastD = new Date(TODAY.getFullYear(), TODAY.getMonth() - 1, 1);
+    const siLastMK = `${siLastD.getFullYear()}-${String(siLastD.getMonth() + 1).padStart(2, '0')}`;
+    const siMTD = (mk) => expenses.filter(e => e.date && e.date.slice(0, 7) === mk && Number(e.date.slice(8, 10)) <= siDay).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const siFullMonth = (mk) => expenses.filter(e => e.date && e.date.slice(0, 7) === mk).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const siPaceThis = siMTD(siThisMK), siPaceLast = siMTD(siLastMK);
+    const siPacePct = siPaceLast > 0 ? Math.round((siPaceThis - siPaceLast) / siPaceLast * 100) : null;
+    const siDaysInMonth = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0).getDate();
+    const siProjected = siDay > 0 ? Math.round(siPaceThis / siDay * siDaysInMonth) : siPaceThis;
+    const siLastFull = siFullMonth(siLastMK);
+    const siProjOver = siProjected - siLastFull;
+    const siCatMap = (mk) => { const m = {}; expenses.filter(e => e.date && e.date.slice(0, 7) === mk).forEach(e => { const c = categoryOfExpense(e, ebRules); m[c] = (m[c] || 0) + (Number(e.amount) || 0); }); return m; };
+    const siThisCat = siCatMap(siThisMK), siLastCat = siCatMap(siLastMK);
+    let siMover = null;
+    Object.keys(siThisCat).forEach(c => { const diff = siThisCat[c] - (siLastCat[c] || 0); if (diff > 0 && (!siMover || diff > siMover.diff)) siMover = { name: c, amount: siThisCat[c], last: siLastCat[c] || 0, diff, pct: (siLastCat[c] > 0) ? Math.round(diff / siLastCat[c] * 100) : null }; });
+    const siDates = expenses.map(e => e.date).filter(Boolean).sort();
+    const siFirst = siDates.length ? siDates[0] : null;
+    const siMonthsActive = siFirst ? Math.max(1, (TODAY - new Date(siFirst + 'T00:00:00')) / (1000 * 60 * 60 * 24 * 30.44)) : 1;
+    const siMonthlyRate = gearRoiIncome / siMonthsActive;
+    const siMonthsLeft = (siMonthlyRate > 0 && gearRoiRemaining > 0) ? gearRoiRemaining / siMonthlyRate : 0;
+    const siPayDate = siMonthsLeft > 0 ? new Date(TODAY.getFullYear(), TODAY.getMonth() + Math.ceil(siMonthsLeft), 1) : null;
+    const siGearPct = gearNetInvestment > 0 ? Math.min(100, Math.round(gearRoiIncome / gearNetInvestment * 100)) : (gearRoiIncome > 0 ? 100 : 0);
+    const smartInsights = {
+      hasData: expenses.length > 0,
+      pace: { amountLabel: fmtMoney(siPaceThis), pct: siPacePct, lastLabel: fmtMoney(siPaceLast) },
+      projected: { amountLabel: fmtMoney(siProjected), over: siProjOver, overLabel: fmtMoney(Math.abs(siProjOver)) },
+      mover: siMover ? { name: siMover.name, amountLabel: fmtMoney(siMover.amount), pct: siMover.pct, lastLabel: fmtMoney(siMover.last) } : null,
+      gear: { pct: siGearPct, reached: !!gearRoiReached, remainingLabel: fmtMoney(gearRoiRemaining), payLabel: siPayDate ? siPayDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null },
+    };
+
     return {
       view, shoots, navColor, goalCards, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
-      loansDueSoon, showBackupReminder, backupReminderLabel, snapshots: state.snapshots || [],
+      loansDueSoon, showBackupReminder, backupReminderLabel, snapshots: state.snapshots || [], smartInsights,
       gearItems, gearTotalCost, gearSoldProceeds, gearNetInvestment, gearRoiIncome, gearRoiShoots, gearRoiOther, gearRoiRemaining, gearRoiPercent, gearRoiReached, gearOwnedCount, gearSoldCount, gearRows,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
@@ -3001,6 +3033,33 @@
         <button type="button" class="btn-telegram" data-action="backup-restore" title="Restore all data from a backup file — replaces your current data">⬆ Restore</button>
       </div>
     </div>
+    ${ctx.smartInsights.hasData ? `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:oklch(0.5 0.015 150)"><span>🔥</span> Pace ngayong buwan</div>
+        <div class="sg" style="font-size:22px;font-weight:700;margin-top:8px">${esc(ctx.smartInsights.pace.amountLabel)}</div>
+        ${ctx.smartInsights.pace.pct !== null ? `<div><span style="display:inline-flex;align-items:center;gap:4px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:8px;background:${ctx.smartInsights.pace.pct > 0 ? 'oklch(0.95 0.06 45)' : 'oklch(0.93 0.06 150)'};color:${ctx.smartInsights.pace.pct > 0 ? 'oklch(0.62 0.17 45)' : 'oklch(0.5 0.14 150)'}">${ctx.smartInsights.pace.pct > 0 ? '▲' : '▼'} ${Math.abs(ctx.smartInsights.pace.pct)}% vs last month</span></div>` : ''}
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:9px;line-height:1.5">Same point noong nakaraang buwan: ${esc(ctx.smartInsights.pace.lastLabel)}.</div>
+      </div>
+      <div class="card" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:oklch(0.5 0.015 150)"><span>🎯</span> Projected month end</div>
+        <div class="sg" style="font-size:22px;font-weight:700;margin-top:8px">${esc(ctx.smartInsights.projected.amountLabel)}</div>
+        <div><span style="display:inline-flex;align-items:center;gap:4px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:8px;background:${ctx.smartInsights.projected.over > 0 ? 'oklch(0.95 0.06 45)' : 'oklch(0.93 0.06 150)'};color:${ctx.smartInsights.projected.over > 0 ? 'oklch(0.62 0.17 45)' : 'oklch(0.5 0.14 150)'}">${ctx.smartInsights.projected.over > 0 ? esc(ctx.smartInsights.projected.overLabel) + ' over' : esc(ctx.smartInsights.projected.overLabel) + ' under'} last month</span></div>
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:9px;line-height:1.5">Sa run rate mo ngayon, ito ang tatapusin mong gastos sa buwan.</div>
+      </div>
+      ${ctx.smartInsights.mover ? `<div class="card" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:oklch(0.5 0.015 150)"><span>📈</span> Biggest mover</div>
+        <div class="sg" style="font-size:20px;font-weight:700;margin-top:8px">${esc(ctx.smartInsights.mover.name)} ${esc(ctx.smartInsights.mover.amountLabel)}</div>
+        ${ctx.smartInsights.mover.pct !== null ? `<div><span style="display:inline-flex;align-items:center;gap:4px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:8px;background:oklch(0.95 0.06 45);color:oklch(0.62 0.17 45)">▲ ${ctx.smartInsights.mover.pct}% vs last month</span></div>` : ''}
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:9px;line-height:1.5">Dito pinaka lumaki yung gastos mo. Last month: ${esc(ctx.smartInsights.mover.lastLabel)}.</div>
+      </div>` : ''}
+      <div class="card" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:oklch(0.5 0.015 150)"><span>📷</span> Gear payback</div>
+        <div class="sg" style="font-size:22px;font-weight:700;margin-top:8px">${ctx.smartInsights.gear.pct}% bawi</div>
+        <div><span style="display:inline-flex;align-items:center;gap:4px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:8px;background:oklch(0.93 0.06 150);color:oklch(0.5 0.14 150)">${ctx.smartInsights.gear.reached ? 'fully recovered' : 'on track'}</span></div>
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:9px;line-height:1.5">${ctx.smartInsights.gear.reached ? 'Bawi na ang gear mo, surplus na ang susunod.' : (ctx.smartInsights.gear.payLabel ? 'Sa pace ng side income mo, fully recovered mga ' + esc(ctx.smartInsights.gear.payLabel) + '.' : esc(ctx.smartInsights.gear.remainingLabel) + ' na lang bago fully bawi.')}</div>
+      </div>
+    </div>` : ''}
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="card-title" style="margin-bottom:0">Overview — Earnings by Month</div>
