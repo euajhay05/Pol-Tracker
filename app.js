@@ -1207,7 +1207,11 @@
     const gearTotalCost = gearItems.reduce((s, g) => s + (Number(g.cost) || 0), 0);
     const gearSoldProceeds = gearItems.filter(g => g.sold).reduce((s, g) => s + (Number(g.soldFor) || 0), 0);
     const gearNetInvestment = Math.max(0, gearTotalCost - gearSoldProceeds);
-    const gearRoiIncome = totalPaid; // side-hustle collected across all shoots
+    // Gear recovers its cost from ALL side income: shoots (side hustle collected) + Other income
+    // (gear rentals and the like). Both are tracked separately but both pay the gear back.
+    const gearRoiShoots = totalPaid;
+    const gearRoiOther = (state.otherIncome || []).reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    const gearRoiIncome = gearRoiShoots + gearRoiOther;
     const gearRoiRemaining = Math.max(0, gearNetInvestment - gearRoiIncome);
     const gearRoiPercent = gearNetInvestment > 0 ? Math.min(100, Math.round((gearRoiIncome / gearNetInvestment) * 100)) : 0;
     const gearRoiReached = gearNetInvestment > 0 && gearRoiIncome >= gearNetInvestment;
@@ -1669,7 +1673,7 @@
       view, shoots, navColor, goalCards, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
       loansDueSoon, showBackupReminder, backupReminderLabel,
-      gearItems, gearTotalCost, gearSoldProceeds, gearNetInvestment, gearRoiIncome, gearRoiRemaining, gearRoiPercent, gearRoiReached, gearOwnedCount, gearSoldCount, gearRows,
+      gearItems, gearTotalCost, gearSoldProceeds, gearNetInvestment, gearRoiIncome, gearRoiShoots, gearRoiOther, gearRoiRemaining, gearRoiPercent, gearRoiReached, gearOwnedCount, gearSoldCount, gearRows,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
       expensesMonthKey, expensesMonthLabel, monthExpensesTotal, expenseBreakdown,
@@ -3793,8 +3797,9 @@
           <div class="sg" style="font-size:34px;font-weight:700;margin-top:4px">${reached ? 'Fully recovered ✓' : ctx.gearRoiPercent + '% recovered'}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:11.5px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Side hustle income</div>
+          <div style="font-size:11.5px;color:oklch(0.85 0.06 150);text-transform:uppercase;letter-spacing:0.04em">Side income</div>
           <div class="sg" style="font-size:24px;font-weight:700;margin-top:2px">${fmtMoney(ctx.gearRoiIncome)}</div>
+          <div style="font-size:11px;color:oklch(0.85 0.06 150);margin-top:3px">shoots + other, recovering your gear</div>
         </div>
       </div>
       <div style="height:12px;background:oklch(1 0 0 / 0.2);border-radius:8px;overflow:hidden;margin-top:16px">
@@ -3806,11 +3811,17 @@
       </div>
     </div>
 
+    ${ctx.gearRoiOther > 0 ? `
+    <div class="card" style="padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px;background:oklch(0.97 0.006 150);border-radius:10px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase">From shoots</div><div class="sg" style="font-size:17px;font-weight:800;margin-top:3px;color:oklch(0.5 0.14 150)">${fmtMoney(ctx.gearRoiShoots)}</div></div>
+      <div style="flex:1;min-width:150px;background:oklch(0.97 0.006 150);border-radius:10px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:oklch(0.5 0.015 150);text-transform:uppercase">From other (rentals)</div><div class="sg" style="font-size:17px;font-weight:800;margin-top:3px;color:oklch(0.55 0.14 70)">${fmtMoney(ctx.gearRoiOther)}</div></div>
+    </div>` : ''}
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:16px;margin-bottom:24px">
       <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">Total Invested</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px">${fmtMoney(ctx.gearTotalCost)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">${ctx.gearItems.length} item${ctx.gearItems.length === 1 ? '' : 's'}</div></div>
       <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">Recovered from Sales</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px;color:oklch(0.5 0.15 150)">${fmtMoney(ctx.gearSoldProceeds)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">${ctx.gearSoldCount} sold</div></div>
       <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">Net to Recover</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px">${fmtMoney(ctx.gearNetInvestment)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">after sales</div></div>
-      <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">${reached ? 'Surplus' : 'Still to Recover'}</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px;color:${reached ? 'oklch(0.5 0.15 150)' : 'oklch(0.62 0.17 45)'}">${fmtMoney(reached ? surplus : ctx.gearRoiRemaining)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">via side hustle</div></div>
+      <div class="card" style="padding:18px"><div style="color:oklch(0.45 0.015 150);font-size:12px;font-weight:600;text-transform:uppercase">${reached ? 'Surplus' : 'Still to Recover'}</div><div class="sg" style="font-size:22px;font-weight:700;margin-top:6px;color:${reached ? 'oklch(0.5 0.15 150)' : 'oklch(0.62 0.17 45)'}">${fmtMoney(reached ? surplus : ctx.gearRoiRemaining)}</div><div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-top:2px">via side income</div></div>
     </div>
 
     <div class="search-wrap">
