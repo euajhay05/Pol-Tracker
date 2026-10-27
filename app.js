@@ -835,6 +835,71 @@
   const PERSIST_KEYS = ['shoots', 'expenses', 'loans', 'fullTimeIncome', 'otherIncome', 'goals', 'clients', 'packageRates', 'documents', 'gearItems'];
   const PERSIST_COLUMNS = { shoots: 'shoots', expenses: 'expenses', loans: 'loans', fullTimeIncome: 'full_time_income', otherIncome: 'other_income', goals: 'goals', clients: 'clients', packageRates: 'package_rates', documents: 'documents', gearItems: 'gear_items' };
 
+  // ---- Auto snapshots: server-side backups in tracker_snapshots (owner-only via RLS) ----
+  const SNAP_URL = `${SUPABASE_URL}/rest/v1/tracker_snapshots`;
+  const SNAP_KEEP = 20;
+  const SNAP_DAILY_MS = 24 * 60 * 60 * 1000;
+  function buildSnapshotData() { const d = {}; PERSIST_KEYS.forEach(k => { d[k] = state[k]; }); return d; }
+  async function saveSnapshot(label) {
+    try {
+      const body = [{ label: label || 'daily', data: buildSnapshotData() }];
+      const res = await authedFetch(SNAP_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(body) });
+      if (!res.ok) return false;
+      try {
+        const r = await authedFetch(`${SNAP_URL}?select=id&order=id.desc&limit=1&offset=${SNAP_KEEP}`);
+        const arr = await r.json();
+        if (Array.isArray(arr) && arr.length) await authedFetch(`${SNAP_URL}?id=lte.${arr[0].id}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+      } catch (e) { /* prune best-effort */ }
+      return true;
+    } catch (e) { return false; }
+  }
+  async function loadSnapshots() {
+    try {
+      const res = await authedFetch(`${SNAP_URL}?select=id,created_at,label&order=id.desc&limit=${SNAP_KEEP}`);
+      if (!res.ok) return [];
+      const arr = await res.json();
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+  async function refreshSnapshotList() { const snaps = await loadSnapshots(); state = { ...state, snapshots: snaps }; render(); }
+  async function restoreSnapshot(id) {
+    try {
+      const res = await authedFetch(`${SNAP_URL}?id=eq.${encodeURIComponent(id)}&select=data`);
+      const arr = await res.json();
+      if (!Array.isArray(arr) || !arr.length) { alert('Hindi makuha yung backup na yon.'); return; }
+      const data = arr[0].data || {};
+      const keysPresent = PERSIST_KEYS.filter(k => data && (k in data));
+      if (!keysPresent.length) { alert('Walang laman yung backup na yon.'); return; }
+      if (!confirm('I restore ang backup na ito? Papalitan nito ang kasalukuyan mong data. Kukuha muna tayo ng kopya ng ngayon bago palitan, kaya pwede mo pa rin itong bawiin.')) return;
+      await saveSnapshot('before-restore');
+      const patch = {}; keysPresent.forEach(k => { patch[k] = data[k]; });
+      setState(patch);
+      await refreshSnapshotList();
+      alert('Na restore na ang backup.');
+    } catch (e) { alert('May problema sa pag restore.'); }
+  }
+  async function maybeDailySnapshot() {
+    try {
+      const res = await authedFetch(`${SNAP_URL}?select=created_at&order=id.desc&limit=1`);
+      if (!res.ok) return;
+      const arr = await res.json();
+      const last = Array.isArray(arr) && arr.length ? new Date(arr[0].created_at).getTime() : 0;
+      if (Date.now() - last >= SNAP_DAILY_MS) await saveSnapshot('daily');
+    } catch (e) { /* ignore */ }
+  }
+  async function bootstrapSnapshots() { await maybeDailySnapshot(); await refreshSnapshotList(); }
+  function snapWhen(iso) {
+    try {
+      const d = new Date(iso), now = new Date();
+      const t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      if (d.toDateString() === now.toDateString()) return `Today, ${t}`;
+      const y = new Date(now); y.setDate(now.getDate() - 1);
+      if (d.toDateString() === y.toDateString()) return `Yesterday, ${t}`;
+      return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${t}`;
+    } catch (e) { return String(iso); }
+  }
+  function snapLabelText(l) { return l === 'before-restore' ? 'Before restore' : (l === 'manual' ? 'Manual' : 'Daily auto'); }
+
   async function fetchRemoteState() {
     // select=* so a column that may not exist yet (e.g. other_income before its migration)
     // never 400s the whole load; applyPersistedData just skips columns that are absent.
@@ -1704,7 +1769,7 @@
     return {
       view, shoots, navColor, goalCards, completed, outstanding,
       upcomingList, nextUpList, noNextUp, columns, totalPackage, totalPaid, loanCards,
-      loansDueSoon, showBackupReminder, backupReminderLabel,
+      loansDueSoon, showBackupReminder, backupReminderLabel, snapshots: state.snapshots || [],
       gearItems, gearTotalCost, gearSoldProceeds, gearNetInvestment, gearRoiIncome, gearRoiShoots, gearRoiOther, gearRoiRemaining, gearRoiPercent, gearRoiReached, gearOwnedCount, gearSoldCount, gearRows,
       todayTotal, monthTotal, analysisText, analysisColor, recentExpenses, allExpenseRows,
       filteredExpenseRows, lastExp, monthLabel, calendarCells, selectedDateShoots,
@@ -2992,6 +3057,23 @@
           ? `<button type="button" data-action="chip-open" data-key="${ic.clickKey}" style="all:unset;cursor:pointer;box-sizing:border-box;display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px">${header}${inner}</button>`
           : `<div class="card">${header}${inner}</div>`;
       }).join('')}
+      <div class="card" style="margin-top:16px">
+        <div class="card-title sg" style="font-size:15px;margin-bottom:4px">Auto Backups</div>
+        <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:14px">Kusang kumukuha ng kopya sa server kada araw at bago mag restore. Hinahawakan ang huling 20, para ligtas kahit ma overwrite ang data.</div>
+        ${(ctx.snapshots && ctx.snapshots.length) ? ctx.snapshots.map((s, i) => `
+        <div style="display:flex;align-items:center;gap:12px;padding:11px 4px;${i > 0 ? 'border-top:1px solid var(--border2);' : ''}">
+          <div style="width:34px;height:34px;border-radius:10px;background:oklch(0.93 0.05 150);display:flex;align-items:center;justify-content:center;font-size:15px;flex:none">${s.label === 'before-restore' ? '🛟' : (s.label === 'manual' ? '💾' : '🗓️')}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600">${esc(snapWhen(s.created_at))}</div>
+            <div style="margin-top:3px"><span class="sg" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;padding:2px 7px;border-radius:6px;background:${s.label === 'before-restore' ? 'oklch(0.93 0.06 150)' : 'oklch(0.95 0.02 150)'};color:${s.label === 'before-restore' ? 'oklch(0.4 0.13 150)' : 'oklch(0.5 0.015 150)'}">${esc(snapLabelText(s.label))}</span></div>
+          </div>
+          <button type="button" data-action="snapshot-restore" data-id="${esc(String(s.id))}" style="all:unset;cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;color:oklch(0.45 0.14 150);padding:6px 12px;border-radius:8px;background:oklch(0.93 0.06 150);flex:none">Restore</button>
+        </div>`).join('') : `<div style="font-size:12px;color:oklch(0.55 0.015 150);padding:10px 0;text-align:center">Wala pang auto backup. Kusa itong gagawa kapag binuksan mo ang app o may bagong pagbabago.</div>`}
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button type="button" data-action="snapshot-now" style="all:unset;cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;color:oklch(0.4 0.13 150);background:oklch(0.93 0.06 150);padding:9px 14px;border-radius:10px">Save backup now</button>
+          <button type="button" data-action="snapshot-refresh" style="all:unset;cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:oklch(0.5 0.015 150);background:var(--card2);padding:9px 14px;border-radius:10px">Refresh</button>
+        </div>
+      </div>
     </div>`;
   }
 
@@ -4531,6 +4613,9 @@
         break;
       }
       case 'backup-remind-later': { backupReminderDismissed = true; render(); break; }
+      case 'snapshot-restore': { restoreSnapshot(el.dataset.id); break; }
+      case 'snapshot-now': { (async () => { const ok = await saveSnapshot('manual'); await refreshSnapshotList(); if (!ok) alert('Hindi ma save ang backup ngayon. Baka offline ka o viewer lang ang access mo.'); })(); break; }
+      case 'snapshot-refresh': { refreshSnapshotList(); break; }
       case 'install-app': {
         if (deferredInstallPrompt) {
           const p = deferredInstallPrompt;
@@ -5890,6 +5975,7 @@
 
     render();
     refreshUsdRate(); // fire-and-forget: fetch live USD→PHP for the Foreign estimate
+    if (!offlineMode) bootstrapSnapshots(); // fire-and-forget: daily auto backup + load the snapshot list
   }
 
   // Fetches the current mid-market USD→PHP rate (keyless, free) once every ~12h and caches it
