@@ -1489,14 +1489,30 @@
       : ewRange === 'year' ? expenses.filter(e => e.date && e.date.slice(0, 4) === ebYM[0])
       : ebRows;
     const ewMap = {};
-    ewRows.forEach(e => { const c = categoryOfExpense(e, ebRules); ewMap[c] = (ewMap[c] || 0) + (Number(e.amount) || 0); });
-    let ewArr = Object.keys(ewMap).map(k => ({ name: k, amount: ewMap[k] })).filter(x => x.amount > 0).sort((a, b) => b.amount - a.amount);
-    let ewOverflow = 0;
-    if (ewArr.length > 6) { ewOverflow = ewArr.slice(5).reduce((s, x) => s + x.amount, 0); ewArr = ewArr.slice(0, 5); }
+    ewRows.forEach(e => {
+      const c = categoryOfExpense(e, ebRules);
+      if (!ewMap[c]) ewMap[c] = { amount: 0, count: 0, items: [] };
+      ewMap[c].amount += (Number(e.amount) || 0);
+      ewMap[c].count += 1;
+      ewMap[c].items.push({ id: e.id, desc: e.description || 'Untitled', dateLabel: fmtDate(e.date), amountLabel: fmtMoney(e.amount), amount: Number(e.amount) || 0 });
+    });
+    let ewArr = Object.keys(ewMap).map(k => ({ name: k, amount: ewMap[k].amount, count: ewMap[k].count, items: ewMap[k].items })).filter(x => x.amount > 0).sort((a, b) => b.amount - a.amount);
+    let ewOverflow = 0, ewOverflowCount = 0, ewOverflowItems = [];
+    if (ewArr.length > 6) {
+      const rest = ewArr.slice(5);
+      ewOverflow = rest.reduce((s, x) => s + x.amount, 0);
+      ewOverflowCount = rest.reduce((s, x) => s + x.count, 0);
+      rest.forEach(x => { ewOverflowItems = ewOverflowItems.concat(x.items); });
+      ewArr = ewArr.slice(0, 5);
+    }
     const ewMains = ewArr.filter(x => x.name !== 'Other');
-    const ewOtherTotal = ewOverflow + ewArr.filter(x => x.name === 'Other').reduce((s, x) => s + x.amount, 0);
+    const ewOtherEntries = ewArr.filter(x => x.name === 'Other');
+    const ewOtherTotal = ewOverflow + ewOtherEntries.reduce((s, x) => s + x.amount, 0);
+    const ewOtherCount = ewOverflowCount + ewOtherEntries.reduce((s, x) => s + x.count, 0);
+    let ewOtherItems = ewOverflowItems.slice();
+    ewOtherEntries.forEach(x => { ewOtherItems = ewOtherItems.concat(x.items); });
     const ewCatsRaw = ewMains.slice();
-    if (ewOtherTotal > 0) ewCatsRaw.push({ name: 'Other', amount: ewOtherTotal });
+    if (ewOtherTotal > 0) ewCatsRaw.push({ name: 'Other', amount: ewOtherTotal, count: ewOtherCount, items: ewOtherItems });
     const ewTotal = ewCatsRaw.reduce((s, x) => s + x.amount, 0);
     const EW_RAMP = ['oklch(0.42 0.14 150)', 'oklch(0.5 0.14 152)', 'oklch(0.57 0.13 156)', 'oklch(0.64 0.12 160)', 'oklch(0.72 0.1 165)', 'oklch(0.8 0.065 162)'];
     const ewC = 2 * Math.PI * 82, ewGap = 5;
@@ -1510,9 +1526,12 @@
     });
     const ewCats = ewCatsRaw.map((c, i) => ({
       name: c.name, color: EW_RAMP[i] || EW_RAMP[5],
-      amountLabel: fmtMoney(c.amount),
+      amount: c.amount, amountLabel: fmtMoney(c.amount), count: c.count || 0,
       pct: ewTotal ? Math.round((c.amount / ewTotal) * 1000) / 10 : 0,
+      open: state.expCatOpen === c.name,
+      items: (c.items || []).slice().sort((a, b) => b.amount - a.amount),
     }));
+    expenseBreakdown.anyData = expenses.length > 0;
     expenseBreakdown.where = { range: ewRange, hasData: ewCatsRaw.length > 0, totalLabel: fmtMoney(ewTotal), seg: ewSeg, cats: ewCats };
 
     const expensesSelectedDate = state.expensesSelectedDate || TODAY_STR;
@@ -2431,7 +2450,7 @@
     </div>
     ${expensesTabBar}
     ${ebTab === 'log' ? expensesCalendarSection : ''}
-    ${ebTab === 'breakdown' ? (ctx.expenseBreakdown.hasData ? (() => { const eb = ctx.expenseBreakdown; return `
+    ${ebTab === 'breakdown' ? (ctx.expenseBreakdown.anyData ? (() => { const eb = ctx.expenseBreakdown; return `
     <div class="card" style="margin-top:24px">
       <div class="card-title" style="margin-bottom:4px;font-size:15px">Expense Breakdown — ${esc(ctx.expensesMonthLabel)}</div>
       <div style="font-size:11.5px;color:oklch(0.5 0.015 150);margin-bottom:16px">Auto-sorted from your descriptions — spending trend and where it went.</div>
@@ -2485,33 +2504,28 @@
           </div>
         </div>
       </div>
-      <div style="margin:12px 0 6px">
-        ${eb.where.cats.map((c, i) => `<div style="display:flex;align-items:center;gap:11px;padding:9px 8px;${i > 0 ? 'border-top:1px solid var(--border2);' : ''}">
-          <span style="width:12px;height:12px;border-radius:4px;flex:none;background:${c.color}"></span>
-          <span style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
-          <span class="sg" style="font-size:12px;color:oklch(0.5 0.015 150);font-weight:600;width:48px;text-align:right">${c.pct}%</span>
-          <span class="sg" style="font-size:13px;font-weight:700;width:86px;text-align:right">${esc(c.amountLabel)}</span>
-        </div>`).join('')}
-      </div>` : `<div style="font-size:11.5px;color:oklch(0.55 0.015 150);text-align:center;padding:16px">No spending to show for this range yet.</div>`}
-      <div class="sg" style="font-weight:700;font-size:12.5px;margin:20px 0 2px">By Category</div>
-      <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-bottom:8px">Tap a category to see its items — tap "Move" to fix any that landed in the wrong place. The app remembers your fix for next time.</div>
-      ${eb.cats.map(c => `
-        <div style="margin:9px 0">
-          <div data-action="exp-cat-toggle" data-cat="${esc(c.name)}" style="cursor:pointer;display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px">
-            <span style="font-weight:${c.open ? '700' : '400'}">${c.open ? '▾' : '▸'} ${esc(c.name)}</span>
-            <span style="font-weight:700">${c.amountLabel} <span style="color:oklch(0.55 0.015 150);font-weight:600">${c.pct}%</span></span>
+      <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin:12px 0 2px;text-align:center">Tap a category to see its items, tap Move to fix a wrong one.</div>
+      <div style="margin:4px 0 2px">
+        ${eb.where.cats.map((c, i) => `
+        <div style="${i > 0 ? 'border-top:1px solid var(--border2);' : ''}">
+          <div data-action="exp-cat-toggle" data-cat="${esc(c.name)}" style="cursor:pointer;display:flex;align-items:center;gap:11px;padding:11px 8px">
+            <span style="color:oklch(0.5 0.015 150);font-size:11px;width:12px;flex:none">${c.open ? '▾' : '▸'}</span>
+            <span style="width:12px;height:12px;border-radius:4px;flex:none;background:${c.color}"></span>
+            <span style="font-size:13.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
+            <span class="sg" style="font-size:12px;color:oklch(0.5 0.015 150);font-weight:600;width:44px;text-align:right">${c.pct}%</span>
+            <span class="sg" style="font-size:13px;font-weight:700;width:84px;text-align:right">${esc(c.amountLabel)}</span>
           </div>
-          <div style="height:8px;background:oklch(0.91 0.012 150);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.max(Math.round((c.amount / eb.catMax) * 100), 2)}%;background:${c.name === 'Debt & Card Payments' ? 'oklch(0.4 0.13 150)' : (c.name === 'Other' ? 'oklch(0.6 0.03 150)' : 'oklch(0.58 0.13 150)')};border-radius:5px"></div></div>
-          <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-top:3px">${c.count} ${c.count === 1 ? 'entry' : 'entries'}</div>
-          ${c.open ? `<div style="margin:8px 0 14px;padding:6px 10px;background:var(--card2);border-radius:10px">
+          ${c.open ? `<div style="margin:0 0 10px 23px;padding:8px 12px;background:var(--card2);border-radius:11px">
+            <div style="font-size:10.5px;color:oklch(0.55 0.015 150);margin-bottom:4px">${c.count} ${c.count === 1 ? 'entry' : 'entries'}</div>
             ${c.items.map(it => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11.5px;border-bottom:1px solid var(--border2)">
-              <span style="width:44px;flex:none;color:oklch(0.55 0.015 150)">${esc(it.dateLabel)}</span>
+              <span style="width:46px;flex:none;color:oklch(0.55 0.015 150)">${esc(it.dateLabel)}</span>
               <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.desc)}</span>
               <span style="font-weight:600;flex:none">${esc(it.amountLabel)}</span>
               <button type="button" data-action="exp-item-reassign" data-id="${esc(it.id)}" style="all:unset;cursor:pointer;flex:none;font-size:10px;font-weight:700;color:oklch(0.45 0.14 150);padding:3px 8px;border-radius:6px;background:oklch(0.92 0.05 150)">Move</button>
             </div>`).join('')}
           </div>` : ''}
         </div>`).join('')}
+      </div>` : `<div style="font-size:11.5px;color:oklch(0.55 0.015 150);text-align:center;padding:16px">No spending to show for this range yet.</div>`}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px">
       <div class="card">
