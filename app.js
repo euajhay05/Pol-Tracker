@@ -1345,7 +1345,7 @@
         monthPayLabel: paidThisMonth ? 'Paid this month ✓' : (nearDue ? 'Not paid yet' : (dueDays !== null ? `Due in ${dueDays}d` : 'Not paid yet this month')),
         monthPayColor: paidThisMonth ? 'oklch(0.42 0.14 150)' : (nearDue ? 'oklch(0.5 0.17 55)' : 'oklch(0.45 0.015 150)'),
         monthPayBg: paidThisMonth ? 'oklch(0.75 0.15 160 / 0.16)' : (nearDue ? 'oklch(0.82 0.15 65 / 0.18)' : 'oklch(0.9 0.02 150)'),
-        statusLabel: isPaid ? 'Paid Off' : (isUpcoming ? 'Upcoming' : 'Ongoing'),
+        statusLabel: isPaid ? 'Paid Off' : (isUpcoming ? 'Upcoming' : 'Ongoing'), owedTag: l.owedToMe ? '<div style="display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:oklch(0.42 0.13 150);background:oklch(0.9 0.07 150);border-radius:999px;padding:3px 9px;margin-bottom:8px">\u2193 Utang sakin</div>' : '',
         statusColor: isPaid ? 'oklch(0.5 0.15 150)' : (isUpcoming ? 'oklch(0.48 0.14 245)' : 'oklch(0.58 0.16 80)'),
         statusBg: isPaid ? 'oklch(0.75 0.15 160 / 0.16)' : (isUpcoming ? 'oklch(0.68 0.11 245 / 0.16)' : 'oklch(0.78 0.14 80 / 0.16)'),
         amountLabel: fmtMoney(l.amount), remainingLabel: fmtMoney(l.remainingBalance), monthlyDueLabel: fmtMoney(l.monthlyDue),
@@ -2637,7 +2637,7 @@
             <div style="font-weight:800;font-size:17px;letter-spacing:-0.01em">${esc(l.lender)}</div>
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;padding:5px 12px;border-radius:20px;background:${l.statusBg};color:${l.statusColor};flex:none">${l.statusLabel}</div>
           </div>
-          <div style="color:oklch(0.5 0.015 150);font-size:13.5px;margin-bottom:18px">${esc(l.dueLabel)}</div>
+          ${l.owedTag}<div style="color:oklch(0.5 0.015 150);font-size:13.5px;margin-bottom:18px">${esc(l.dueLabel)}</div>
           <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
             <span style="font-size:15px;font-weight:700">${l.remainingLabel} <span style="font-weight:500;color:oklch(0.5 0.015 150);font-size:12.5px">left</span></span>
             <span style="font-size:13px;color:oklch(0.5 0.015 150)">${l.amountLabel} total</span>
@@ -3952,7 +3952,7 @@
       <form class="modal-box" style="width:420px" data-stop data-action="save-loan">
         <div class="modal-head"><div class="modal-title">${isEdit ? 'Edit Loan' : 'Add Loan'}</div><button type="button" class="modal-close" data-action="modal-close" data-which="loan">✕</button></div>
         <div class="modal-fields">
-          <div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan" required/></div>
+          <div class="field"><label>Type</label><div style="display:flex;gap:8px;margin-top:2px"><button type="button" data-action="loan-set-dir" data-dir="ko" style="flex:1;cursor:pointer;text-align:center;padding:9px 0;border-radius:10px;font-size:13px;font-weight:700;border:1px solid oklch(0 0 0 / 0.08);${!d.owedToMe ? 'background:oklch(0.93 0.06 25);color:oklch(0.45 0.16 25)' : 'background:var(--card2);color:oklch(0.5 0.015 150)'}">Utang ko</button><button type="button" data-action="loan-set-dir" data-dir="me" style="flex:1;cursor:pointer;text-align:center;padding:9px 0;border-radius:10px;font-size:13px;font-weight:700;border:1px solid oklch(0 0 0 / 0.08);${d.owedToMe ? 'background:oklch(0.9 0.07 150);color:oklch(0.42 0.13 150)' : 'background:var(--card2);color:oklch(0.5 0.015 150)'}">Utang sakin</button></div></div><div class="field"><label>Lender / Source</label><input type="text" value="${esc(d.lender)}" data-bind="loanDraft.lender" placeholder="e.g. BPI Personal Loan" required/></div>
           <div class="row-2">
             <div class="field"><label>Monthly Due (₱)</label><input type="text" inputmode="decimal" value="${esc(formatMoneyLiveDisplay(d.monthlyDue))}" data-bind="loanDraft.monthlyDue" data-fmt="money" required/></div>
             <div class="field"><label>Due Day of Month</label><input type="number" min="1" max="31" value="${esc(d.dueDay)}" data-bind="loanDraft.dueDay" placeholder="e.g. 23"/></div>
@@ -4727,7 +4727,8 @@
         break;
       }
 
-      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanStartPickerOpen: false, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', termMonths: '', startMonth: THIS_MONTH_KEY, remainingBalance: '', dueDay: '', endDate: '', status: 'ongoing' } }); break;
+      case 'loan-add-open': setState({ loanModal: { mode: 'add' }, loanStartPickerOpen: false, loanDraft: { id: null, lender: '', amount: '', monthlyDue: '', termMonths: '', startMonth: THIS_MONTH_KEY, remainingBalance: '', dueDay: '', endDate: '', status: 'ongoing', owedToMe: false } }); break;
+      case 'loan-set-dir': setState({ loanDraft: { ...state.loanDraft, owedToMe: el.dataset.dir === 'me' } }); break;
       case 'loan-edit': openEditLoan(id); break;
       case 'loan-delete':
         if (!confirm(`Are you sure you want to delete the loan "${state.loanDraft.lender || 'this loan'}"? This cannot be undone.`)) break;
@@ -5876,6 +5877,8 @@
         if (amt <= 0) { alert('Please enter a payment amount.'); return; }
         if (state.loanPaymentModal) {
           const targetId = state.loanPaymentModal.id;
+          const _rcvL = (state.loans || []).find(function(x){ return x.id === targetId; });
+          const _isRecv = !!(_rcvL && _rcvL.owedToMe);
           setState(s => ({
             loans: s.loans.map(l => {
               if (l.id !== targetId) return l;
@@ -5883,7 +5886,8 @@
               const historyEntry = { id: 'lp' + Date.now(), date: TODAY_STR, amount: amt };
               return { ...l, remainingBalance: newRemaining, status: newRemaining === 0 ? 'paid' : l.status, paymentHistory: [...(l.paymentHistory || []), historyEntry] };
             }),
-            loanPaymentModal: null, loanPaymentDraft: null,
+            otherIncome: _isRecv ? (s.otherIncome || []).concat([{ id: 'oi' + Date.now(), source: 'Bayad: ' + ((_rcvL && _rcvL.lender) || 'Utang sakin'), amount: amt, date: TODAY_STR, via: 'loan' }]) : (s.otherIncome || []),
+          loanPaymentModal: null, loanPaymentDraft: null,
           }));
         }
       } else if (action === 'save-shoot-payment') {
