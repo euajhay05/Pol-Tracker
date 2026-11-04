@@ -430,6 +430,64 @@
   const AUTH_EXPIRES_KEY = 'shoottracker_expires_at';
   let accessToken = null;
 
+  // Partner view only: the owner can edit, anyone else signed in is read only.
+  // The database already blocks a non owner from writing. This just makes the app
+  // look and feel read only for them instead of showing failed save errors.
+  const OWNER_UID = '295c2b20-8c7a-4ab3-a02a-78235844992e';
+  let IS_VIEWER = false;
+  function b64urlToJson(seg) {
+    let s = String(seg || '').replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return JSON.parse(atob(s));
+  }
+  function decodeIsViewer() {
+    try {
+      if (!accessToken) return false;
+      const payload = b64urlToJson(accessToken.split('.')[1]);
+      return !!(payload && payload.sub && payload.sub !== OWNER_UID);
+    } catch (e) { return false; }
+  }
+  // Mutating actions blocked for a viewer. Navigation, tab switches, month pickers,
+  // expanding a category to read it, downloads and logout stay available.
+  const VIEWER_WRITE_ACTIONS = new Set([
+    'change-password',
+    'shoot-add-open', 'shoot-add-open-for-date', 'shoot-edit', 'shoot-status-open', 'shoot-status-set', 'shoot-create-billing', 'shoot-delete',
+    'shoot-payment-open', 'shoot-payment-quick', 'shoot-payment-label', 'shoot-payment-history-delete',
+    'fulltime-delete', 'other-delete', 'expense-delete',
+    'exp-item-reassign', 'exp-cat-set', 'exp-cat-set-new', 'exp-cat-clear',
+    'loan-add-open', 'loan-edit', 'loan-delete', 'loan-set-dir', 'loan-payment-open', 'loan-payment-quick', 'loan-payment-history-delete',
+    'goal-add-open', 'goal-edit', 'goal-delete', 'goal-fund-open', 'goal-fund-history-delete',
+    'client-add-open', 'client-edit', 'client-delete',
+    'gear-add-open', 'gear-edit', 'gear-delete',
+    'doc-generate', 'doc-qr-upload', 'doc-qr-remove', 'doc-history-edit', 'doc-history-delete', 'doc-book-shoot',
+    'backup-restore', 'snapshot-restore', 'snapshot-now',
+    'reschedule-confirm', 'shoot-confirm-close-confirm',
+  ]);
+  let VIEWER_TOAST_AT = 0;
+  function viewerToast() {
+    const now = Date.now();
+    if (now - VIEWER_TOAST_AT < 1400) return;
+    VIEWER_TOAST_AT = now;
+    let t = document.getElementById('viewer-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'viewer-toast';
+      t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:99999;background:oklch(0.42 0.11 255);color:#fff;font:600 13px Inter,system-ui,sans-serif;padding:11px 18px;border-radius:999px;box-shadow:0 6px 20px oklch(0 0 0 / 0.18);opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw';
+      document.body.appendChild(t);
+    }
+    t.textContent = 'View only. Changes are turned off';
+    t.style.opacity = '1';
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(function () { t.style.opacity = '0'; }, 1900);
+  }
+  function ensureViewerStyles() {
+    if (document.getElementById('viewer-hide-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'viewer-hide-styles';
+    st.textContent = 'body.viewer [data-action="shoot-add-open"],body.viewer [data-action="shoot-add-open-for-date"],body.viewer [data-action="loan-add-open"],body.viewer [data-action="goal-add-open"],body.viewer [data-action="client-add-open"],body.viewer [data-action="gear-add-open"],body.viewer [data-action="loan-payment-open"],body.viewer [data-action="loan-payment-quick"],body.viewer [data-action="shoot-payment-open"],body.viewer [data-action="shoot-payment-quick"],body.viewer [data-action="shoot-status-open"],body.viewer [data-action="shoot-create-billing"],body.viewer [data-action="goal-fund-open"],body.viewer [data-action="expense-delete"],body.viewer [data-action="other-delete"],body.viewer [data-action="fulltime-delete"],body.viewer [data-action="loan-payment-history-delete"],body.viewer [data-action="shoot-payment-history-delete"],body.viewer [data-action="goal-fund-history-delete"],body.viewer [data-action="doc-history-delete"],body.viewer [data-action="exp-item-reassign"],body.viewer [data-action="exp-cat-set"],body.viewer [data-action="exp-cat-set-new"],body.viewer [data-action="exp-cat-clear"],body.viewer [data-action="doc-generate"],body.viewer [data-action="doc-qr-upload"],body.viewer [data-action="doc-qr-remove"],body.viewer [data-action="doc-history-edit"],body.viewer [data-action="doc-book-shoot"],body.viewer [data-action="change-password"],body.viewer [data-action="snapshot-now"],body.viewer [data-action="snapshot-restore"],body.viewer [data-action="backup-restore"]{display:none !important;}';
+    document.head.appendChild(st);
+  }
+
   // Login is kept in sessionStorage (not localStorage) on purpose: it survives a
   // page refresh but is cleared when the tab / browser is closed — so reopening
   // the app fresh asks for login again, while a simple refresh keeps you in.
@@ -1025,6 +1083,8 @@
   function setState(patch) {
     const partial = typeof patch === 'function' ? patch(state) : patch;
     const changedKeys = PERSIST_KEYS.filter(k => k in partial);
+    // Partner view only: a non owner can never change saved data from the UI.
+    if (IS_VIEWER && changedKeys.length) { viewerToast(); return; }
     // Offline = view-only. Block any change that would touch saved data, so we never
     // show a "saved" edit that didn't actually reach the cloud (or overwrite fresh data).
     if (offlineMode && changedKeys.length) {
@@ -4260,6 +4320,7 @@
 
     const html = `
       ${offlineMode ? `<div style="position:sticky;top:0;z-index:100;background:oklch(0.62 0.17 45);color:#fff;padding:9px 14px;text-align:center;font-size:12.5px;font-weight:600">⚠ Offline — showing your last saved data. Editing is disabled until you reconnect.</div>` : ''}
+      ${IS_VIEWER ? `<div style="position:sticky;top:0;z-index:100;background:oklch(0.42 0.11 255);color:#fff;padding:9px 14px;text-align:center;font-size:12.5px;font-weight:600">👁 View only. You are a viewer here, changes are turned off.</div>` : ''}
       <div class="app-shell">
         ${renderSidebar()}
         <main class="main">${pageFn(ctx)}</main>
@@ -4397,6 +4458,7 @@
 
   function handleAction(action, el, ev) {
     const id = el.dataset.id;
+    if (IS_VIEWER && VIEWER_WRITE_ACTIONS.has(action)) { viewerToast(); return; }
     switch (action) {
       case 'nav':
         try { localStorage.setItem('shoottracker_last_view', el.dataset.view); } catch (e) { /* storage unavailable */ }
@@ -5982,6 +6044,8 @@
 
   async function init() {
     markActive();
+    IS_VIEWER = decodeIsViewer();
+    try { ensureViewerStyles(); document.body.classList.toggle('viewer', IS_VIEWER); } catch (e) { /* ignore */ }
     startIdleWatch();
     wireListeners();
     startClockInterval();
