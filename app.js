@@ -75,10 +75,25 @@
   };
 
   const DOC_TYPE_META = {
-    contract:  { title: 'Service Agreement / Contract', body: (d, mf = fmtMoney) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", to be delivered on ${d.date || '[Date]'} for a total contract value of ${mf(d.amount)}.` },
+    contract:  { title: 'Service Agreement / Contract', body: (d, mf = fmtMoney) => `This Service Agreement is entered into between Pol Film Productions and ${d.clientName || '[Client Name]'} for the production of "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}, for a total contract value of ${mf(d.amount)}. By signing below, both parties agree to the terms and conditions set out in this Agreement.` },
     quotation: { title: 'Quotation',                      body: (d, mf = fmtMoney) => `Thank you for the opportunity to work with you. Below is our proposed scope of work and pricing for ${d.description || '[Project/Service]'}.${d.dueDate ? ` This quotation is valid until ${fmtDateShortYear(d.dueDate)}.` : ''}` },
     invoice:   { title: 'Statement of Account',           body: (d, mf = fmtMoney) => `Invoice billed to ${d.clientName || '[Client Name]'} for "${d.description || '[Project/Service]'}", dated ${d.date || '[Date]'}. Amount due: ${mf(d.amount)}.` },
   };
+
+  // Standard contract clauses, shown on-screen and in the generated PDF so the contract reads
+  // as a real service agreement instead of a one line receipt.
+  const CONTRACT_CLAUSES = [
+    ['Scope of Work', 'The Provider will deliver the agreed outputs for this project, covering pre production, the shoot day, editing, color, and sound. Any work beyond the agreed scope is quoted separately before it starts.'],
+    ['Project Fee', 'The total contract value is stated in this Agreement and covers the scope above.'],
+    ['Payment Schedule', '50 percent downpayment confirms the booking and reserves the date. The remaining 50 percent balance is due within 3 days of final delivery.'],
+    ['Timeline', 'Final files are delivered within 7 working days after the shoot, or after the Client provides all needed materials and approvals, whichever comes later.'],
+    ['Revisions', 'Two rounds of minor revisions on the first cut are included. Extra rounds or a change of direction after approval are billed at PHP 1,500 per round.'],
+    ['Cancellation and Rescheduling', 'The downpayment is non refundable because it reserves the date and covers pre production. Rescheduling needs at least 3 days notice and is subject to availability.'],
+    ['Usage and Ownership', 'Upon full payment, the Client owns the final delivered files. Raw footage is not included unless agreed in writing. The Provider may feature the finished work in its portfolio and social media unless the Client requests otherwise in writing.'],
+    ['Client Responsibilities', 'The Client provides timely access, information, and approvals. Delays in feedback or materials may move the delivery date.'],
+    ['Liability', 'The Provider is not liable for delays or losses caused by events beyond reasonable control, such as weather, equipment failure, or force majeure.'],
+    ['Governing Law', 'This Agreement follows the laws of the Republic of the Philippines.'],
+  ];
 
   function todayStr() {
     const d = new Date();
@@ -2822,7 +2837,7 @@
             ${docDueCells.map(c => c.blank ? `<div></div>` : `
               <div data-action="doc-due-pick" data-date="${c.dateStr}" style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12.5px;font-weight:600;background:${c.bg};border:1px solid ${c.border};color:${c.textColor}">${c.dayNum}</div>`).join('')}
           </div>
-          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:10px">${docType === 'quotation' ? 'Auto-set to 30 days after the issue date — click a date here to override.' : 'Auto-set to 10 days after the invoice date — click a date here to override.'}</div>
+          <div style="font-size:11px;color:oklch(0.5 0.015 150);margin-top:10px">${docType === 'quotation' ? 'Auto set to 30 days after the issue date. Tap a date here to override.' : 'Auto set to 3 days after the invoice date. Tap a date here to override.'}</div>
           ${docType === 'quotation' ? `<button type="button" data-action="doc-due-clear" style="all:unset;cursor:pointer;color:oklch(0.55 0.18 25);font-size:11.5px;font-weight:700;margin-top:8px;display:inline-block">✕ No expiry (clear date)</button>` : ''}
         </div>` : ''}
       </div>`;
@@ -3039,7 +3054,7 @@
             <span>${esc(it.label)}</span><span style="font-weight:600;flex:none">${it.amount != null ? fmtMoneyCur(it.amount, d.currency) : '—'}</span>
           </div>`).join('')}
         </div>` : `
-        <div style="font-size:13px;line-height:1.7;margin-bottom:18px">${esc(meta.body(d))}</div>`}
+        <div style="font-size:13px;line-height:1.7;margin-bottom:16px">${esc(meta.body(d))}</div>${docType === 'contract' ? `<div style="font-size:9.5px;font-weight:700;color:oklch(0.4 0.13 150);text-transform:uppercase;letter-spacing:0.04em;margin:2px 0 8px">Terms and Conditions</div><div style="margin-bottom:6px">${CONTRACT_CLAUSES.map((c, ci) => `<div style="padding:9px 0;border-bottom:1px solid oklch(0 0 0 / 0.05)"><div style="font-size:12px;font-weight:700;margin-bottom:2px">${ci + 1}. ${c[0]}</div><div style="font-size:11.5px;color:oklch(0.42 0.02 150);line-height:1.55">${c[1]}</div></div>`).join('')}</div>` : ''}`}
         ${isInvoice && d.packageTotal ? `
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;width:230px;font-size:12px;color:oklch(0.5 0.015 150)"><span>Total Package</span><span>${fmtMoneyCur(d.packageTotal, d.currency)}</span></div>
@@ -5001,7 +5016,7 @@
       case 'doc-date-cal-prev': setState(s => { let m = s.docDateCalMonth - 1, y = s.docDateCalYear; if (m < 0) { m = 11; y--; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
       case 'doc-date-cal-next': setState(s => { let m = s.docDateCalMonth + 1, y = s.docDateCalYear; if (m > 11) { m = 0; y++; } return { docDateCalMonth: m, docDateCalYear: y }; }); break;
       case 'doc-date-pick': setState(s => ({
-        docDraft: { ...s.docDraft, date: el.dataset.date, dueDate: addDays(el.dataset.date, s.docType === 'quotation' ? 30 : 10) },
+        docDraft: { ...s.docDraft, date: el.dataset.date, dueDate: addDays(el.dataset.date, s.docType === 'quotation' ? 30 : 3) },
         docDatePickerOpen: false,
       })); break;
       case 'doc-due-toggle': setState(s => ({ docDuePickerOpen: !s.docDuePickerOpen, docDatePickerOpen: false })); break;
@@ -5486,7 +5501,21 @@
       const bodyLines = doc.splitTextToSize(sanitizePeso(meta.body(d, pdfFmtMoney)), contentW);
       ensureSpace(bodyLines.length * 15 + 10);
       bodyLines.forEach(line => { doc.text(line, marginX, y); y += 15; });
-      y += 16;
+      y += 12;
+      // Terms and Conditions clauses (contract)
+      ensureSpace(24);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+      doc.text('TERMS AND CONDITIONS', marginX, y); y += 16;
+      CONTRACT_CLAUSES.forEach((cl, ci) => {
+        const cLines = doc.splitTextToSize(cl[1], contentW - 14);
+        ensureSpace(14 + cLines.length * 12 + 9);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...INK);
+        doc.text((ci + 1) + '. ' + cl[0], marginX, y); y += 13;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...GRAY);
+        cLines.forEach(ln => { doc.text(ln, marginX + 14, y); y += 12; });
+        y += 7;
+      });
+      y += 6;
     }
 
     // ---- invoice: package summary (total package minus what's already paid) ----
@@ -5613,18 +5642,22 @@
 
     // ---- signature block (contract only) ----
     if (docType === 'contract') {
-      ensureSpace(90);
-      y += 20;
+      ensureSpace(116);
+      y += 16;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BRAND);
+      doc.text('CONFORME', marginX, y); y += 20;
       const sigW = colW;
       doc.setDrawColor(...INK); doc.setLineWidth(0.75);
       doc.line(marginX, y, marginX + sigW, y);
       doc.line(marginX + sigW + 24, y, marginX + sigW + 24 + sigW, y);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY);
-      doc.text('Client Signature', marginX, y + 14);
+      doc.text('Client Signature over Printed Name', marginX, y + 14);
       doc.text('Pol Film Productions', marginX + sigW + 24, y + 14);
-      doc.text(`Printed Name: ${d.clientName || '_______________'}`, marginX, y + 28);
-      doc.text('Printed Name: _______________', marginX + sigW + 24, y + 28);
-      y += 44;
+      doc.text(`Name: ${d.clientName || '_______________'}`, marginX, y + 28);
+      doc.text('Name: John Pol Nuestro', marginX + sigW + 24, y + 28);
+      doc.text('Date: _______________', marginX, y + 42);
+      doc.text('Date: _______________', marginX + sigW + 24, y + 42);
+      y += 56;
     }
 
     // ---- footer ----
