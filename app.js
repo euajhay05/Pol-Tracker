@@ -122,7 +122,7 @@
   // Single source of truth for a fresh billing-document draft (was duplicated verbatim in
   // several places, which drifted whenever a field was added).
   function blankDocDraft(invoiceNumber) {
-    return { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber, dueDate: addDays(TODAY_STR, 10), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true, billingKind: 'soa' };
+    return { clientName: '', description: '', amount: '', date: TODAY_STR, notes: '', invoiceNumber, dueDate: addDays(TODAY_STR, 3), clientContact: '', lineItems: '', paymentDetails: '', paymentStatus: 'Unpaid', packageTotal: '', paidToDate: '', milestoneLabel: '', currency: 'PHP', includeQr: true, billingKind: 'soa' };
   }
   function fmtMoney(n) {
     n = Number(n) || 0;
@@ -4520,7 +4520,7 @@
         }
         setState(s => ({
           view: 'docs', docType: 'invoice', modal: null, draft: null, docsHistoryOpen: false,
-          docDraft: { ...s.docDraft, clientName: dr.client || '', clientContact: contact || s.docDraft.clientContact, description: desc, date: TODAY_STR, dueDate: addDays(TODAY_STR, 10), invoiceNumber: nextInvoiceNumber(s, kind), notes: s.docDraft.notes || '', ...extra },
+          docDraft: { ...s.docDraft, clientName: dr.client || '', clientContact: contact || s.docDraft.clientContact, description: desc, date: TODAY_STR, dueDate: addDays(TODAY_STR, 3), invoiceNumber: nextInvoiceNumber(s, kind), notes: s.docDraft.notes || '', ...extra },
         }));
         try { localStorage.setItem('shoottracker_last_view', 'docs'); } catch (e) { /* ignore */ }
         break;
