@@ -1095,6 +1095,17 @@
     });
   }
 
+  // Sets every count-up element straight to its final value, with no animation. Used when the
+  // dashboard re-renders and the one-time count-up has already played: without this, a re-render
+  // leaves the numbers stuck on their "0" placeholder (e.g. after the background USD rate fetch).
+  function setCountUpsFinal(root) {
+    root.querySelectorAll('[data-count-up]').forEach(el => {
+      const target = Number(el.dataset.countUp) || 0;
+      const prefix = el.dataset.countPrefix || '';
+      el.textContent = prefix + target.toLocaleString('en-PH');
+    });
+  }
+
   function setState(patch) {
     const partial = typeof patch === 'function' ? patch(state) : patch;
     const changedKeys = PERSIST_KEYS.filter(k => k in partial);
@@ -4367,6 +4378,8 @@
         dashboardCountUpDone = true;
         dashboardCountUpMonthKey = ctx.dashMonthKey;
         animateCountUps(app);
+      } else {
+        setCountUpsFinal(app);
       }
     } else {
       dashboardCountUpDone = false;
