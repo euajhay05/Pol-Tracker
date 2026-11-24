@@ -5688,6 +5688,17 @@
 
   function applyBind(path, value) {
     state = setPath(state, path, value);
+    // Invoice and quotation: when the typed line items carry prices, keep the total (amount) in
+    // sync with their sum automatically, so the total never has to be typed a second time. Only
+    // fires on user typing (applyBind is not used by the shoot to document auto fill), and the
+    // amount stays manually overridable until the line items are edited again.
+    if (path === 'docDraft.lineItems') {
+      const priced = parseLineItems(value).filter(it => it.amount != null);
+      if (priced.length) {
+        const sum = priced.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+        state = setPath(state, 'docDraft.amount', sum);
+      }
+    }
   }
 
   function applySpecialSideEffect(special, value) {
